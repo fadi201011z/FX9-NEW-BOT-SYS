@@ -1,0 +1,112 @@
+{
+  "guilds": {
+    "1513536796175237332": {
+      "guildId": "1513536796175237332",
+      "supportRoleIds": [
+        "1513565656589795458"
+      ],
+      "ticketCounter": 4,
+      "ticketCategoryId": "1513536834523627591",
+      "adminCategoryId": "1513536852991410216",
+      "panelChannelId": "1513536796842266676"
+    },
+    "1494711310460391646": {
+      "guildId": "1494711310460391646",
+      "supportRoleIds": [],
+      "ticketCounter": 0
+    }
+  },
+  "tickets": {
+    "FX9-0001": {
+      "ticketId": "FX9-0001",
+      "channelId": "1513615383133687981",
+      "adminChannelId": "1513615385180770527",
+      "guildId": "1513536796175237332",
+      "userId": "1050469935089983488",
+      "username": "f.993",
+      "category": "complaint",
+      "title": "azeaz",
+      "description": "eaze",
+      "evidence": "azeaze",
+      "priority": "medium",
+      "status": "closed",
+      "openedAt": 1780941221256,
+      "lastActivity": 1780941244137,
+      "inactivityWarned": false,
+      "claimedBy": "1050469935089983488",
+      "claimedByUsername": "f.993",
+      "closedAt": 1780941258761,
+      "rating": 3,
+      "ratedBy": "1050469935089983488"
+    },
+    "FX9-0002": {
+      "ticketId": "FX9-0002",
+      "channelId": "1513629117256433828",
+      "adminChannelId": "1513629118695211199",
+      "guildId": "1513536796175237332",
+      "userId": "1050469935089983488",
+      "username": "f.993",
+      "category": "technical",
+      "title": "ضثضص",
+      "description": "ثضصثضصث",
+      "priority": "medium",
+      "status": "closed",
+      "openedAt": 1780944495538,
+      "lastActivity": 1780944495538,
+      "inactivityWarned": false,
+      "closedAt": 1780945161354,
+      "rating": 1,
+      "ratedBy": "1050469935089983488"
+    },
+    "FX9-0003": {
+      "ticketId": "FX9-0003",
+      "channelId": "1513695012632662097",
+      "adminChannelId": "1513695013916377179",
+      "guildId": "1513536796175237332",
+      "userId": "1050469935089983488",
+      "username": "f.993",
+      "category": "complaint",
+      "title": "aze",
+      "description": "azeaze",
+      "priority": "medium",
+      "status": "closed",
+      "openedAt": 1780960206026,
+      "lastActivity": 1780960940091,
+      "inactivityWarned": false,
+      "claimedBy": "1050469935089983488",
+      "claimedByUsername": "f.993",
+      "closedAt": 1780960940384,
+      "rating": 2,
+      "ratedBy": "1050469935089983488"
+    },
+    "FX9-0004": {
+      "ticketId": "FX9-0004",
+      "channelId": "1513698273716863086",
+      "adminChannelId": "1513698275297984712",
+      "guildId": "1513536796175237332",
+      "userId": "1050469935089983488",
+      "username": "f.993",
+      "category": "technical",
+      "title": "eaze",
+      "description": "azeaze",
+      "priority": "medium",
+      "status": "closed",
+      "openedAt": 1780960983526,
+      "lastActivity": 1780961145882,
+      "inactivityWarned": false,
+      "closedAt": 1780961146215,
+      "rating": 5,
+      "ratedBy": "1050469935089983488"
+    }
+  },
+  "adminStats": {
+    "1050469935089983488": {
+      "adminId": "1050469935089983488",
+      "username": "f.993",
+      "claimed": 2,
+      "closed": 2,
+      "totalRating": 5,
+      "ratingCount": 2
+    }
+  }
+}
