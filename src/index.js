@@ -36,10 +36,10 @@ app.post('/api/sync-all-configs', async (req, res) => {
   try {
     const { setCommandConfig } = await import('./database.js');
     for (const cfg of configs) {
-      await setCommandConfig(guildId, cfg.command_name, {
-        enabled: cfg.enabled === 1 || cfg.enabled === true,
-        allowedRoles: cfg.allowed_roles ? JSON.parse(cfg.allowed_roles) : [],
-        blockedRoles: cfg.blocked_roles ? JSON.parse(cfg.blocked_roles) : [],
+      await setCommandConfig(guildId, cfg.commandName || cfg.command_name, {
+        enabled: cfg.enabled === true || cfg.enabled === 1,
+        allowedRoles: cfg.allowedRoles || (cfg.allowed_roles ? JSON.parse(cfg.allowed_roles) : []),
+        blockedRoles: cfg.blockedRoles || (cfg.blocked_roles ? JSON.parse(cfg.blocked_roles) : []),
       });
     }
     res.json({ synced: true, count: configs.length });
