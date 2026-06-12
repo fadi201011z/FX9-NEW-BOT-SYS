@@ -142,6 +142,25 @@ client.once('ready', async () => {
     res.json({ guilds, members, ping });
   });
 
+  // Guild roles with member counts for dashboard
+  app.get('/api/guilds/:guildId/roles', (req, res) => {
+    const guild = client.guilds.cache.get(req.params.guildId);
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+    const roles = guild.roles.cache.map(r => ({
+      id: r.id,
+      name: r.name,
+      color: r.color,
+      hoist: r.hoist,
+      position: r.position,
+      permissions: r.permissions.bitfield.toString(),
+      managed: r.managed,
+      mentionable: r.mentionable,
+      tags: r.tags,
+      members_count: r.members.size,
+    }));
+    res.json(roles);
+  });
+
   // Restore ticket panels
   const { restoreAllPanels } = await import('./handlers/ticketHandler.js');
   await restoreAllPanels(client);
