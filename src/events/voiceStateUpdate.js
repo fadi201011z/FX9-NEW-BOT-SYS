@@ -72,6 +72,7 @@ export async function execute(oldState, newState) {
           ownerId:       member.id,
           guildId:       guild.id,
           textChannelId: setup.textChannelId,
+          name:          vc.name,
         });
 
         await refreshPanel(newState.client, guild.id);
