@@ -68,7 +68,7 @@ export async function execute(oldState, newState) {
 
         await member.voice.setChannel(vc).catch(() => {});
 
-        registerChannel(vc.id, {
+        await registerChannel(vc.id, {
           ownerId:       member.id,
           guildId:       guild.id,
           textChannelId: setup.textChannelId,
@@ -92,7 +92,7 @@ export async function execute(oldState, newState) {
         if (!vc || vc.members.size === 0) {
           try {
             if (vc) await vc.delete('Empty temp VC').catch(() => {});
-            deleteChannel(oldState.channelId);
+            await deleteChannel(oldState.channelId);
             await refreshPanel(newState.client, guild.id);
             console.log(`[TempVC] 🗑️ Deleted: ${oldState.channelId}`);
           } catch (err) {

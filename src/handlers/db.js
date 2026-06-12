@@ -8,12 +8,20 @@ export async function loadGuilds() {
   return map;
 }
 
-export function saveGuild(guildId, cfg) {
-  return GuildSetup.findOneAndUpdate({ guildId }, cfg, { upsert: true }).catch(() => {});
+export async function saveGuild(guildId, cfg) {
+  try {
+    await GuildSetup.findOneAndUpdate({ guildId }, cfg, { upsert: true });
+  } catch (err) {
+    console.error('[DB] saveGuild error:', err.message);
+  }
 }
 
-export function deleteGuild(guildId) {
-  return GuildSetup.deleteOne({ guildId }).catch(() => {});
+export async function deleteGuild(guildId) {
+  try {
+    await GuildSetup.deleteOne({ guildId });
+  } catch (err) {
+    console.error('[DB] deleteGuild error:', err.message);
+  }
 }
 
 export async function loadActiveChannels() {
@@ -23,10 +31,18 @@ export async function loadActiveChannels() {
   return map;
 }
 
-export function saveActiveChannel(vcId, data) {
-  return VoiceChannel.findOneAndUpdate({ vcId }, data, { upsert: true }).catch(() => {});
+export async function saveActiveChannel(vcId, data) {
+  try {
+    await VoiceChannel.findOneAndUpdate({ vcId }, data, { upsert: true });
+  } catch (err) {
+    console.error('[DB] saveActiveChannel error:', err.message);
+  }
 }
 
-export function removeActiveChannel(vcId) {
-  return VoiceChannel.deleteOne({ vcId }).catch(() => {});
+export async function removeActiveChannel(vcId) {
+  try {
+    await VoiceChannel.deleteOne({ vcId });
+  } catch (err) {
+    console.error('[DB] removeActiveChannel error:', err.message);
+  }
 }

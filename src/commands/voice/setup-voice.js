@@ -35,7 +35,7 @@ export async function execute(interaction) {
     panelMessageId: null,
   };
 
-  setGuildSetup(interaction.guildId, config);
+  await setGuildSetup(interaction.guildId, config);
 
   // Delete old panel if exists, then send fresh one
   try {
@@ -49,7 +49,7 @@ export async function execute(interaction) {
 
   const panel = buildStatusPanel(config, 0);
   const msg = await textCh.send(panel);
-  updatePanelMessageId(interaction.guildId, msg.id);
+  await updatePanelMessageId(interaction.guildId, msg.id);
 
   await interaction.editReply({
     embeds: [

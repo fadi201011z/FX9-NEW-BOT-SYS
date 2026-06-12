@@ -11,33 +11,33 @@ export async function loadFromDisk() {
   console.log(`[TempVC] Loaded ${guildSetups.size} guild(s), ${activeChannels.size} active channel(s)`);
 }
 
-export function setGuildSetup(guildId, config) {
+export async function setGuildSetup(guildId, config) {
   guildSetups.set(guildId, config);
-  db.saveGuild(guildId, config);
+  await db.saveGuild(guildId, config);
 }
 
 export function getGuildSetup(guildId) { return guildSetups.get(guildId) || null; }
 
 export function getAllSetups() { return guildSetups; }
 
-export function updatePanelMessageId(guildId, messageId) {
+export async function updatePanelMessageId(guildId, messageId) {
   const cfg = guildSetups.get(guildId);
   if (!cfg) return;
   cfg.panelMessageId = messageId;
   guildSetups.set(guildId, cfg);
-  db.saveGuild(guildId, cfg);
+  await db.saveGuild(guildId, cfg);
 }
 
-export function registerChannel(vcId, data) {
+export async function registerChannel(vcId, data) {
   activeChannels.set(vcId, data);
-  db.saveActiveChannel(vcId, data);
+  await db.saveActiveChannel(vcId, data);
 }
 
 export function getChannel(vcId) { return activeChannels.get(vcId) || null; }
 
-export function deleteChannel(vcId) {
+export async function deleteChannel(vcId) {
   activeChannels.delete(vcId);
-  db.removeActiveChannel(vcId);
+  await db.removeActiveChannel(vcId);
 }
 
 export function isOwner(vcId, userId) { return activeChannels.get(vcId)?.ownerId === userId; }
@@ -118,9 +118,9 @@ export async function cleanStaleChannels(client) {
   let cleaned = 0;
   for (const [vcId, data] of activeChannels) {
     const guild = client.guilds.cache.get(data.guildId);
-    if (!guild) { deleteChannel(vcId); cleaned++; continue; }
+    if (!guild) { await deleteChannel(vcId); cleaned++; continue; }
     const vc = guild.channels.cache.get(vcId);
-    if (!vc) { deleteChannel(vcId); cleaned++; }
+    if (!vc) { await deleteChannel(vcId); cleaned++; }
   }
   if (cleaned > 0) console.log(`[TempVC] 🧹 Cleaned ${cleaned} stale channel entries`);
 }
