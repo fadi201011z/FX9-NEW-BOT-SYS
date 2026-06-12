@@ -161,10 +161,11 @@ client.once('ready', async () => {
     res.json(roles);
   });
 
-  // Guild members from cache
-  app.get('/api/guilds/:guildId/members', (req, res) => {
+  // Guild members (fetches all via Gateway to populate cache)
+  app.get('/api/guilds/:guildId/members', async (req, res) => {
     const guild = client.guilds.cache.get(req.params.guildId);
     if (!guild) return res.status(404).json({ error: 'Guild not found' });
+    try { await guild.members.fetch(); } catch {}
     const members = guild.members.cache.map(m => ({
       id: m.user.id,
       username: m.user.username,
@@ -176,11 +177,12 @@ client.once('ready', async () => {
     res.json(members);
   });
 
-  // Guild members filtered by role IDs (comma-separated)
-  app.get('/api/guilds/:guildId/members-by-roles', (req, res) => {
+  // Guild members filtered by role IDs (fetches all via Gateway)
+  app.get('/api/guilds/:guildId/members-by-roles', async (req, res) => {
     const guild = client.guilds.cache.get(req.params.guildId);
     if (!guild) return res.status(404).json({ error: 'Guild not found' });
     const roleIds = req.query.roleIds ? req.query.roleIds.split(',') : [];
+    try { await guild.members.fetch(); } catch {}
     const members = guild.members.cache
       .filter(m => m.roles.cache.some(r => roleIds.includes(r.id)))
       .map(m => ({
