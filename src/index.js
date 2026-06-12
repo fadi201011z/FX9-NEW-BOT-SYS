@@ -161,6 +161,46 @@ client.once('ready', async () => {
     res.json(roles);
   });
 
+  // Guild members from cache
+  app.get('/api/guilds/:guildId/members', (req, res) => {
+    const guild = client.guilds.cache.get(req.params.guildId);
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+    const members = guild.members.cache.map(m => ({
+      id: m.user.id,
+      username: m.user.username,
+      globalName: m.user.globalName,
+      displayName: m.displayName,
+      avatar: m.user.avatar,
+      roles: m.roles.cache.map(r => r.id),
+    }));
+    res.json(members);
+  });
+
+  // Guild members filtered by role IDs (comma-separated)
+  app.get('/api/guilds/:guildId/members-by-roles', (req, res) => {
+    const guild = client.guilds.cache.get(req.params.guildId);
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+    const roleIds = req.query.roleIds ? req.query.roleIds.split(',') : [];
+    const members = guild.members.cache
+      .filter(m => m.roles.cache.some(r => roleIds.includes(r.id)))
+      .map(m => ({
+        id: m.user.id,
+        username: m.user.username,
+        globalName: m.user.globalName,
+        displayName: m.displayName,
+        avatar: m.user.avatar,
+        roles: m.roles.cache.map(r => r.id),
+      }));
+    res.json(members);
+  });
+
+  // Single user info from bot cache
+  app.get('/api/users/:userId', (req, res) => {
+    const user = client.users.cache.get(req.params.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ id: user.id, username: user.username, globalName: user.globalName, avatar: user.avatar });
+  });
+
   // Restore ticket panels
   const { restoreAllPanels } = await import('./handlers/ticketHandler.js');
   await restoreAllPanels(client);
