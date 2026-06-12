@@ -169,4 +169,18 @@ export function loadCommandConfigsFromDB() {
   console.log(`[Commands] Loaded ${rows.length} configs from DB`);
 }
 
+export function deleteGuildData(guildId) {
+  db.prepare('DELETE FROM guild_config WHERE guild_id = ?').run(guildId);
+  db.prepare('DELETE FROM warnings WHERE guild_id = ?').run(guildId);
+  db.prepare('DELETE FROM anti_spam WHERE guild_id = ?').run(guildId);
+  db.prepare('DELETE FROM anti_nuke WHERE guild_id = ?').run(guildId);
+  db.prepare('DELETE FROM command_config WHERE guild_id = ?').run(guildId);
+  db.prepare('DELETE FROM dashboard_admins WHERE guild_id = ?').run(guildId);
+  db.prepare('DELETE FROM guild_admin_roles WHERE guild_id = ?').run(guildId);
+  db.prepare('DELETE FROM admin_activity WHERE guild_id = ?').run(guildId);
+  db.prepare('DELETE FROM alerts WHERE guild_id = ?').run(guildId);
+  db.prepare('DELETE FROM audit_logs WHERE guild_id = ?').run(guildId);
+  db.prepare('DELETE FROM backup_history WHERE guild_id = ?').run(guildId);
+}
+
 export default db;
