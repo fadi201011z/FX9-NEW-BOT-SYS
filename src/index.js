@@ -134,6 +134,14 @@ client.once('ready', async () => {
   // Clean stale temp voice channels
   await cleanStaleChannels(client);
 
+  // Bot stats endpoint for dashboard
+  app.get('/api/stats', (req, res) => {
+    const guilds = client.guilds.cache.size;
+    const members = client.guilds.cache.reduce((sum, g) => sum + g.memberCount, 0);
+    const ping = client.ws.ping;
+    res.json({ guilds, members, ping });
+  });
+
   // Restore ticket panels
   const { restoreAllPanels } = await import('./handlers/ticketHandler.js');
   await restoreAllPanels(client);
