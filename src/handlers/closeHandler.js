@@ -24,13 +24,13 @@ export async function handleCloseTicket(client, interaction) {
 
   ticket.status   = "closed";
   ticket.closedAt = Date.now();
-  saveTicket(ticket);
+  await saveTicket(ticket);
 
   if (ticket.claimedBy) {
     const stats = getAdminStats(ticket.claimedBy);
     stats.username = ticket.claimedByUsername ?? "Unknown";
     stats.closed   = (stats.closed ?? 0) + 1;
-    saveAdminStats(stats);
+    await saveAdminStats(stats);
   }
 
   const closeEmbed = logEmbed("🔒 تم إغلاق التكت", COLOR.red, [
@@ -105,13 +105,13 @@ export async function handleRatingButton(client, interaction) {
 
   ticket.rating  = rating;
   ticket.ratedBy = interaction.user.id;
-  saveTicket(ticket);
+  await saveTicket(ticket);
 
   if (ticket.claimedBy) {
     const stats = getAdminStats(ticket.claimedBy);
     stats.totalRating = (stats.totalRating ?? 0) + rating;
     stats.ratingCount = (stats.ratingCount ?? 0) + 1;
-    saveAdminStats(stats);
+    await saveAdminStats(stats);
   }
 
   const stars   = "⭐".repeat(rating);

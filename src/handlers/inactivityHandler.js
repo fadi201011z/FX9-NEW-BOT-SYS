@@ -9,12 +9,12 @@ export function startInactivityMonitor(client) {
   console.log("  ⏰  مراقب الخمول يعمل (فحص كل 30 دقيقة)");
 }
 
-export function updateTicketActivity(channelId) {
+export async function updateTicketActivity(channelId) {
   const t = getTicket(channelId);
   if (t && t.status !== "closed") {
     t.lastActivity     = Date.now();
     t.inactivityWarned = false;
-    saveTicket(t);
+    await saveTicket(t);
   }
 }
 
@@ -34,7 +34,7 @@ async function warn(client, ticket) {
     const ch = client.channels.cache.get(ticket.channelId);
     if (!ch) return;
     ticket.inactivityWarned = true;
-    saveTicket(ticket);
+    await saveTicket(ticket);
     await ch.send({ content: `<@${ticket.userId}>`, embeds: [inactivityEmbed(ticket.ticketId)] });
 
     if (ticket.adminChannelId) {
@@ -48,7 +48,7 @@ async function autoClose(client, ticket) {
   try {
     ticket.status   = "closed";
     ticket.closedAt = Date.now();
-    saveTicket(ticket);
+    await saveTicket(ticket);
 
     const config = getGuildConfig(ticket.guildId);
     const embed  = logEmbed("🔒 إغلاق تلقائي (خمول)", COLOR.red, [

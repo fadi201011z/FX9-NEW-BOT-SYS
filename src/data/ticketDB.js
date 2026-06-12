@@ -40,30 +40,38 @@ export function getGuildConfig(guildId) {
   return guildConfigs.get(guildId);
 }
 
-export function saveGuildConfig(config) {
+export async function saveGuildConfig(config) {
   guildConfigs.set(config.guildId, config);
-  TicketGuildConfig.findOneAndUpdate(
-    { guildId: config.guildId },
-    {
-      guildId: config.guildId,
-      ticketCategoryId: config.ticketCategoryId ?? '',
-      adminCategoryId: config.adminCategoryId ?? '',
-      panelChannelId: config.panelChannelId ?? '',
-      logChannelId: config.logChannelId ?? '',
-      supportRoleIds: config.supportRoleIds ?? [],
-      ticketCounter: config.ticketCounter ?? 0,
-    },
-    { upsert: true, new: true }
-  ).catch(err => console.error('[TicketDB] saveGuildConfig error:', err.message));
+  try {
+    await TicketGuildConfig.findOneAndUpdate(
+      { guildId: config.guildId },
+      {
+        guildId: config.guildId,
+        ticketCategoryId: config.ticketCategoryId ?? '',
+        adminCategoryId: config.adminCategoryId ?? '',
+        panelChannelId: config.panelChannelId ?? '',
+        logChannelId: config.logChannelId ?? '',
+        supportRoleIds: config.supportRoleIds ?? [],
+        ticketCounter: config.ticketCounter ?? 0,
+      },
+      { upsert: true, new: true }
+    );
+  } catch (err) {
+    console.error('[TicketDB] saveGuildConfig error:', err.message);
+  }
 }
 
-export function saveTicket(ticket) {
+export async function saveTicket(ticket) {
   indexTicket(ticket);
-  Ticket.findOneAndUpdate(
-    { ticketId: ticket.ticketId },
-    ticket,
-    { upsert: true, new: true }
-  ).catch(err => console.error('[TicketDB] saveTicket error:', err.message));
+  try {
+    await Ticket.findOneAndUpdate(
+      { ticketId: ticket.ticketId },
+      ticket,
+      { upsert: true, new: true }
+    );
+  } catch (err) {
+    console.error('[TicketDB] saveTicket error:', err.message);
+  }
 }
 
 export function getAllOpenTickets(guildId) {
@@ -97,13 +105,17 @@ export function getAdminStats(adminId) {
   return adminStatsMap.get(adminId);
 }
 
-export function saveAdminStats(stats) {
+export async function saveAdminStats(stats) {
   adminStatsMap.set(stats.adminId, stats);
-  AdminStats.findOneAndUpdate(
-    { adminId: stats.adminId },
-    stats,
-    { upsert: true, new: true }
-  ).catch(err => console.error('[TicketDB] saveAdminStats error:', err.message));
+  try {
+    await AdminStats.findOneAndUpdate(
+      { adminId: stats.adminId },
+      stats,
+      { upsert: true, new: true }
+    );
+  } catch (err) {
+    console.error('[TicketDB] saveAdminStats error:', err.message);
+  }
 }
 
 export function getAllAdminStats() {

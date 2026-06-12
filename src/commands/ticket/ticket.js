@@ -63,7 +63,7 @@ export async function execute(interaction) {
     if (!t) { await interaction.editReply({ content: "❌ هذه القناة ليست تكتاً." }); return; }
     const user = interaction.options.getUser("user", true);
     await interaction.channel.permissionOverwrites.edit(user.id, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true });
-    t.lastActivity = Date.now(); saveTicket(t);
+    t.lastActivity = Date.now(); await saveTicket(t);
     await interaction.channel.send({ embeds: [logEmbed("➕ تمت إضافة عضو", COLOR.green, [{ name: "العضو", value: `<@${user.id}>`, inline: true }, { name: "بواسطة", value: `<@${interaction.user.id}>`, inline: true }])] });
     await interaction.editReply({ content: `✅ تم إضافة <@${user.id}>.` });
 
@@ -74,7 +74,7 @@ export async function execute(interaction) {
     const user = interaction.options.getUser("user", true);
     if (user.id === t.userId) { await interaction.editReply({ content: "❌ لا يمكن إزالة صاحب التكت." }); return; }
     await interaction.channel.permissionOverwrites.edit(user.id, { ViewChannel: false });
-    t.lastActivity = Date.now(); saveTicket(t);
+    t.lastActivity = Date.now(); await saveTicket(t);
     await interaction.channel.send({ embeds: [logEmbed("➖ تمت إزالة عضو", COLOR.red, [{ name: "العضو", value: `<@${user.id}>`, inline: true }, { name: "بواسطة", value: `<@${interaction.user.id}>`, inline: true }])] });
     await interaction.editReply({ content: `✅ تم إزالة <@${user.id}>.` });
 
@@ -122,7 +122,7 @@ export async function execute(interaction) {
     const t = getTicket(interaction.channelId);
     if (!t) { await interaction.editReply({ content: "❌ هذه القناة ليست تكتاً." }); return; }
     const level = interaction.options.getString("level", true);
-    t.priority = level; t.lastActivity = Date.now(); saveTicket(t);
+    t.priority = level; t.lastActivity = Date.now(); await saveTicket(t);
     const pColor = { high: COLOR.red, medium: COLOR.blue, low: COLOR.green };
     await interaction.channel.send({ embeds: [new EmbedBuilder().setColor(pColor[level]).setTitle("🎯 تم تغيير الأولوية").setDescription(`الأولوية الجديدة: **${PRIORITY_LABEL[level]}**`).setFooter({ text: `بواسطة: ${interaction.user.username}` }).setTimestamp()] });
     await interaction.editReply({ content: `✅ الأولوية: **${PRIORITY_LABEL[level]}**` });

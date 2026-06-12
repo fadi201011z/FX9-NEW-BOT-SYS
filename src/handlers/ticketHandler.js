@@ -51,7 +51,7 @@ export async function handleTicketModalSubmit(client, interaction) {
   const evidence = interaction.fields.getTextInputValue("evidence") || undefined;
 
   config.ticketCounter = (config.ticketCounter ?? 0) + 1;
-  saveGuildConfig(config);
+  await saveGuildConfig(config);
 
   const ticketId = `FX9-${config.ticketCounter.toString().padStart(4, "0")}`;
   const chanName = `${config.ticketCounter}-${CATEGORY_SLUG[category] ?? "تكت"}`;
@@ -118,7 +118,7 @@ export async function handleTicketModalSubmit(client, interaction) {
     lastActivity: Date.now(),
     inactivityWarned: false,
   };
-  saveTicket(ticket);
+  await saveTicket(ticket);
 
   const supportMentions = config.supportRoleIds?.map((id) => `<@&${id}>`).join(" ") || "";
   const userMsg = await userChannel.send({
@@ -187,12 +187,12 @@ export async function handleClaimTicket(client, interaction) {
   ticket.claimedBy = interaction.user.id;
   ticket.claimedByUsername = interaction.user.username;
   ticket.lastActivity = Date.now();
-  saveTicket(ticket);
+  await saveTicket(ticket);
 
   const stats = getAdminStats(interaction.user.id);
   stats.username = interaction.user.username;
   stats.claimed = (stats.claimed ?? 0) + 1;
-  saveAdminStats(stats);
+  await saveAdminStats(stats);
 
   const isAdminChannel = interaction.channelId === ticket.adminChannelId;
   await interaction.message.edit({
@@ -252,7 +252,7 @@ export async function handleUnclaimTicket(client, interaction) {
   ticket.claimedBy = undefined;
   ticket.claimedByUsername = undefined;
   ticket.lastActivity = Date.now();
-  saveTicket(ticket);
+  await saveTicket(ticket);
 
   const isAdminChannel = interaction.channelId === ticket.adminChannelId;
   await interaction.message.edit({ components: ticketButtons(false, undefined, isAdminChannel) });
@@ -314,7 +314,7 @@ export async function handleRenameModalSubmit(client, interaction) {
     await adminCh?.setName(adminName).catch(() => null);
   }
 
-  if (ticket) { ticket.lastActivity = Date.now(); saveTicket(ticket); }
+  if (ticket) { ticket.lastActivity = Date.now(); await saveTicket(ticket); }
   await interaction.editReply({ content: `✅ تم تغيير الاسم إلى: **${finalName}**` });
 }
 
@@ -346,7 +346,7 @@ export async function handleQuickReply(client, interaction) {
     const userCh = await client.channels.fetch(ticket.channelId).catch(() => null);
     await userCh?.send({ content: reply });
     ticket.lastActivity = Date.now();
-    saveTicket(ticket);
+    await saveTicket(ticket);
   }
 
   await interaction.reply({ content: `✅ تم إرسال الرد للعضو.`, ephemeral: true });
