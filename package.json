@@ -5,10 +5,10 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "start": "node --experimental-sqlite src/index.js",
-    "dev": "node --experimental-sqlite --watch src/index.js",
-    "deploy": "node --experimental-sqlite src/deploy-commands.js",
-    "deploy:global": "node --experimental-sqlite src/deploy-commands.js global"
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "deploy": "node src/deploy-commands.js",
+    "deploy:global": "node src/deploy-commands.js global"
   },
   "dependencies": {
     "@discordjs/rest": "^2.4.0",
@@ -19,6 +19,7 @@
     "ffmpeg-static": "^5.2.0",
     "fs-extra": "^11.2.0",
     "libsodium-wrappers": "^0.7.15",
+    "mongoose": "^9.7.0",
     "opusscript": "^0.1.1",
     "youtube-sr": "^4.3.11"
   }

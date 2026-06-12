@@ -4,9 +4,8 @@ import * as db from './db.js';
 const guildSetups = new Map();
 const activeChannels = new Map();
 
-export function loadFromDisk() {
-  const guilds = db.loadGuilds();
-  const channels = db.loadActiveChannels();
+export async function loadFromDisk() {
+  const [guilds, channels] = await Promise.all([db.loadGuilds(), db.loadActiveChannels()]);
   for (const [id, cfg] of Object.entries(guilds)) guildSetups.set(id, cfg);
   for (const [id, cfg] of Object.entries(channels)) activeChannels.set(id, cfg);
   console.log(`[TempVC] Loaded ${guildSetups.size} guild(s), ${activeChannels.size} active channel(s)`);

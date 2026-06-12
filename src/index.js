@@ -6,7 +6,7 @@ import 'dotenv/config';
 import { initBotLogger, sendOfflineLog, sendErrorLog } from './utils/botLogger.js';
 import express from 'express';
 import { loadFromDisk, cleanStaleChannels } from './handlers/tempVoice.js';
-import { loadData } from './data/ticketDB.js';
+import { loadAllData } from './data/ticketDB.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -21,7 +21,7 @@ app.post('/api/sync-command', async (req, res) => {
   const { guildId, commandName, enabled, allowedRoles, blockedRoles } = req.body;
   if (!guildId || !commandName) return res.status(400).json({ error: 'Missing guildId or commandName' });
   const { setCommandConfig } = await import('./database.js');
-  setCommandConfig(guildId, commandName, {
+  await setCommandConfig(guildId, commandName, {
     enabled: enabled !== undefined ? Boolean(enabled) : true,
     allowedRoles: allowedRoles || [],
     blockedRoles: blockedRoles || [],
@@ -36,7 +36,7 @@ app.post('/api/sync-all-configs', async (req, res) => {
   try {
     const { setCommandConfig } = await import('./database.js');
     for (const cfg of configs) {
-      setCommandConfig(guildId, cfg.command_name, {
+      await setCommandConfig(guildId, cfg.command_name, {
         enabled: cfg.enabled === 1 || cfg.enabled === true,
         allowedRoles: cfg.allowed_roles ? JSON.parse(cfg.allowed_roles) : [],
         blockedRoles: cfg.blocked_roles ? JSON.parse(cfg.blocked_roles) : [],
@@ -117,8 +117,11 @@ for (const file of eventFiles) {
 }
 
 // ─── Load Persistent Data ──────────────────────────────────────────────────
-loadFromDisk();
-loadData();
+await Promise.all([loadFromDisk(), loadAllData()]);
+
+// ─── Load DB Configs ──────────────────────────────────────────────────────
+const { loadCommandConfigsFromDB, loadConfigsFromDB } = await import('./database.js');
+await Promise.all([loadCommandConfigsFromDB(), loadConfigsFromDB()]);
 
 // ─── Ready Handler ─────────────────────────────────────────────────────────
 client.once('ready', async () => {
@@ -182,10 +185,6 @@ client.once('ready', async () => {
     sendErrorLog('استثناء غير محلول', err).catch(() => {});
   });
 });
-
-// ─── Load Command Config ──────────────────────────────────────────────────
-const { loadCommandConfigsFromDB } = await import('./database.js');
-loadCommandConfigsFromDB();
 
 // ─── Login ─────────────────────────────────────────────────────────────────
 if (!process.env.TOKEN) {

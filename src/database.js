@@ -1,121 +1,74 @@
-import { DatabaseSync } from 'node:sqlite';
-import { fileURLToPath } from 'url';
-import path from 'path';
-import fs from 'fs';
+import GuildConfig from './models/GuildConfig.js';
+import Warning from './models/Warning.js';
+import AntiSpam from './models/AntiSpam.js';
+import AntiNuke from './models/AntiNuke.js';
+import CommandConfig from './models/CommandConfig.js';
+import { connectDB } from './models/connection.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dbPath = path.join(__dirname, '..', 'data', 'bot.db');
+await connectDB();
 
-// Ensure data directory exists
-fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+const configCache = new Map();
+const commandConfigs = new Map();
+const warningCache = new Map();
 
-const db = new DatabaseSync(dbPath);
-
-// Enable WAL mode for better performance
-db.exec('PRAGMA journal_mode = WAL;');
-
-// ─── Schema ────────────────────────────────────────────────────────────────
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS guild_config (
-    guild_id TEXT NOT NULL,
-    key TEXT NOT NULL,
-    value TEXT,
-    PRIMARY KEY (guild_id, key)
-  );
-
-  CREATE TABLE IF NOT EXISTS warnings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id TEXT NOT NULL,
-    user_id TEXT NOT NULL,
-    moderator_id TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    timestamp INTEGER NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS anti_spam (
-    guild_id TEXT NOT NULL,
-    user_id TEXT NOT NULL,
-    message_count INTEGER DEFAULT 0,
-    last_reset INTEGER DEFAULT 0,
-    PRIMARY KEY (guild_id, user_id)
-  );
-
-  CREATE TABLE IF NOT EXISTS anti_nuke (
-    guild_id TEXT NOT NULL,
-    user_id TEXT NOT NULL,
-    action TEXT NOT NULL,
-    count INTEGER DEFAULT 0,
-    last_reset INTEGER DEFAULT 0,
-    PRIMARY KEY (guild_id, user_id, action)
-  );
-
-  CREATE TABLE IF NOT EXISTS command_config (
-    guild_id TEXT NOT NULL,
-    command_name TEXT NOT NULL,
-    enabled INTEGER DEFAULT 1,
-    allowed_roles TEXT DEFAULT '[]',
-    allowed_channels TEXT DEFAULT '[]',
-    blocked_channels TEXT DEFAULT '[]',
-    PRIMARY KEY (guild_id, command_name)
-  );
-`);
-
-try { db.exec('ALTER TABLE command_config ADD COLUMN blocked_roles TEXT DEFAULT \'[]\''); } catch (e) {}
-
-
-// ─── Guild Config ──────────────────────────────────────────────────────────
+function cfgKey(guildId, commandName) { return `${guildId}:${commandName}`; }
+function warnKey(guildId, userId) { return `${guildId}:${userId}`; }
 
 export function getConfig(guildId, key) {
-  const stmt = db.prepare('SELECT value FROM guild_config WHERE guild_id = ? AND key = ?');
-  const row = stmt.get(guildId, key);
-  return row ? row.value : null;
+  return configCache.get(`${guildId}:${key}`) ?? null;
 }
 
-export function setConfig(guildId, key, value) {
-  db.prepare('INSERT OR REPLACE INTO guild_config (guild_id, key, value) VALUES (?, ?, ?)').run(guildId, key, value);
+export async function setConfig(guildId, key, value) {
+  configCache.set(`${guildId}:${key}`, value);
+  await GuildConfig.findOneAndUpdate(
+    { guildId, key },
+    { guildId, key, value },
+    { upsert: true, new: true }
+  );
 }
 
-// ─── Warnings ──────────────────────────────────────────────────────────────
-
-export function addWarning(guildId, userId, moderatorId, reason) {
-  return db.prepare('INSERT INTO warnings (guild_id, user_id, moderator_id, reason, timestamp) VALUES (?, ?, ?, ?, ?)').run(guildId, userId, moderatorId, reason, Date.now());
+export async function addWarning(guildId, userId, moderatorId, reason) {
+  const key = warnKey(guildId, userId);
+  if (!warningCache.has(key)) warningCache.set(key, []);
+  const warning = { guildId, userId, moderatorId, reason, timestamp: Date.now() };
+  warningCache.get(key).unshift(warning);
+  Warning.create(warning).catch(() => {});
 }
 
 export function getWarnings(guildId, userId) {
-  return db.prepare('SELECT * FROM warnings WHERE guild_id = ? AND user_id = ? ORDER BY timestamp DESC').all(guildId, userId);
+  return warningCache.get(warnKey(guildId, userId)) || [];
 }
 
-export function clearWarnings(guildId, userId) {
-  return db.prepare('DELETE FROM warnings WHERE guild_id = ? AND user_id = ?').run(guildId, userId);
+export async function clearWarnings(guildId, userId) {
+  warningCache.delete(warnKey(guildId, userId));
+  await Warning.deleteMany({ guildId, userId });
 }
-
-// ─── Anti-Spam ─────────────────────────────────────────────────────────────
 
 export function getSpamData(guildId, userId) {
-  return db.prepare('SELECT * FROM anti_spam WHERE guild_id = ? AND user_id = ?').get(guildId, userId);
+  return AntiSpam.findOne({ guildId, userId }).lean();
 }
 
 export function upsertSpamData(guildId, userId, count, lastReset) {
-  db.prepare('INSERT OR REPLACE INTO anti_spam (guild_id, user_id, message_count, last_reset) VALUES (?, ?, ?, ?)').run(guildId, userId, count, lastReset);
+  return AntiSpam.findOneAndUpdate(
+    { guildId, userId },
+    { guildId, userId, messageCount: count, lastReset },
+    { upsert: true, new: true }
+  );
 }
 
-// ─── Anti-Nuke ─────────────────────────────────────────────────────────────
-
 export function getNukeData(guildId, userId, action) {
-  return db.prepare('SELECT * FROM anti_nuke WHERE guild_id = ? AND user_id = ? AND action = ?').get(guildId, userId, action);
+  return AntiNuke.findOne({ guildId, userId, action }).lean();
 }
 
 export function upsertNukeData(guildId, userId, action, count, lastReset) {
-  db.prepare('INSERT OR REPLACE INTO anti_nuke (guild_id, user_id, action, count, last_reset) VALUES (?, ?, ?, ?, ?)').run(guildId, userId, action, count, lastReset);
+  return AntiNuke.findOneAndUpdate(
+    { guildId, userId, action },
+    { guildId, userId, action, count, lastReset },
+    { upsert: true, new: true }
+  );
 }
 
-// ─── Command Config (Bot-Managed Only) ────────────────────────────────────
-
-export const commandConfigs = new Map();
-const commandRoles = new Map();
-
-function cfgKey(guildId, commandName) { return `${guildId}:${commandName}`; }
+export { commandConfigs };
 
 export function isCommandEnabled(guildId, commandName) {
   const key = cfgKey(guildId, commandName);
@@ -139,48 +92,71 @@ export function getCommandConfig(guildId, commandName) {
   return commandConfigs.get(key) || null;
 }
 
-export function setCommandConfig(guildId, commandName, data) {
+export async function setCommandConfig(guildId, commandName, data) {
   const key = cfgKey(guildId, commandName);
   commandConfigs.set(key, {
     enabled: data.enabled ? true : false,
     allowedRoles: data.allowedRoles || [],
     blockedRoles: data.blockedRoles || [],
   });
-  const existing = db.prepare('SELECT * FROM command_config WHERE guild_id = ? AND command_name = ?').get(guildId, commandName);
-  if (existing) {
-    db.prepare('UPDATE command_config SET enabled = ?, allowed_roles = ?, blocked_roles = ? WHERE guild_id = ? AND command_name = ?')
-      .run(data.enabled ? 1 : 0, JSON.stringify(data.allowedRoles || []), JSON.stringify(data.blockedRoles || []), guildId, commandName);
-  } else {
-    db.prepare('INSERT INTO command_config (guild_id, command_name, enabled, allowed_roles, blocked_roles) VALUES (?, ?, ?, ?, ?)')
-      .run(guildId, commandName, data.enabled ? 1 : 0, JSON.stringify(data.allowedRoles || []), JSON.stringify(data.blockedRoles || []));
-  }
+  await CommandConfig.findOneAndUpdate(
+    { guildId, commandName },
+    {
+      guildId,
+      commandName,
+      enabled: data.enabled ? true : false,
+      allowedRoles: data.allowedRoles || [],
+      blockedRoles: data.blockedRoles || [],
+    },
+    { upsert: true, new: true }
+  );
 }
 
-export function loadCommandConfigsFromDB() {
-  const rows = db.prepare('SELECT * FROM command_config').all();
+export async function loadCommandConfigsFromDB() {
+  const rows = await CommandConfig.find({}).lean();
   for (const row of rows) {
-    const key = cfgKey(row.guild_id, row.command_name);
+    const key = cfgKey(row.guildId, row.commandName);
     commandConfigs.set(key, {
-      enabled: row.enabled === 1,
-      allowedRoles: row.allowed_roles ? JSON.parse(row.allowed_roles) : [],
-      blockedRoles: row.blocked_roles ? JSON.parse(row.blocked_roles) : [],
+      enabled: row.enabled === true,
+      allowedRoles: row.allowedRoles || [],
+      blockedRoles: row.blockedRoles || [],
     });
   }
   console.log(`[Commands] Loaded ${rows.length} configs from DB`);
 }
 
-export function deleteGuildData(guildId) {
-  db.prepare('DELETE FROM guild_config WHERE guild_id = ?').run(guildId);
-  db.prepare('DELETE FROM warnings WHERE guild_id = ?').run(guildId);
-  db.prepare('DELETE FROM anti_spam WHERE guild_id = ?').run(guildId);
-  db.prepare('DELETE FROM anti_nuke WHERE guild_id = ?').run(guildId);
-  db.prepare('DELETE FROM command_config WHERE guild_id = ?').run(guildId);
-  db.prepare('DELETE FROM dashboard_admins WHERE guild_id = ?').run(guildId);
-  db.prepare('DELETE FROM guild_admin_roles WHERE guild_id = ?').run(guildId);
-  db.prepare('DELETE FROM admin_activity WHERE guild_id = ?').run(guildId);
-  db.prepare('DELETE FROM alerts WHERE guild_id = ?').run(guildId);
-  db.prepare('DELETE FROM audit_logs WHERE guild_id = ?').run(guildId);
-  db.prepare('DELETE FROM backup_history WHERE guild_id = ?').run(guildId);
+export async function loadConfigsFromDB() {
+  const rows = await GuildConfig.find({}).lean();
+  for (const row of rows) {
+    configCache.set(`${row.guildId}:${row.key}`, row.value);
+  }
+  console.log(`[Config] Loaded ${rows.length} guild configs from DB`);
+
+  const warns = await Warning.find({}).sort({ timestamp: -1 }).lean();
+  for (const w of warns) {
+    const key = warnKey(w.guildId, w.userId);
+    if (!warningCache.has(key)) warningCache.set(key, []);
+    warningCache.get(key).push(w);
+  }
+  console.log(`[Warnings] Loaded ${warns.length} warnings from DB`);
 }
 
-export default db;
+export async function deleteGuildData(guildId) {
+  const prefix = `${guildId}:`;
+  for (const key of configCache.keys()) {
+    if (key.startsWith(prefix)) configCache.delete(key);
+  }
+  for (const key of warningCache.keys()) {
+    if (key.startsWith(prefix)) warningCache.delete(key);
+  }
+  for (const key of commandConfigs.keys()) {
+    if (key.startsWith(prefix)) commandConfigs.delete(key);
+  }
+  await Promise.all([
+    GuildConfig.deleteMany({ guildId }),
+    Warning.deleteMany({ guildId }),
+    AntiSpam.deleteMany({ guildId }),
+    AntiNuke.deleteMany({ guildId }),
+    CommandConfig.deleteMany({ guildId }),
+  ]);
+}

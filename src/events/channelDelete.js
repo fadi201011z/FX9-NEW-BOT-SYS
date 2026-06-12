@@ -55,18 +55,18 @@ export async function execute(channel) {
 
   const now    = Date.now();
   const action = 'channel_delete';
-  const data   = getNukeData(guild.id, executor.id, action);
+  const data   = await getNukeData(guild.id, executor.id, action);
 
   let count     = 1;
   let lastReset = now;
-  if (data && now - data.last_reset < NUKE_WINDOW_MS) {
+  if (data && now - data.lastReset < NUKE_WINDOW_MS) {
     count     = data.count + 1;
-    lastReset = data.last_reset;
+    lastReset = data.lastReset;
   }
-  upsertNukeData(guild.id, executor.id, action, count, lastReset);
+  await upsertNukeData(guild.id, executor.id, action, count, lastReset);
 
   if (count >= NUKE_THRESHOLD) {
-    upsertNukeData(guild.id, executor.id, action, 0, now);
+    await upsertNukeData(guild.id, executor.id, action, 0, now);
 
     // سحب الأدوار من المنفّذ
     try {

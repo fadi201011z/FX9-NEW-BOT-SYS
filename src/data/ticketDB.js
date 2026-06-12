@@ -1,115 +1,135 @@
-import fs from "fs-extra";
-import path from "path";
+import Ticket from '../models/Ticket.js';
+import TicketGuildConfig from '../models/TicketGuildConfig.js';
+import AdminStats from '../models/AdminStats.js';
 
-const DATA_FILE = path.join(process.cwd(), "data", "fx9_data.json");
-const DEFAULT = { guilds: {}, tickets: {}, adminStats: {} };
-
-export function loadData() {
-  try {
-    if (!fs.existsSync(DATA_FILE)) {
-      fs.ensureDirSync(path.dirname(DATA_FILE));
-      fs.writeJsonSync(DATA_FILE, DEFAULT, { spaces: 2 });
-      return structuredClone(DEFAULT);
-    }
-    const raw = fs.readJsonSync(DATA_FILE);
-    for (const cfg of Object.values(raw.guilds)) {
-      if (!cfg.supportRoleIds) {
-        cfg.supportRoleIds = cfg.supportRoleId ? [cfg.supportRoleId] : [];
-        delete cfg.supportRoleId;
-      }
-    }
-    return raw;
-  } catch {
-    return structuredClone(DEFAULT);
-  }
-}
-
-export function saveData(data) {
-  fs.ensureDirSync(path.dirname(DATA_FILE));
-  fs.writeJsonSync(DATA_FILE, data, { spaces: 2 });
-}
-
-export function getGuildConfig(guildId) {
-  const data = loadData();
-  if (!data.guilds[guildId]) {
-    data.guilds[guildId] = { guildId, supportRoleIds: [], ticketCounter: 0 };
-    saveData(data);
-  }
-  if (!data.guilds[guildId].supportRoleIds) data.guilds[guildId].supportRoleIds = [];
-  return data.guilds[guildId];
-}
-
-export function saveGuildConfig(config) {
-  const data = loadData();
-  data.guilds[config.guildId] = config;
-  saveData(data);
-}
-
-export function hasSupport(member, config) {
-  const MANAGE_CHANNELS = 16n;
-  if (member.permissions.has(MANAGE_CHANNELS)) return true;
-  return config.supportRoleIds.some((id) => member.roles.cache.has(id));
-}
+const ticketsByChannel = new Map();
+const ticketsByAdminChannel = new Map();
+const ticketsById = new Map();
+const guildConfigs = new Map();
+const adminStatsMap = new Map();
 
 export function getTicket(channelId) {
-  const data = loadData();
-  return (
-    Object.values(data.tickets).find((t) => t.channelId === channelId) ??
-    null
-  );
+  return ticketsByChannel.get(channelId) ?? null;
 }
 
 export function getTicketByAdminChannel(channelId) {
-  const data = loadData();
-  return Object.values(data.tickets).find((t) => t.adminChannelId === channelId) ?? null;
+  return ticketsByAdminChannel.get(channelId) ?? null;
+}
+
+export function getTicketById(ticketId) {
+  return ticketsById.get(ticketId) ?? null;
 }
 
 export function getTicketByUser(guildId, userId) {
-  const data = loadData();
-  return (
-    Object.values(data.tickets).find(
-      (t) => t.guildId === guildId && t.userId === userId && t.status !== "closed"
-    ) ?? null
-  );
+  for (const t of ticketsById.values()) {
+    if (t.guildId === guildId && t.userId === userId && t.status !== 'closed') return t;
+  }
+  return null;
+}
+
+function indexTicket(t) {
+  if (t.channelId) ticketsByChannel.set(t.channelId, t);
+  if (t.adminChannelId) ticketsByAdminChannel.set(t.adminChannelId, t);
+  ticketsById.set(t.ticketId, t);
+}
+
+export function getGuildConfig(guildId) {
+  if (!guildConfigs.has(guildId)) {
+    guildConfigs.set(guildId, { guildId, supportRoleIds: [], ticketCounter: 0 });
+  }
+  return guildConfigs.get(guildId);
+}
+
+export function saveGuildConfig(config) {
+  guildConfigs.set(config.guildId, config);
+  TicketGuildConfig.findOneAndUpdate(
+    { guildId: config.guildId },
+    {
+      guildId: config.guildId,
+      ticketCategoryId: config.ticketCategoryId ?? '',
+      adminCategoryId: config.adminCategoryId ?? '',
+      panelChannelId: config.panelChannelId ?? '',
+      logChannelId: config.logChannelId ?? '',
+      supportRoleIds: config.supportRoleIds ?? [],
+      ticketCounter: config.ticketCounter ?? 0,
+    },
+    { upsert: true, new: true }
+  ).catch(err => console.error('[TicketDB] saveGuildConfig error:', err.message));
 }
 
 export function saveTicket(ticket) {
-  const data = loadData();
-  data.tickets[ticket.ticketId] = ticket;
-  saveData(data);
+  indexTicket(ticket);
+  Ticket.findOneAndUpdate(
+    { ticketId: ticket.ticketId },
+    ticket,
+    { upsert: true, new: true }
+  ).catch(err => console.error('[TicketDB] saveTicket error:', err.message));
 }
 
 export function getAllOpenTickets(guildId) {
-  return Object.values(loadData().tickets).filter(
-    (t) => t.guildId === guildId && t.status !== "closed"
-  );
+  const result = [];
+  for (const t of ticketsById.values()) {
+    if (t.guildId === guildId && t.status !== 'closed') result.push(t);
+  }
+  return result;
 }
 
 export function getAllTickets(guildId) {
-  return Object.values(loadData().tickets).filter((t) => t.guildId === guildId);
+  const result = [];
+  for (const t of ticketsById.values()) {
+    if (t.guildId === guildId) result.push(t);
+  }
+  return result;
 }
 
 export function getClosedTicketsCount(guildId) {
-  return Object.values(loadData().tickets).filter(
-    (t) => t.guildId === guildId && t.status === "closed"
-  ).length;
+  let count = 0;
+  for (const t of ticketsById.values()) {
+    if (t.guildId === guildId && t.status === 'closed') count++;
+  }
+  return count;
 }
 
 export function getAdminStats(adminId) {
-  const data = loadData();
-  if (!data.adminStats[adminId]) {
-    data.adminStats[adminId] = { adminId, username: "", claimed: 0, closed: 0, totalRating: 0, ratingCount: 0 };
-    saveData(data);
+  if (!adminStatsMap.has(adminId)) {
+    adminStatsMap.set(adminId, { adminId, username: '', claimed: 0, closed: 0, totalRating: 0, ratingCount: 0 });
   }
-  return data.adminStats[adminId];
+  return adminStatsMap.get(adminId);
 }
 
 export function saveAdminStats(stats) {
-  const data = loadData();
-  data.adminStats[stats.adminId] = stats;
-  saveData(data);
+  adminStatsMap.set(stats.adminId, stats);
+  AdminStats.findOneAndUpdate(
+    { adminId: stats.adminId },
+    stats,
+    { upsert: true, new: true }
+  ).catch(err => console.error('[TicketDB] saveAdminStats error:', err.message));
 }
 
 export function getAllAdminStats() {
-  return Object.values(loadData().adminStats);
+  return Array.from(adminStatsMap.values());
+}
+
+export async function loadAllData() {
+  const guildRows = await TicketGuildConfig.find({}).lean();
+  for (const row of guildRows) {
+    guildConfigs.set(row.guildId, {
+      guildId: row.guildId,
+      ticketCategoryId: row.ticketCategoryId ?? '',
+      adminCategoryId: row.adminCategoryId ?? '',
+      panelChannelId: row.panelChannelId ?? '',
+      logChannelId: row.logChannelId ?? '',
+      supportRoleIds: row.supportRoleIds ?? [],
+      ticketCounter: row.ticketCounter ?? 0,
+    });
+  }
+  console.log(`[TicketDB] Loaded ${guildRows.length} guild configs`);
+
+  const ticketRows = await Ticket.find({}).lean();
+  for (const t of ticketRows) indexTicket(t);
+  console.log(`[TicketDB] Loaded ${ticketRows.length} tickets`);
+
+  const statsRows = await AdminStats.find({}).lean();
+  for (const s of statsRows) adminStatsMap.set(s.adminId, s);
+  console.log(`[TicketDB] Loaded ${statsRows.length} admin stats`);
 }

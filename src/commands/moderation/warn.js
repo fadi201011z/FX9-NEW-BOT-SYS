@@ -78,7 +78,7 @@ export async function execute(interaction) {
     }
     const fields = warnings.slice(0, 10).map((w, i) => ({
       name:  `تحذير #${i + 1} — <t:${Math.floor(w.timestamp / 1000)}:D>`,
-      value: `**السبب:** ${w.reason}\n**المشرف:** <@${w.moderator_id}>`,
+      value: `**السبب:** ${w.reason}\n**المشرف:** <@${w.moderatorId}>`,
     }));
     return interaction.reply({
       embeds: [warnEmbed(`تحذيرات ${target.tag}`, `الإجمالي: **${warnings.length}** تحذير`).addFields(fields).setThumbnail(target.displayAvatarURL({ dynamic: true }))],

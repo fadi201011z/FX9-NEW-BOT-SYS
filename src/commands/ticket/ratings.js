@@ -2,7 +2,7 @@ import {
   ChatInputCommandInteraction, SlashCommandBuilder,
   PermissionsBitField, EmbedBuilder, User,
 } from "discord.js";
-import { getAllAdminStats, getAdminStats, getAllTickets, loadData, saveData } from "../../data/ticketDB.js";
+import { getAllAdminStats, getAdminStats, saveAdminStats, getAllTickets } from "../../data/ticketDB.js";
 import { COLOR } from "../../utils/embeds.js";
 
 export const data = new SlashCommandBuilder()
@@ -74,12 +74,10 @@ export async function execute(interaction) {
       await interaction.editReply({ content: "❌ يلزم صلاحية **Administrator**." }); return;
     }
     const user = interaction.options.getUser("admin", true);
-    const data = loadData();
-    if (data.adminStats[user.id]) {
-      data.adminStats[user.id].totalRating = 0;
-      data.adminStats[user.id].ratingCount = 0;
-      saveData(data);
-    }
+    const stats = getAdminStats(user.id);
+    stats.totalRating = 0;
+    stats.ratingCount = 0;
+    saveAdminStats(stats);
     await interaction.editReply({ embeds: [new EmbedBuilder().setColor(COLOR.green).setTitle("✅ تم إعادة التعيين").setDescription(`تم مسح تقييمات <@${user.id}>.`).setFooter({ text: `بواسطة: ${interaction.user.username}` }).setTimestamp()] });
   }
 }

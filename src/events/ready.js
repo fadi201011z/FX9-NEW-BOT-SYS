@@ -36,9 +36,8 @@ export async function execute(client) {
   await sendOnlineLog();
   startHeartbeat();
 
-  // ── VOICE: Load temp voice data, clean stale channels ───────────────
-  const { loadFromDisk, cleanStaleChannels, getAllSetups, refreshPanel, getActiveCount, updatePanelMessageId, buildStatusPanel } = await import('../handlers/tempVoice.js');
-  loadFromDisk();
+  // ── VOICE: Clean stale temp voice channels ───────────────────────────
+  const { cleanStaleChannels, getAllSetups, refreshPanel, getActiveCount, updatePanelMessageId, buildStatusPanel } = await import('../handlers/tempVoice.js');
   await cleanStaleChannels(client);
 
   // ── VOICE: Restore permanent panels ─────────────────────────────────

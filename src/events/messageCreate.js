@@ -167,18 +167,18 @@ export async function execute(message) {
   }
 
   // ─── Anti-Spam ────────────────────────────────────────────────────────
-  const spamData  = getSpamData(guildId, userId);
+  const spamData  = await getSpamData(guildId, userId);
   let count       = 1;
   let lastReset   = now;
 
-  if (spamData && now - spamData.last_reset < SPAM_WINDOW_MS) {
-    count     = spamData.message_count + 1;
-    lastReset = spamData.last_reset;
+  if (spamData && now - spamData.lastReset < SPAM_WINDOW_MS) {
+    count     = spamData.messageCount + 1;
+    lastReset = spamData.lastReset;
   }
-  upsertSpamData(guildId, userId, count, lastReset);
+  await upsertSpamData(guildId, userId, count, lastReset);
 
   if (count >= SPAM_THRESHOLD) {
-    upsertSpamData(guildId, userId, 0, now);
+    await upsertSpamData(guildId, userId, 0, now);
 
     let timedOut = false;
     try {

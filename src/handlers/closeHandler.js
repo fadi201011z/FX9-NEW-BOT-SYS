@@ -1,7 +1,7 @@
 import { PermissionsBitField } from "discord.js";
 import {
   getTicket, saveTicket, getAdminStats, saveAdminStats,
-  getGuildConfig, getTicketByAdminChannel, loadData, saveData,
+  getGuildConfig, getTicketByAdminChannel, getTicketById,
 } from "../data/ticketDB.js";
 import { logEmbed, ratingEmbed, ratingButtons, COLOR } from "../utils/embeds.js";
 
@@ -93,8 +93,7 @@ export async function handleRatingButton(client, interaction) {
   const rating   = parseInt(parts[1]);
   const ticketId = parts.slice(2).join("_");
 
-  const data   = loadData();
-  const ticket = Object.values(data.tickets).find((t) => t.ticketId === ticketId);
+  const ticket = getTicketById(ticketId);
   if (!ticket) {
     try { await interaction.reply({ content: "❌ التكت غير موجود.", ephemeral: true }); } catch {}
     return;
@@ -106,8 +105,7 @@ export async function handleRatingButton(client, interaction) {
 
   ticket.rating  = rating;
   ticket.ratedBy = interaction.user.id;
-  data.tickets[ticketId] = ticket;
-  saveData(data);
+  saveTicket(ticket);
 
   if (ticket.claimedBy) {
     const stats = getAdminStats(ticket.claimedBy);
