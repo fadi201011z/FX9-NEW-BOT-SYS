@@ -6,6 +6,19 @@ import {
 import { logEmbed, ratingEmbed, ratingButtons, COLOR } from "../utils/embeds.js";
 import { CATEGORY_LABEL } from "../data/ticketTypes.js";
 
+const AUTO_CLOSE_DELAY = 20 * 60 * 1000;
+const closeTimers = new Map();
+
+async function deleteChannels(client, ticket) {
+  const userCh = client.channels.cache.get(ticket.channelId);
+  await userCh?.delete().catch(() => null);
+  if (ticket.adminChannelId) {
+    const adminCh = client.channels.cache.get(ticket.adminChannelId);
+    await adminCh?.delete().catch(() => null);
+  }
+  closeTimers.delete(ticket.ticketId);
+}
+
 export async function handleCloseTicket(client, interaction) {
   const ticket = getTicket(interaction.channelId) ?? getTicketByAdminChannel(interaction.channelId);
   if (!ticket) { await interaction.reply({ content: "❌ هذه القناة ليست تكتاً.", ephemeral: true }); return; }
@@ -55,6 +68,9 @@ export async function handleCloseTicket(client, interaction) {
       `**📌 العنوان:** ${ticket.title ?? "—"}`,
       `**⭐ التقييم:** ${stars}`,
       "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "",
+      `⏳ **القناة ستُحذف تلقائياً بعد 20 دقيقة** إذا لم يتم التقييم.`,
+      "يمكنك التقييم الآن بالضغط على الأزرار أدناه ✨",
     ].join("\n"))
     .setFooter({ text: "FX9 Support System • Ticket Summary" })
     .setTimestamp();
@@ -78,7 +94,7 @@ export async function handleCloseTicket(client, interaction) {
     await userCh.send({ embeds: [closeEmbed] });
     if (ratingInChannel) {
       await userCh.send({
-        content: `<@${ticket.userId}> ⭐ **قيّم تجربتك قبل إغلاق القناة** — ستُحذف بعد **30 ثانية**:`,
+        content: `<@${ticket.userId}> ⭐ **قيّم تجربتك** بالضغط على الأزرار أدناه — تُحذف القناة تلقائياً بعد **20 دقيقة**.`,
         ...ratingPayload,
       });
     }
@@ -94,16 +110,10 @@ export async function handleCloseTicket(client, interaction) {
     await logCh?.send({ embeds: [closeEmbed] });
   }
 
-  await interaction.editReply({ content: "✅ سيُغلق التكت خلال لحظات..." });
+  await interaction.editReply({ content: "✅ تم إغلاق التكت. القناة ستُحذف بعد التقييم أو خلال 20 دقيقة." });
 
-  const delay = ratingInChannel ? 30_000 : 8_000;
-  setTimeout(async () => {
-    await userCh?.delete().catch(() => null);
-    if (ticket.adminChannelId) {
-      const adminCh = client.channels.cache.get(ticket.adminChannelId);
-      await adminCh?.delete().catch(() => null);
-    }
-  }, delay);
+  if (closeTimers.has(ticket.ticketId)) clearTimeout(closeTimers.get(ticket.ticketId));
+  closeTimers.set(ticket.ticketId, setTimeout(() => deleteChannels(client, ticket), AUTO_CLOSE_DELAY));
 }
 
 export async function handleRatingButton(client, interaction) {
@@ -156,6 +166,9 @@ export async function handleRatingButton(client, interaction) {
       });
     }
   } catch {}
+
+  if (closeTimers.has(ticket.ticketId)) clearTimeout(closeTimers.get(ticket.ticketId));
+  await deleteChannels(client, ticket);
 }
 
 function formatDuration(ms) {
