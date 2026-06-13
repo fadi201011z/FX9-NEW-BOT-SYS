@@ -1,9 +1,10 @@
-import { PermissionsBitField } from "discord.js";
+import { PermissionsBitField, EmbedBuilder } from "discord.js";
 import {
   getTicket, saveTicket, getAdminStats, saveAdminStats,
   getGuildConfig, getTicketByAdminChannel, getTicketById,
 } from "../data/ticketDB.js";
 import { logEmbed, ratingEmbed, ratingButtons, COLOR } from "../utils/embeds.js";
+import { CATEGORY_LABEL } from "../data/ticketTypes.js";
 
 export async function handleCloseTicket(client, interaction) {
   const ticket = getTicket(interaction.channelId) ?? getTicketByAdminChannel(interaction.channelId);
@@ -24,6 +25,7 @@ export async function handleCloseTicket(client, interaction) {
 
   ticket.status   = "closed";
   ticket.closedAt = Date.now();
+  ticket.closedBy = interaction.user.id;
   await saveTicket(ticket);
 
   if (ticket.claimedBy) {
@@ -33,13 +35,29 @@ export async function handleCloseTicket(client, interaction) {
     await saveAdminStats(stats);
   }
 
-  const closeEmbed = logEmbed("🔒 تم إغلاق التكت", COLOR.red, [
-    { name: "رقم التكت",    value: ticket.ticketId, inline: true },
-    { name: "العضو",         value: `<@${ticket.userId}>`, inline: true },
-    { name: "الإداري",       value: ticket.claimedBy ? `<@${ticket.claimedBy}>` : "غير مستلم", inline: true },
-    { name: "مُغلق بواسطة", value: `<@${interaction.user.id}>`, inline: true },
-    { name: "المدة",         value: formatDuration(Date.now() - ticket.openedAt), inline: true },
-  ]);
+  const stars = ticket.rating ? "⭐".repeat(ticket.rating) : "لم يُقيّم";
+  const closeEmbed = new EmbedBuilder()
+    .setColor(COLOR.red)
+    .setTitle("🔒 تم إغلاق التكت")
+    .setDescription([
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      `**🎫 رقم التكت:** \`${ticket.ticketId}\``,
+      `**📂 القسم:** ${CATEGORY_LABEL?.[ticket.category] ?? ticket.category ?? "—"}`,
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      `**👤 فتح التذكرة:** <@${ticket.userId}> \`${ticket.username ?? ""}\``,
+      `**📩 استلم التكت:** ${ticket.claimedBy ? `<@${ticket.claimedBy}> \`${ticket.claimedByUsername ?? ""}\`` : "❌ غير مستلم"}`,
+      `**🔒 أغلق التكت:** <@${interaction.user.id}>`,
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      `**⏱ المدة:** ${formatDuration(Date.now() - ticket.openedAt)}`,
+      `**📅 فتح في:** <t:${Math.floor(ticket.openedAt / 1000)}:f>`,
+      `**📅 أغلق في:** <t:${Math.floor(Date.now() / 1000)}:f>`,
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      `**📌 العنوان:** ${ticket.title ?? "—"}`,
+      `**⭐ التقييم:** ${stars}`,
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    ].join("\n"))
+    .setFooter({ text: "FX9 Support System • Ticket Summary" })
+    .setTimestamp();
 
   const ratingPayload = {
     embeds:     [ratingEmbed(ticket.ticketId, ticket.claimedByUsername)],
