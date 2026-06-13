@@ -1,4 +1,4 @@
-import { Client, Collection, GatewayIntentBits, Partials } from 'discord.js';
+import { Client, Collection, GatewayIntentBits, Partials, EmbedBuilder } from 'discord.js';
 import { readdir } from 'fs/promises';
 import { fileURLToPath, pathToFileURL } from 'url';
 import path from 'path';
@@ -201,6 +201,52 @@ client.once('ready', async () => {
     const user = client.users.cache.get(req.params.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json({ id: user.id, username: user.username, globalName: user.globalName, avatar: user.avatar });
+  });
+
+  // Send setup message when a restricted channel is added from dashboard
+  app.post('/api/restricted-channel-setup', async (req, res) => {
+    const { guildId, channelId } = req.body;
+    if (!guildId || !channelId) return res.status(400).json({ error: 'Missing guildId or channelId' });
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+    try {
+      const ch = await guild.channels.fetch(channelId).catch(() => null);
+      if (!ch) return res.status(404).json({ error: 'Channel not found' });
+      const setupEmbed = new EmbedBuilder()
+        .setColor(0x8b0000)
+        .setTitle('🚫 تم تفعيل نظام الرومات المحضورة')
+        .setDescription([
+          '### ⚠️ هذه القناة مصنفة كـ **روم محضور**',
+          '',
+          '> **ما معنى روم محضور؟**',
+          '> أي شخص يرسل رسالة في هذه القناة سيتم **حظره تلقائياً**',
+          '> من السيرفر لمدة **24 ساعة** دون استثناء (عدا المالك والبوت).',
+          '',
+          '> **لماذا هذه القناة محضورة؟**',
+          '> • لحماية الأعضاء من الروابط الضارة والاحتيال',
+          '> • منع نشر محتوى غير لائق',
+          '> • حفظ خصوصية السيرفر وأعضائه',
+          '> • للتحكم في القنوات الحساسة',
+          '',
+          '> **ماذا يحدث عند المخالفة؟**',
+          '> • يتم حذف الرسالة فوراً',
+          '> • حظر العضو لمدة 24 ساعة مع مسح رسائله',
+          '> • إرسال إشعار للإدارة',
+          '> • إرسال رسالة خاصة للعضو توضيحاً للسبب',
+          '',
+          '```diff',
+          '- يرجى احترام هذه القناة وعدم الكتابة فيها',
+          '```',
+          '',
+          '> 🛡️ *نظام الحماية التلقائية — FX9-SYS*',
+        ].join('\n'))
+        .setTimestamp()
+        .setFooter({ text: '⚔️ FX9-SYS  •  الحماية التلقائية' });
+      await ch.send({ embeds: [setupEmbed] });
+      res.json({ success: true, message: 'Setup message sent' });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // Restore ticket panels
