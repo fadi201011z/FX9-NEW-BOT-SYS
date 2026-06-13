@@ -82,6 +82,7 @@ export function canMemberUseCommand(guildId, commandName, memberRoles) {
   if (!cfg) return true;
   const allowed = cfg.allowedRoles;
   const blocked = cfg.blockedRoles;
+  if (allowed.length > 0 && memberRoles.some(r => allowed.includes(r))) return true;
   if (blocked.length > 0 && memberRoles.some(r => blocked.includes(r))) return false;
   if (allowed.length > 0 && !memberRoles.some(r => allowed.includes(r))) return false;
   return true;
