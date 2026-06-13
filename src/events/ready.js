@@ -1,4 +1,7 @@
-import { Events, ActivityType } from 'discord.js';
+import { Events, ActivityType, REST, Routes } from 'discord.js';
+import { readdir } from 'fs/promises';
+import { fileURLToPath, pathToFileURL } from 'url';
+import path from 'path';
 import { updateStatusChannels } from '../utils/statusUpdater.js';
 import { startPresenceRotation } from '../utils/presence.js';
 import { sendOnlineLog, startHeartbeat } from '../utils/botLogger.js';
@@ -16,6 +19,36 @@ export async function execute(client) {
   console.log(`║  Guilds: ${String(client.guilds.cache.size).padEnd(30)}║`);
   console.log(`║  Commands: ${String(client.commands?.size ?? 0).padEnd(27)}║`);
   console.log(`╚════════════════════════════════════════╝\n`);
+
+  // ── Auto-register slash commands globally ────────────────────────────
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const commandDirs = [
+    path.join(__dirname, '..', 'commands', 'setup'),
+    path.join(__dirname, '..', 'commands', 'moderation'),
+    path.join(__dirname, '..', 'commands', 'info'),
+    path.join(__dirname, '..', 'commands', 'members'),
+    path.join(__dirname, '..', 'commands', 'ticket'),
+    path.join(__dirname, '..', 'commands', 'voice'),
+  ];
+  const cmdData = [];
+  for (const dir of commandDirs) {
+    let files;
+    try { files = (await readdir(dir)).filter(f => f.endsWith('.js') || f.endsWith('.ts')); }
+    catch { continue; }
+    for (const file of files) {
+      const mod = await import(pathToFileURL(path.join(dir, file)).href);
+      if (mod?.data) cmdData.push(mod.data.toJSON());
+    }
+  }
+  if (cmdData.length > 0) {
+    try {
+      const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+      await rest.put(Routes.applicationCommands(client.user.id), { body: cmdData });
+      console.log(`[Deploy] ✅ ${cmdData.length} command(s) registered globally`);
+    } catch (err) {
+      console.error('[Deploy] ❌ Failed to register commands:', err.message);
+    }
+  }
 
   // ── SYS: Rotating presence ──────────────────────────────────────────
   startPresenceRotation(client);
