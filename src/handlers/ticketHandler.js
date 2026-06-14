@@ -7,7 +7,8 @@ import {
   saveTicket, getTicket, getAdminStats, saveAdminStats,
   getTicketByAdminChannel,
 } from "../data/ticketDB.js";
-import { ticketEmbed, ticketButtons, logEmbed, COLOR, panelEmbed, panelMenu, ticketLogMenu } from "../utils/embeds.js";
+import { ticketEmbed, ticketButtons, logEmbed, COLOR, panelEmbed, panelMenu } from "../utils/embeds.js";
+import { sendOrUpdateTicketLog } from "../utils/ticketLogUtils.js";
 import { CATEGORY_SLUG } from "../data/ticketTypes.js";
 
 export async function handleCategorySelect(interaction) {
@@ -155,20 +156,7 @@ export async function handleTicketModalSubmit(client, interaction) {
     ].filter(Boolean).join("\n"),
   });
 
-  if (config.logChannelId) {
-    const logCh = guild.channels.cache.get(config.logChannelId);
-    await logCh?.send({
-      embeds: [logEmbed("🟢 تكت جديد مفتوح", COLOR.green, [
-        { name: "رقم التكت", value: ticketId, inline: true },
-        { name: "العضو", value: `<@${user.id}> \`${user.username}\``, inline: true },
-        { name: "القسم", value: CATEGORY_SLUG[category] ?? category, inline: true },
-        { name: "قناة العضو", value: `<#${userChannel.id}>`, inline: true },
-        { name: "قناة الإدارة", value: adminChannel ? `<#${adminChannel.id}>` : "معطّل", inline: true },
-        { name: "العنوان", value: title },
-      ])],
-      components: [ticketLogMenu(ticketId)],
-    });
-  }
+  await sendOrUpdateTicketLog(client, ticket);
 }
 
 export async function handleClaimTicket(client, interaction) {
@@ -224,17 +212,7 @@ export async function handleClaimTicket(client, interaction) {
 
   await interaction.editReply({ content: "✅ تم استلام التكت." });
 
-  if (config.logChannelId) {
-    const logCh = await client.channels.fetch(config.logChannelId).catch(() => null);
-    await logCh?.send({
-      embeds: [logEmbed("📩 Claim", COLOR.blue, [
-        { name: "رقم التكت", value: ticket.ticketId, inline: true },
-        { name: "الإداري", value: `<@${interaction.user.id}>`, inline: true },
-        { name: "العضو", value: `<@${ticket.userId}>`, inline: true },
-      ])],
-      components: [ticketLogMenu(ticket.ticketId)],
-    });
-  }
+  await sendOrUpdateTicketLog(client, ticket);
 }
 
 export async function handleUnclaimTicket(client, interaction) {
@@ -281,6 +259,7 @@ export async function handleUnclaimTicket(client, interaction) {
     const ch = client.channels.cache.get(chId);
     await ch?.send({ embeds: [logE] });
   }
+  await sendOrUpdateTicketLog(client, ticket);
   await interaction.editReply({ content: "✅ تم إعادة التكت للفريق." });
 }
 

@@ -3,7 +3,8 @@ import {
   getTicket, saveTicket, getAdminStats, saveAdminStats,
   getGuildConfig, getTicketByAdminChannel, getTicketById,
 } from "../data/ticketDB.js";
-import { logEmbed, ratingEmbed, ratingButtons, COLOR, ticketLogMenu } from "../utils/embeds.js";
+import { logEmbed, ratingEmbed, ratingButtons, COLOR } from "../utils/embeds.js";
+import { sendOrUpdateTicketLog } from "../utils/ticketLogUtils.js";
 import { CATEGORY_LABEL } from "../data/ticketTypes.js";
 
 const AUTO_CLOSE_DELAY = 20 * 60 * 1000;
@@ -105,10 +106,7 @@ export async function handleCloseTicket(client, interaction) {
     if (adminCh) await adminCh.send({ embeds: [closeEmbed] });
   }
 
-  if (config.logChannelId) {
-    const logCh = await client.channels.fetch(config.logChannelId).catch(() => null);
-    await logCh?.send({ embeds: [closeEmbed], components: [ticketLogMenu(ticket.ticketId)] });
-  }
+  await sendOrUpdateTicketLog(client, ticket);
 
   await interaction.editReply({ content: "✅ تم إغلاق التكت. القناة ستُحذف بعد التقييم أو خلال 20 دقيقة." });
 
@@ -152,20 +150,7 @@ export async function handleRatingButton(client, interaction) {
   }
 
   try {
-    const config = getGuildConfig(ticket.guildId);
-    if (config.logChannelId) {
-      const guild = client.guilds.cache.get(ticket.guildId);
-      const logCh = guild?.channels.cache.get(config.logChannelId);
-      await logCh?.send({
-        embeds: [logEmbed("⭐ تقييم جديد", COLOR.gold, [
-          { name: "رقم التكت", value: ticket.ticketId, inline: true },
-          { name: "التقييم",   value: `${stars} (${rating}/5)`, inline: true },
-          { name: "العضو",     value: `<@${ticket.userId}>`, inline: true },
-          { name: "الإداري",   value: ticket.claimedBy ? `<@${ticket.claimedBy}>` : "غير مستلم", inline: true },
-        ])],
-        components: [ticketLogMenu(ticket.ticketId)],
-      });
-    }
+    await sendOrUpdateTicketLog(client, ticket);
   } catch {}
 
   if (closeTimers.has(ticket.ticketId)) clearTimeout(closeTimers.get(ticket.ticketId));

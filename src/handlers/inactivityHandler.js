@@ -1,5 +1,6 @@
 import { getAllOpenTickets, getTicket, saveTicket, getGuildConfig } from "../data/ticketDB.js";
-import { logEmbed, inactivityEmbed, ratingEmbed, ratingButtons, COLOR, ticketLogMenu } from "../utils/embeds.js";
+import { logEmbed, inactivityEmbed, ratingEmbed, ratingButtons } from "../utils/embeds.js";
+import { sendOrUpdateTicketLog } from "../utils/ticketLogUtils.js";
 
 const WARN_MS  = 24 * 60 * 60 * 1000;
 const CLOSE_MS = 36 * 60 * 60 * 1000;
@@ -86,10 +87,7 @@ async function autoClose(client, ticket) {
       await adminCh?.send({ embeds: [embed] });
     }
 
-    if (config.logChannelId) {
-      const logCh = await client.channels.fetch(config.logChannelId).catch(() => null);
-      await logCh?.send({ embeds: [embed], components: [ticketLogMenu(ticket.ticketId)] });
-    }
+    await sendOrUpdateTicketLog(client, ticket);
 
     const delay = ratingInChannel ? 30_000 : 8_000;
     setTimeout(async () => {

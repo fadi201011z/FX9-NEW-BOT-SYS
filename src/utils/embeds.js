@@ -335,27 +335,65 @@ export function inactivityEmbed(ticketId) {
     .setTimestamp();
 }
 
-export function ticketLogMenu(ticketId) {
+export function buildTicketLogEmbed(ticket) {
+  const stars = ticket.rating ? "⭐".repeat(ticket.rating) : "لم يُقيّم";
+  const embed = new EmbedBuilder()
+    .setColor(
+      ticket.status === "closed" ? COLOR.red :
+      ticket.status === "claimed" ? COLOR.blue :
+      COLOR.green
+    )
+    .setTitle(`🎫 ${ticket.ticketId} — ${CATEGORY_LABEL?.[ticket.category] ?? ticket.category ?? "تكت"}`)
+    .setDescription("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    .addFields(
+      { name: "📌 الحالة", value: ticket.status === "closed" ? "🔒 مغلق" : ticket.status === "claimed" ? "📩 مستلم" : "🟢 مفتوح", inline: true },
+      { name: "👤 العضو",  value: `<@${ticket.userId}>`, inline: true },
+      { name: "📩 المستلم", value: ticket.claimedBy ? `<@${ticket.claimedBy}>` : "—", inline: true },
+      { name: "📅 فتح في", value: ticket.openedAt ? `<t:${Math.floor(ticket.openedAt / 1000)}:f>` : "—", inline: true },
+      { name: "📅 أغلق في", value: ticket.closedAt ? `<t:${Math.floor(ticket.closedAt / 1000)}:f>` : "—", inline: true },
+      { name: "📌 العنوان", value: ticket.title ?? "—", inline: false },
+    );
+
+  if (ticket.ticketId) embed.setFooter({ text: `FX9 Support System • ${ticket.ticketId}` });
+  embed.setTimestamp();
+
+  if (ticket.rating) embed.addFields({ name: "⭐ التقييم", value: `${stars} (${ticket.rating}/5)`, inline: true });
+  return embed;
+}
+
+export function ticketLogMenu(ticket) {
+  const options = [
+    new StringSelectMenuOptionBuilder()
+      .setLabel('عرض التفاصيل الكاملة')
+      .setDescription(`جميع معلومات التكت ${ticket.ticketId}`)
+      .setValue(`details||${ticket.ticketId}`)
+      .setEmoji('📋'),
+  ];
+
+  if (ticket.channelId) {
+    options.push(
+      new StringSelectMenuOptionBuilder()
+        .setLabel('فتح قناة العضو')
+        .setDescription(`الذهاب إلى قناة التكت ${ticket.ticketId}`)
+        .setValue(`user_channel||${ticket.ticketId}`)
+        .setEmoji('📩'),
+    );
+  }
+
+  if (ticket.adminChannelId) {
+    options.push(
+      new StringSelectMenuOptionBuilder()
+        .setLabel('فتح قناة الإدارة')
+        .setDescription(`الذهاب إلى قناة الإدارة للتكت ${ticket.ticketId}`)
+        .setValue(`admin_channel||${ticket.ticketId}`)
+        .setEmoji('🔐'),
+    );
+  }
+
   return new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId('ticket_log_menu')
       .setPlaceholder('🔽 إجراءات التكت...')
-      .addOptions(
-        new StringSelectMenuOptionBuilder()
-          .setLabel('عرض التفاصيل')
-          .setDescription(`عرض معلومات كاملة عن التكت ${ticketId}`)
-          .setValue(`details||${ticketId}`)
-          .setEmoji('📋'),
-        new StringSelectMenuOptionBuilder()
-          .setLabel('فتح قناة العضو')
-          .setDescription(`الذهاب إلى قناة التكت ${ticketId}`)
-          .setValue(`user_channel||${ticketId}`)
-          .setEmoji('📩'),
-        new StringSelectMenuOptionBuilder()
-          .setLabel('فتح قناة الإدارة')
-          .setDescription(`الذهاب إلى قناة الإدارة للتكت ${ticketId}`)
-          .setValue(`admin_channel||${ticketId}`)
-          .setEmoji('🔐'),
-      )
+      .addOptions(options),
   );
 }

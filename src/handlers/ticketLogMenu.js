@@ -28,9 +28,11 @@ export async function handleTicketLogMenu(client, interaction) {
   switch (action) {
     case "details": {
       const stars = ticket.rating ? "⭐".repeat(ticket.rating) : "لم يُقيّم";
+      const duration = ticket.openedAt && ticket.closedAt
+        ? formatDuration(ticket.closedAt - ticket.openedAt) : "—";
       const embed = new EmbedBuilder()
         .setColor(COLOR.blue)
-        .setTitle(`🎫 معلومات التكت — ${ticketId}`)
+        .setTitle(`🎫 تفاصيل التكت — ${ticketId}`)
         .setDescription("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         .addFields(
           { name: "📂 القسم",     value: CATEGORY_LABEL?.[ticket.category] ?? ticket.category ?? "—", inline: true },
@@ -39,10 +41,20 @@ export async function handleTicketLogMenu(client, interaction) {
           { name: "📩 المستلم",   value: ticket.claimedBy ? `<@${ticket.claimedBy}>` : "غير مستلم", inline: true },
           { name: "📅 فتح في",    value: ticket.openedAt ? `<t:${Math.floor(ticket.openedAt / 1000)}:f>` : "—", inline: true },
           { name: "🔒 أغلق في",   value: ticket.closedAt ? `<t:${Math.floor(ticket.closedAt / 1000)}:f>` : "—", inline: true },
+          { name: "⏱ المدة",     value: duration, inline: true },
           { name: "📌 العنوان",   value: ticket.title ?? "—", inline: false },
         );
       if (ticket.description) embed.addFields({ name: "📝 الوصف", value: ticket.description.slice(0, 1024), inline: false });
+      if (ticket.evidence) embed.addFields({ name: "🔗 الأدلة", value: ticket.evidence.slice(0, 1024), inline: false });
       if (ticket.rating) embed.addFields({ name: "⭐ التقييم", value: `${stars} (${ticket.rating}/5)`, inline: true });
+      if (ticket.channelId) {
+        const ch = client.channels.cache.get(ticket.channelId);
+        embed.addFields({ name: "📩 قناة العضو", value: ch ? `<#${ticket.channelId}>` : "~~محذوفة~~", inline: true });
+      }
+      if (ticket.adminChannelId) {
+        const ch = client.channels.cache.get(ticket.adminChannelId);
+        embed.addFields({ name: "🔐 قناة الإدارة", value: ch ? `<#${ticket.adminChannelId}>` : "~~محذوفة~~", inline: true });
+      }
       await interaction.editReply({ embeds: [embed] });
       break;
     }
@@ -78,4 +90,10 @@ export async function handleTicketLogMenu(client, interaction) {
     default:
       await interaction.editReply({ content: "❌ إجراء غير معروف." });
   }
+}
+
+function formatDuration(ms) {
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  return `${h}س ${m}د`;
 }

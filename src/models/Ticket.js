@@ -24,6 +24,7 @@ const ticketSchema = new mongoose.Schema({
   inactivityWarned: { type: Boolean, default: false },
   rating: Number,
   ratedBy: String,
+  logMessageId: String,
 }, { timestamps: true });
 
 ticketSchema.index({ guildId: 1, status: 1 });
