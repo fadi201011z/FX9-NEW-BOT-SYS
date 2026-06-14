@@ -1,26 +1,19 @@
 import { SlashCommandBuilder, PermissionsBitField, EmbedBuilder } from "discord.js";
-import { getTicketById, getGuildConfig } from "../../data/ticketDB.js";
+import { getAllTickets, getTicketById, getGuildConfig } from "../../data/ticketDB.js";
 import { COLOR } from "../../utils/embeds.js";
 import { CATEGORY_LABEL } from "../../data/ticketTypes.js";
 
 export const data = new SlashCommandBuilder()
   .setName("ticket-show")
-  .setDescription("🎫 عرض معلومات تكت برقمه")
+  .setDescription("🎫 عرض معلومات تكت برقمه أو البحث عنه")
   .addStringOption((opt) =>
-    opt.setName("ticket_id").setDescription("رقم التكت (مثل TKT-001)").setRequired(true).setMaxLength(20)
+    opt.setName("ticket_id").setDescription("رقم التكت (مثل FX9-0001 أو 1)").setRequired(true).setMaxLength(20)
   );
 
 export async function execute(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
-  const ticketId = interaction.options.getString("ticket_id");
-  const ticket = getTicketById(ticketId);
-
-  if (!ticket) {
-    await interaction.editReply({ content: `❌ التكت \`${ticketId}\` غير موجود.` });
-    return;
-  }
-
+  const input = interaction.options.getString("ticket_id").trim();
   const config = getGuildConfig(interaction.guildId);
   const member = await interaction.guild.members.fetch(interaction.user.id);
   const isSupport =
@@ -31,10 +24,56 @@ export async function execute(interaction) {
     return;
   }
 
+  const guildId = interaction.guildId;
+
+  // 1. Try exact match
+  let ticket = getTicketById(input);
+  if (ticket && ticket.guildId !== guildId) ticket = null;
+
+  // 2. Try searching by numeric part (FX9-0001 → user types 1)
+  if (!ticket) {
+    const all = getAllTickets(guildId);
+    const num = input.replace(/[^0-9]/g, "");
+    const matches = all.filter((t) => {
+      if (t.ticketId === input) return true;
+      if (num && (t.ticketId.endsWith(num) || t.ticketId.includes(`-${num}`))) return true;
+      return t.ticketId.toLowerCase().includes(input.toLowerCase());
+    });
+
+    if (matches.length === 0) {
+      await interaction.editReply({ content: `❌ لا توجد تكتات تطابق \`${input}\` في هذا السيرفر.` });
+      return;
+    }
+
+    if (matches.length > 1) {
+      const list = matches
+        .sort((a, b) => (b.openedAt ?? 0) - (a.openedAt ?? 0))
+        .slice(0, 10)
+        .map((t) => {
+          const status = t.status === "closed" ? "🔒" : t.status === "claimed" ? "📩" : "🟢";
+          return `\`${t.ticketId}\` ${status} — ${t.title ?? "بدون عنوان"} — <@${t.userId}>`;
+        })
+        .join("\n");
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(COLOR.blue)
+            .setTitle(`🔍 نتائج البحث عن "${input}"`)
+            .setDescription(`تم العثور على **${matches.length}** تكت:\n\n${list}`)
+            .setTimestamp(),
+        ],
+      });
+      return;
+    }
+
+    ticket = matches[0];
+  }
+
+  // Show ticket details
   const stars = ticket.rating ? "⭐".repeat(ticket.rating) : "لم يُقيّم";
   const embed = new EmbedBuilder()
     .setColor(COLOR.blue)
-    .setTitle(`🎫 معلومات التكت — ${ticketId}`)
+    .setTitle(`🎫 معلومات التكت — ${ticket.ticketId}`)
     .setDescription("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     .addFields(
       { name: "📂 القسم",     value: CATEGORY_LABEL?.[ticket.category] ?? ticket.category ?? "—", inline: true },
