@@ -7,7 +7,7 @@ import {
   saveTicket, getTicket, getAdminStats, saveAdminStats,
   getTicketByAdminChannel,
 } from "../data/ticketDB.js";
-import { ticketEmbed, ticketButtons, logEmbed, COLOR, panelEmbed, panelMenu } from "../utils/embeds.js";
+import { ticketEmbed, ticketButtons, logEmbed, COLOR, panelEmbed, panelMenu, ticketLogMenu } from "../utils/embeds.js";
 import { CATEGORY_SLUG } from "../data/ticketTypes.js";
 
 export async function handleCategorySelect(interaction) {
@@ -166,6 +166,7 @@ export async function handleTicketModalSubmit(client, interaction) {
         { name: "قناة الإدارة", value: adminChannel ? `<#${adminChannel.id}>` : "معطّل", inline: true },
         { name: "العنوان", value: title },
       ])],
+      components: [ticketLogMenu(ticketId)],
     });
   }
 }
@@ -225,11 +226,14 @@ export async function handleClaimTicket(client, interaction) {
 
   if (config.logChannelId) {
     const logCh = await client.channels.fetch(config.logChannelId).catch(() => null);
-    await logCh?.send({ embeds: [logEmbed("📩 Claim", COLOR.blue, [
-      { name: "رقم التكت", value: ticket.ticketId, inline: true },
-      { name: "الإداري", value: `<@${interaction.user.id}>`, inline: true },
-      { name: "العضو", value: `<@${ticket.userId}>`, inline: true },
-    ])] });
+    await logCh?.send({
+      embeds: [logEmbed("📩 Claim", COLOR.blue, [
+        { name: "رقم التكت", value: ticket.ticketId, inline: true },
+        { name: "الإداري", value: `<@${interaction.user.id}>`, inline: true },
+        { name: "العضو", value: `<@${ticket.userId}>`, inline: true },
+      ])],
+      components: [ticketLogMenu(ticket.ticketId)],
+    });
   }
 }
 

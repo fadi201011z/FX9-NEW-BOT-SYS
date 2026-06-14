@@ -66,6 +66,11 @@ export async function execute(interaction) {
         return handleQuickReply(interaction.client, interaction);
       }
 
+      if (interaction.customId === 'ticket_log_menu') {
+        const { handleTicketLogMenu } = await import('../handlers/ticketLogMenu.js');
+        return handleTicketLogMenu(interaction.client, interaction);
+      }
+
       // ═══════════════════════════════════════════════════════════════
       //  Help Menu
       // ═══════════════════════════════════════════════════════════════

@@ -334,3 +334,28 @@ export function inactivityEmbed(ticketId) {
     .setFooter({ text: "FX9 Support System • Inactivity Warning" })
     .setTimestamp();
 }
+
+export function ticketLogMenu(ticketId) {
+  return new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId('ticket_log_menu')
+      .setPlaceholder('🔽 إجراءات التكت...')
+      .addOptions(
+        new StringSelectMenuOptionBuilder()
+          .setLabel('عرض التفاصيل')
+          .setDescription(`عرض معلومات كاملة عن التكت ${ticketId}`)
+          .setValue(`details||${ticketId}`)
+          .setEmoji('📋'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('فتح قناة العضو')
+          .setDescription(`الذهاب إلى قناة التكت ${ticketId}`)
+          .setValue(`user_channel||${ticketId}`)
+          .setEmoji('📩'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('فتح قناة الإدارة')
+          .setDescription(`الذهاب إلى قناة الإدارة للتكت ${ticketId}`)
+          .setValue(`admin_channel||${ticketId}`)
+          .setEmoji('🔐'),
+      )
+  );
+}
