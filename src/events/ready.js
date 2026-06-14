@@ -45,6 +45,16 @@ export async function execute(client) {
       const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
       await rest.put(Routes.applicationCommands(client.user.id), { body: cmdData });
       console.log(`[Deploy] ✅ ${cmdData.length} command(s) registered globally`);
+
+      // تحديث الأوامر في كل سيرفر عشان نمسح الكاش القديم
+      let updated = 0;
+      for (const [guildId] of client.guilds.cache) {
+        try {
+          await rest.put(Routes.applicationGuildCommands(client.user.id, guildId), { body: cmdData });
+          updated++;
+        } catch {}
+      }
+      if (updated > 0) console.log(`[Deploy] ✅ Synced commands for ${updated} guild(s)`);
     } catch (err) {
       console.error('[Deploy] ❌ Failed to register commands:', err.message);
     }
