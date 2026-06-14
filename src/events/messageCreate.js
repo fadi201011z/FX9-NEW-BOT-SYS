@@ -6,6 +6,7 @@ import { updateTicketActivity } from '../handlers/inactivityHandler.js';
 import { getTicket, getTicketByAdminChannel, getGuildConfig } from '../data/ticketDB.js';
 import mongoose from 'mongoose';
 import GuildConfig from '../models/GuildConfig.js';
+import { getGuildInvite } from '../utils/invite.js';
 
 export const name = Events.MessageCreate;
 export const once = false;
@@ -20,7 +21,7 @@ const MENTION_THRESHOLD = 5;
 const LINK_REGEX        = /https?:\/\/[^\s]+/gi;
 const ALLOWED_DOMAINS   = ['discord.com', 'discord.gg'];
 
-export async function execute(message) {
+export async function execute(message, client) {
   if (!message.guild || message.author.bot) return;
 
   const { guild, member, channel } = message;
@@ -73,31 +74,67 @@ export async function execute(message) {
         banned = true;
       } catch {}
 
-      // Auto unban after 1 day
+      // Fetch invite link for DM messages
+      const inviteLink = await getGuildInvite(guild);
+
+      // Auto unban after 1 day + send DM
+      const userId = message.author.id;
+      const guildId = guild.id;
       if (banned) {
+        if (!client.pendingAutoUnbans) client.pendingAutoUnbans = new Set();
         setTimeout(async () => {
-          try { await guild.members.unban(message.author.id, 'انتهت مدة الحظر التلقائي (روم محضور)'); } catch {}
+          try {
+            client.pendingAutoUnbans.add(`${guildId}:${userId}`);
+            await guild.members.unban(userId, 'انتهت مدة الحظر التلقائي (روم محضور)');
+            client.pendingAutoUnbans.delete(`${guildId}:${userId}`);
+          } catch { return; }
+
+          try {
+            const user = await client.users.fetch(userId);
+            const autoUnbanEmbed = new EmbedBuilder()
+              .setColor(Colors.SUCCESS)
+              .setTitle('✅ تم فك الحظر تلقائياً')
+              .setDescription([
+                `**السيرفر:** ${guild.name}`,
+                'انتهت مدة الحظر التلقائي (24 ساعة).',
+                '',
+                inviteLink
+                  ? `يمكنك العودة إلى السيرفر عبر الرابط:\n${inviteLink}`
+                  : 'يمكنك العودة إلى السيرفر الآن.',
+                '',
+                'نعتذر عن أي إزعاج، ونشكرك على تفهمك.',
+              ].join('\n'))
+              .setTimestamp()
+              .setFooter({ text: '⚔️ FX9-SYS  •  الحماية التلقائية' });
+            await user.send({ embeds: [autoUnbanEmbed] }).catch(() => {});
+          } catch {}
         }, 24 * 60 * 60 * 1000);
       }
 
       // Send DM to user
       try {
+        const desc = [
+          `**السيرفر:** ${guild.name}`,
+          `**السبب:** كتابتك في روم محضور (${channel.name})`,
+          '',
+          '> هذا الإجراء تلقائي لحماية السيرفر.',
+          '> قد يكون سبب الحظر أن حسابك تم اختراقه،',
+          '> أو أنك أرسلت بالخطأ في روم ممنوع.',
+          '',
+          '**⏰ مدة الحظر: 24 ساعة**',
+          'سيتم فك الحظر تلقائياً بعد انتهاء المدة.',
+        ];
+        if (inviteLink) {
+          desc.push('');
+          desc.push(`**🔗 رابط العودة بعد فك الحظر:** ${inviteLink}`);
+        }
+        desc.push('');
+        desc.push('إذا كنت تعتقد أن هذا خطأ، تواصل مع مالك السيرفر.');
+
         const dmEmbed = new EmbedBuilder()
           .setColor(Colors.BLOOD)
           .setTitle('🚫 تم حظرك من السيرفر')
-          .setDescription([
-            `**السيرفر:** ${guild.name}`,
-            `**السبب:** كتابتك في روم محضور (${channel.name})`,
-            '',
-            '> هذا الإجراء تلقائي لحماية السيرفر.',
-            '> قد يكون سبب الحظر أن حسابك تم اختراقه،',
-            '> أو أنك أرسلت بالخطأ في روم ممنوع.',
-            '',
-            '**⏰ مدة الحظر: 24 ساعة**',
-            'سيتم فك الحظر تلقائياً بعد انتهاء المدة.',
-            '',
-            'إذا كنت تعتقد أن هذا خطأ، تواصل مع مالك السيرفر.',
-          ].join('\n'))
+          .setDescription(desc.join('\n'))
           .setTimestamp()
           .setFooter({ text: '⚔️ FX9-SYS  •  الحماية التلقائية' });
         await message.author.send({ embeds: [dmEmbed] }).catch(() => {});
