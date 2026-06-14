@@ -123,8 +123,9 @@ await Promise.all([loadFromDisk(), loadAllData()]);
 const { loadCommandConfigsFromDB, loadConfigsFromDB } = await import('./database.js');
 await Promise.all([loadCommandConfigsFromDB(), loadConfigsFromDB()]);
 
-// Periodic reload of command configs (picks up dashboard changes)
+// Periodic reload of command configs + guild configs (picks up dashboard changes)
 setInterval(() => loadCommandConfigsFromDB(), 5000);
+setInterval(() => loadConfigsFromDB(), 10000);
 
 // ─── Ready Handler ─────────────────────────────────────────────────────────
 client.once('ready', async () => {
