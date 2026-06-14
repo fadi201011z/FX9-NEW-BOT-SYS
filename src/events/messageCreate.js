@@ -5,6 +5,7 @@ import { Colors } from '../utils/embeds.js';
 import { updateTicketActivity } from '../handlers/inactivityHandler.js';
 import { getTicket, getTicketByAdminChannel, getGuildConfig } from '../data/ticketDB.js';
 import mongoose from 'mongoose';
+import GuildConfig from '../models/GuildConfig.js';
 
 export const name = Events.MessageCreate;
 export const once = false;
@@ -26,112 +27,124 @@ export async function execute(message) {
 
   // ══════════════════════════════════════════════════════════════════════════
   //  RESTRICTED CHANNELS — الرومات المحضورة
+  //  يتم الاستعلام من MongoDB مباشرة (بدون cache) لضمان السرعة والدقة
   //  أي شخص يرسل هنا (حتى الإدارة) يُحظر لمدة يوم
   //  الاستثناءات: المالك, البوت, والمبرمج (role: admin في لوحة التحكم)
   // ══════════════════════════════════════════════════════════════════════════
 
-  const restrictedRaw = getConfig(guild.id, 'restricted_channels');
-  if (restrictedRaw) {
-    let restrictedIds = [];
-    try { restrictedIds = JSON.parse(restrictedRaw).map(c => c.id); } catch {}
+  try {
+    const restrictedDoc = await mongoose.connection.db.collection('guildconfigs').findOne(
+      { guildId: guild.id, key: 'restricted_channels' }
+    );
+    if (restrictedDoc && restrictedDoc.value) {
+      let restrictedIds = [];
+      try { restrictedIds = JSON.parse(restrictedDoc.value).map(c => c.id); } catch {}
 
-    if (restrictedIds.includes(channel.id)) {
-      // Exemptions check
-      let exempt = false;
-      if (OWNER_ID && message.author.id === OWNER_ID) exempt = true;
-      if (!exempt) {
-        try {
-          const adminDoc = await mongoose.connection.db.collection('admins').findOne({
-            userId: message.author.id,
-            guildId: guild.id,
-            role: 'admin',
-          });
-          if (adminDoc) exempt = true;
-        } catch {}
-      }
-      if (exempt) return;
-
-      // Delete the triggering message immediately
-      await message.delete().catch(() => {});
-
-      // Delete user's recent messages in this channel (fast cleanup)
-      try {
-        const msgs = await channel.messages.fetch({ limit: 50 });
-        const userMsgs = msgs.filter(m => m.author.id === message.author.id);
-        if (userMsgs.size > 0) await channel.bulkDelete(userMsgs).catch(() => {});
-      } catch {}
-
-      // Ban user for 1 day
-      let banned = false;
-      try {
-        await guild.members.ban(message.author.id, {
-          reason: 'كتابة في روم محضور — حظر تلقائي لمدة يوم',
-          deleteMessageSeconds: 86400,
-        });
-        banned = true;
-      } catch {}
-
-      // Auto unban after 1 day
-      if (banned) {
-        setTimeout(async () => {
-          try { await guild.members.unban(message.author.id, 'انتهت مدة الحظر التلقائي (روم محضور)'); } catch {}
-        }, 24 * 60 * 60 * 1000);
-      }
-
-      // Send DM to user
-      try {
-        const dmEmbed = new EmbedBuilder()
-          .setColor(Colors.BLOOD)
-          .setTitle('🚫 تم حظرك من السيرفر')
-          .setDescription([
-            `**السيرفر:** ${guild.name}`,
-            `**السبب:** كتابتك في روم محضور (${channel.name})`,
-            '',
-            '> هذا الإجراء تلقائي لحماية السيرفر.',
-            '> قد يكون سبب الحظر أن حسابك تم اختراقه،',
-            '> أو أنك أرسلت بالخطأ في روم ممنوع.',
-            '',
-            '**⏰ مدة الحظر: 24 ساعة**',
-            'سيتم فك الحظر تلقائياً بعد انتهاء المدة.',
-            '',
-            'إذا كنت تعتقد أن هذا خطأ، تواصل مع مالك السيرفر.',
-          ].join('\n'))
-          .setTimestamp()
-          .setFooter({ text: '⚔️ FX9-SYS  •  الحماية التلقائية' });
-        await message.author.send({ embeds: [dmEmbed] }).catch(() => {});
-      } catch {}
-
-      // Send log to alert channel
-      const logCh   = await getLogChannel(guild, getConfig(guild.id, 'log_channel'));
-      const modLogCh = await getLogChannel(guild, getConfig(guild.id, 'modlog_channel'));
-      const alertCh = modLogCh ?? logCh;
-      if (alertCh) {
-        try {
-          const logEmbed = new EmbedBuilder()
-            .setColor(Colors.BLOOD)
-            .setTitle('🚨 روم محضور — تم اكتشاف مخالف')
-            .addFields(
-              { name: '👤 المستخدم', value: `${message.author} \`${message.author.tag}\``, inline: true },
-              { name: '💬 القناة',   value: `${channel}`,                                 inline: true },
-              { name: '📋 الإجراء',  value: banned ? 'حظر لمدة يوم ✅' : 'حذف الرسائل ❌',   inline: true },
-              { name: '📝 محتوى الرسالة', value: `\`\`\`${(message.content || '(بدون نص)').slice(0, 990)}\`\`\``, inline: false },
-            )
-            .setTimestamp()
-            .setFooter({ text: '⚔️ FX9-SYS  •  الرومات المحضورة' });
-          if (message.attachments.size > 0) {
-            logEmbed.addFields({
-              name: '📎 المرفقات',
-              value: message.attachments.map(a => `[${a.name}](${a.url})`).join('\n').slice(0, 1024),
-              inline: false,
+      if (restrictedIds.includes(channel.id)) {
+        // Exemptions check
+        let exempt = false;
+        if (OWNER_ID && message.author.id === OWNER_ID) exempt = true;
+        if (!exempt) {
+          try {
+            const adminDoc = await mongoose.connection.db.collection('admins').findOne({
+              userId: message.author.id,
+              guildId: guild.id,
+              role: 'admin',
             });
-          }
-          await alertCh.send({ embeds: [logEmbed] }).catch(() => {});
-        } catch {}
-      }
+            if (adminDoc) exempt = true;
+          } catch {}
+        }
+        if (exempt) return;
 
-      return;
+        // Delete the triggering message immediately
+        await message.delete().catch(() => {});
+
+        // Delete user's recent messages in this channel (fast cleanup)
+        try {
+          const msgs = await channel.messages.fetch({ limit: 50 });
+          const userMsgs = msgs.filter(m => m.author.id === message.author.id);
+          if (userMsgs.size > 0) await channel.bulkDelete(userMsgs).catch(() => {});
+        } catch {}
+
+        // Ban user for 1 day
+        let banned = false;
+        try {
+          await guild.members.ban(message.author.id, {
+            reason: 'كتابة في روم محضور — حظر تلقائي لمدة يوم',
+            deleteMessageSeconds: 86400,
+          });
+          banned = true;
+        } catch {}
+
+        // Auto unban after 1 day
+        if (banned) {
+          setTimeout(async () => {
+            try { await guild.members.unban(message.author.id, 'انتهت مدة الحظر التلقائي (روم محضور)'); } catch {}
+          }, 24 * 60 * 60 * 1000);
+        }
+
+        // Send DM to user
+        try {
+          const dmEmbed = new EmbedBuilder()
+            .setColor(Colors.BLOOD)
+            .setTitle('🚫 تم حظرك من السيرفر')
+            .setDescription([
+              `**السيرفر:** ${guild.name}`,
+              `**السبب:** كتابتك في روم محضور (${channel.name})`,
+              '',
+              '> هذا الإجراء تلقائي لحماية السيرفر.',
+              '> قد يكون سبب الحظر أن حسابك تم اختراقه،',
+              '> أو أنك أرسلت بالخطأ في روم ممنوع.',
+              '',
+              '**⏰ مدة الحظر: 24 ساعة**',
+              'سيتم فك الحظر تلقائياً بعد انتهاء المدة.',
+              '',
+              'إذا كنت تعتقد أن هذا خطأ، تواصل مع مالك السيرفر.',
+            ].join('\n'))
+            .setTimestamp()
+            .setFooter({ text: '⚔️ FX9-SYS  •  الحماية التلقائية' });
+          await message.author.send({ embeds: [dmEmbed] }).catch(() => {});
+        } catch {}
+
+        // Send log to alert channel
+        try {
+          const logCollection = mongoose.connection.db.collection('guildconfigs');
+          const logChDoc = await logCollection.findOne({ guildId: guild.id, key: 'log_channel' });
+          const modLogDoc = await logCollection.findOne({ guildId: guild.id, key: 'modlog_channel' });
+          const logChId = logChDoc?.value;
+          const modLogId = modLogDoc?.value;
+          const alertChId = modLogId || logChId;
+
+          if (alertChId) {
+            const alertCh = await guild.channels.fetch(alertChId).catch(() => null);
+            if (alertCh) {
+              const logEmbed = new EmbedBuilder()
+                .setColor(Colors.BLOOD)
+                .setTitle('🚨 روم محضور — تم اكتشاف مخالف')
+                .addFields(
+                  { name: '👤 المستخدم', value: `${message.author} \`${message.author.tag}\``, inline: true },
+                  { name: '💬 القناة',   value: `${channel}`,                                 inline: true },
+                  { name: '📋 الإجراء',  value: banned ? 'حظر لمدة يوم ✅' : 'حذف الرسائل ❌',   inline: true },
+                  { name: '📝 محتوى الرسالة', value: `\`\`\`${(message.content || '(بدون نص)').slice(0, 990)}\`\`\``, inline: false },
+                )
+                .setTimestamp()
+                .setFooter({ text: '⚔️ FX9-SYS  •  الرومات المحضورة' });
+              if (message.attachments.size > 0) {
+                logEmbed.addFields({
+                  name: '📎 المرفقات',
+                  value: message.attachments.map(a => `[${a.name}](${a.url})`).join('\n').slice(0, 1024),
+                  inline: false,
+                });
+              }
+              await alertCh.send({ embeds: [logEmbed] }).catch(() => {});
+            }
+          }
+        } catch {}
+
+        return;
+      }
     }
-  }
+  } catch {}  // لو فشل الاستعلام من قاعدة البيانات، نكمل بشكل طبيعي
 
   // ══════════════════════════════════════════════════════════════════════════
   //  TICKET: Relay system (forward between user/admin channels)
