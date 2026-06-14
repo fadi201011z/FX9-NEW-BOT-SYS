@@ -4,7 +4,7 @@ import { COLOR } from "../../utils/embeds.js";
 import { CATEGORY_LABEL } from "../../data/ticketTypes.js";
 
 export const data = new SlashCommandBuilder()
-  .setName("ticket-info")
+  .setName("ticket-show")
   .setDescription("🎫 عرض معلومات تكت برقمه")
   .addStringOption((opt) =>
     opt.setName("ticket_id").setDescription("رقم التكت (مثل TKT-001)").setRequired(true).setMaxLength(20)
