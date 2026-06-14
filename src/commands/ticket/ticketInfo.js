@@ -8,8 +8,7 @@ export const data = new SlashCommandBuilder()
   .setDescription("🎫 عرض معلومات تكت برقمه")
   .addStringOption((opt) =>
     opt.setName("ticket_id").setDescription("رقم التكت (مثل TKT-001)").setRequired(true).setMaxLength(20)
-  )
-  .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageChannels);
+  );
 
 export async function execute(interaction) {
   await interaction.deferReply({ ephemeral: true });
