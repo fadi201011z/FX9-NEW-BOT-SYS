@@ -1,12 +1,12 @@
 import { SlashCommandBuilder, PermissionsBitField } from 'discord.js';
 import {
   getSubscriptions, addSubscription, removeSubscription,
-} from '../data/notificationDB.js';
-import { getGuildConfig } from '../data/ticketDB.js';
+} from '../../data/notificationDB.js';
+import { getGuildConfig } from '../../data/ticketDB.js';
 
 async function resolveChannelId(platform, url) {
   if (platform === 'youtube') {
-    const { resolveYouTubeChannelId } = await import('../handlers/notificationMonitor.js');
+    const { resolveYouTubeChannelId } = await import('../../handlers/notificationMonitor.js');
     return resolveYouTubeChannelId(url);
   }
   if (platform === 'kick') {
