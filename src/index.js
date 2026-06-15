@@ -7,6 +7,7 @@ import { initBotLogger, sendOfflineLog, sendErrorLog } from './utils/botLogger.j
 import express from 'express';
 import { loadFromDisk, cleanStaleChannels } from './handlers/tempVoice.js';
 import { loadAllData } from './data/ticketDB.js';
+import { loadAllSubscriptions } from './data/notificationDB.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -87,6 +88,7 @@ const commandDirs = [
   path.join(__dirname, 'commands', 'members'),
   path.join(__dirname, 'commands', 'ticket'),
   path.join(__dirname, 'commands', 'voice'),
+  path.join(__dirname, 'commands', 'notifications'),
 ];
 
 for (const dir of commandDirs) {
@@ -117,7 +119,7 @@ for (const file of eventFiles) {
 }
 
 // ─── Load Persistent Data ──────────────────────────────────────────────────
-await Promise.all([loadFromDisk(), loadAllData()]);
+await Promise.all([loadFromDisk(), loadAllData(), loadAllSubscriptions()]);
 
 // ─── Load DB Configs ──────────────────────────────────────────────────────
 const { loadCommandConfigsFromDB, loadConfigsFromDB } = await import('./database.js');
@@ -195,6 +197,35 @@ client.once('ready', async () => {
         roles: m.roles.cache.map(r => r.id),
       }));
     res.json(members);
+  });
+
+  // Notification API for dashboard
+  app.get('/api/notifications/:guildId', async (req, res) => {
+    const { getSubscriptions } = await import('./data/notificationDB.js');
+    res.json(getSubscriptions(req.params.guildId));
+  });
+
+  app.post('/api/notifications/add', async (req, res) => {
+    const { addSubscription } = await import('./data/notificationDB.js');
+    const { resolveYouTubeChannelId, resolveTwitchUser } = await import('./handlers/notificationMonitor.js');
+    const { guildId, platform, url, discordChannelId, customMessage } = req.body;
+    if (!guildId || !platform || !url || !discordChannelId) {
+      return res.status(400).json({ error: 'Missing fields' });
+    }
+    let channelId = platform === 'youtube' ? await resolveYouTubeChannelId(url) : resolveTwitchUser(url);
+    if (!channelId) return res.status(400).json({ error: 'Could not resolve channel ID from URL' });
+    try {
+      const doc = await addSubscription({ guildId, platform, channelUrl: url, channelId, discordChannelId, customMessage });
+      res.json({ success: true, id: doc._id });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/notifications/:id', async (req, res) => {
+    const { removeSubscription } = await import('./data/notificationDB.js');
+    await removeSubscription(req.params.id);
+    res.json({ success: true });
   });
 
   // Single user info from bot cache
@@ -280,6 +311,10 @@ client.once('ready', async () => {
   // Ticket: inactivity monitor
   const { startInactivityMonitor } = await import('./handlers/inactivityHandler.js');
   startInactivityMonitor(client);
+
+  // Notification: start monitor
+  const { startNotificationMonitor } = await import('./handlers/notificationMonitor.js');
+  startNotificationMonitor(client);
 
   async function gracefulShutdown(signal) {
     console.log(`\n[${signal}] Shutting down…`);

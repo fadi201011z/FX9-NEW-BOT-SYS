@@ -29,6 +29,7 @@ export async function execute(client) {
     path.join(__dirname, '..', 'commands', 'members'),
     path.join(__dirname, '..', 'commands', 'ticket'),
     path.join(__dirname, '..', 'commands', 'voice'),
+    path.join(__dirname, '..', 'commands', 'notifications'),
   ];
   const cmdData = [];
   for (const dir of commandDirs) {
@@ -151,6 +152,10 @@ export async function execute(client) {
   // ── TICKET: Start inactivity monitor ────────────────────────────────
   const { startInactivityMonitor } = await import('../handlers/inactivityHandler.js');
   startInactivityMonitor(client);
+
+  // ── NOTIFICATION: Start monitor ──────────────────────────────────────
+  const { startNotificationMonitor } = await import('../handlers/notificationMonitor.js');
+  startNotificationMonitor(client);
 
   // ── Graceful shutdown ───────────────────────────────────────────────
   async function gracefulShutdown(signal) {
