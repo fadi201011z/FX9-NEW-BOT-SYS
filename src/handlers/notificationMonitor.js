@@ -1,7 +1,7 @@
 import { getAllSubscriptions, updateSubscription } from '../data/notificationDB.js';
 import { youtubeEmbed, kickEmbed, twitterEmbed } from '../utils/notificationEmbeds.js';
 
-const CHECK_INTERVAL_MS = 5 * 60 * 1000;
+const CHECK_INTERVAL_MS = 1 * 60 * 1000;
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  YouTube — via RSS (no API needed)
@@ -155,7 +155,10 @@ async function sendNotification(client, sub, embed) {
   try {
     const ch = await client.channels.fetch(sub.discordChannelId).catch(() => null);
     if (!ch) return;
-    const content = sub.customMessage || undefined;
+    const parts = [];
+    if (sub.ping) parts.push('@here');
+    if (sub.customMessage) parts.push(sub.customMessage);
+    const content = parts.length > 0 ? parts.join(' | ') : undefined;
     await ch.send({ content, embeds: [embed] });
   } catch (err) {
     console.error(`[Notif] Send error (${sub._id}):`, err.message);
@@ -281,5 +284,5 @@ export function startNotificationMonitor(client) {
 
   run();
   setInterval(run, CHECK_INTERVAL_MS);
-  console.log('  🔔  Notification monitor active (YouTube + Kick + Twitter, every 5 min)');
+  console.log('  🔔  Notification monitor active (YouTube + Kick + Twitter, every 1 min)');
 }

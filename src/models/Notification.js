@@ -10,6 +10,7 @@ const notificationSchema = new mongoose.Schema({
   lastVideoId:  { type: String, default: '' },
   lastStreamStatus: { type: Boolean, default: false },
   customMessage: { type: String, default: '' },
+  ping:         { type: Boolean, default: false },
   createdAt:    { type: Number, default: Date.now },
 }, { timestamps: true });
 

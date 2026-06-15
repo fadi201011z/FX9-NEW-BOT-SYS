@@ -46,6 +46,10 @@ export const data = new SlashCommandBuilder()
       .addStringOption(opt =>
         opt.setName('message')
           .setDescription('رسالة إضافية (اختياري) تظهر مع الإشعار')
+          .setRequired(false))
+      .addBooleanOption(opt =>
+        opt.setName('ping')
+          .setDescription('منشن @here عند وصول إشعار جديد')
           .setRequired(false)))
   .addSubcommand(sub =>
     sub.setName('remove')
@@ -84,6 +88,7 @@ export async function execute(interaction) {
     const url = interaction.options.getString('url').trim();
     const discordCh = interaction.options.getChannel('channel');
     const customMessage = interaction.options.getString('message') || '';
+    const ping = interaction.options.getBoolean('ping') ?? false;
 
     const resolvedId = await resolveChannelId(platform, url);
     if (!resolvedId) {
@@ -106,6 +111,7 @@ export async function execute(interaction) {
         channelId: resolvedId,
         discordChannelId: discordCh.id,
         customMessage,
+        ping,
       });
 
       const platLabel = platform === 'youtube' ? '📹 YouTube' : platform === 'kick' ? '🔴 Kick' : '🐦 Twitter';

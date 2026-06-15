@@ -27,6 +27,7 @@ export async function addSubscription(data) {
     channelName: data.channelName || '',
     discordChannelId: data.discordChannelId,
     customMessage: data.customMessage || '',
+    ping: data.ping ?? false,
     lastVideoId: data.lastVideoId || '',
     lastStreamStatus: false,
     createdAt: Date.now(),
