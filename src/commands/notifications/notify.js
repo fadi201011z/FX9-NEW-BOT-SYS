@@ -118,8 +118,27 @@ export async function execute(interaction) {
           `┃ قناة الإشعارات: <#${discordCh.id}>`,
           `┃ المعرف: \`${doc._id}\``,
           customMessage ? `┃ رسالة: ${customMessage}` : '',
+          '',
+          `⏳ جاري التحقق من آخر محتوى...`,
         ].filter(Boolean).join('\n'),
       });
+
+      // Immediate first check for this subscription
+      try {
+        const { checkSubscriptionNow } = await import('../../handlers/notificationMonitor.js');
+        const result = await checkSubscriptionNow(interaction.client, doc);
+        if (result) {
+          await interaction.editReply({
+            content: `✅ **تمت الإضافة!** تم إرسال إشعار لآخر ${result}.`,
+          });
+        } else {
+          await interaction.editReply({
+            content: `✅ **تمت الإضافة!** ما في محتوى جديد حالياً، البوت بيراقب تلقائياً.`,
+          });
+        }
+      } catch {
+        // background check failed, subscription is already saved
+      }
     } catch (err) {
       console.error('[Notify] Add error:', err);
       await interaction.editReply({ content: '❌ حدث خطأ أثناء الإضافة.' });

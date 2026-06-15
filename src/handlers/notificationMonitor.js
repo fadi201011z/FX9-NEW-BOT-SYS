@@ -226,6 +226,47 @@ async function checkTwitter(client) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+//  Immediate check for a single subscription (called after /notify add)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export async function checkSubscriptionNow(client, sub) {
+  if (sub.platform === 'youtube' && sub.channelId) {
+    const video = await fetchLatestYouTubeVideo(sub.channelId);
+    if (video) {
+      await sendNotification(client, sub, youtubeEmbed(video));
+      await updateSubscription(sub._id.toString(), {
+        lastVideoId: video.videoId,
+        channelName: video.channelName || sub.channelName,
+      });
+      return `فيديو: ${video.title}`;
+    }
+  }
+
+  if (sub.platform === 'kick' && sub.channelId) {
+    const stream = await fetchKickStream(sub.channelId);
+    if (stream) {
+      await sendNotification(client, sub, kickEmbed(stream));
+      await updateSubscription(sub._id.toString(), { lastStreamStatus: true });
+      return `بث: ${stream.title}`;
+    }
+  }
+
+  if (sub.platform === 'twitter' && sub.channelId) {
+    const tweet = await fetchLatestTweet(sub.channelId);
+    if (tweet) {
+      await sendNotification(client, sub, twitterEmbed(tweet));
+      await updateSubscription(sub._id.toString(), {
+        lastVideoId: tweet.tweetId,
+        channelName: sub.channelName || tweet.userName,
+      });
+      return `تغريدة: ${tweet.text?.slice(0, 50)}`;
+    }
+  }
+
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 //  Main loop
 // ═══════════════════════════════════════════════════════════════════════════
 
