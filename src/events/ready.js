@@ -30,6 +30,7 @@ export async function execute(client) {
     path.join(__dirname, '..', 'commands', 'ticket'),
     path.join(__dirname, '..', 'commands', 'voice'),
     path.join(__dirname, '..', 'commands', 'notifications'),
+    path.join(__dirname, '..', 'commands', 'announcement'),
   ];
   const cmdData = [];
   for (const dir of commandDirs) {

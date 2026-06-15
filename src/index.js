@@ -236,6 +236,46 @@ client.once('ready', async () => {
     res.json({ success: true });
   });
 
+  // ── Send announcement from dashboard ─────────────────────────────────
+  app.post('/api/announce', async (req, res) => {
+    const { guildId, channelId, title, message, mention, color, image, thumbnail, footer, type, timestamp } = req.body;
+    if (!guildId || !channelId || !title || !message) {
+      return res.status(400).json({ error: 'Missing guildId, channelId, title, or message' });
+    }
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+    const ch = await guild.channels.fetch(channelId).catch(() => null);
+    if (!ch) return res.status(404).json({ error: 'Channel not found' });
+
+    const ANNOUNCE_TYPES = {
+      general:     { emoji: "📢", label: "إعلان عام",     color: 0x1a6fff },
+      maintenance: { emoji: "🔧", label: "صيانة",          color: 0xff9800 },
+      update:      { emoji: "✅", label: "تحديث/إصدار",    color: 0x00c853 },
+      warning:     { emoji: "🚨", label: "تحذير",          color: 0xe53935 },
+      rules:       { emoji: "📋", label: "قواعد",          color: 0x7c4dff },
+    };
+    const ANNOUNCE_COLORS = { blue: 0x1a6fff, red: 0xe53935, gold: 0xffd700, green: 0x00c853, black: 0x0d0d0d, purple: 0x7c4dff, orange: 0xff9800 };
+    const typeInfo = ANNOUNCE_TYPES[type] ?? ANNOUNCE_TYPES.general;
+    const finalColor = ANNOUNCE_COLORS[color] ?? typeInfo.color;
+
+    const embed = new EmbedBuilder()
+      .setColor(finalColor)
+      .setTitle(`${typeInfo.emoji}  ${title}`)
+      .setDescription(["━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", message, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"].join("\n"))
+      .setAuthor({ name: guild.name, iconURL: guild.iconURL() || undefined });
+    if (thumbnail) embed.setThumbnail(thumbnail);
+    if (image) embed.setImage(image);
+    embed.setFooter({ text: footer ?? `${typeInfo.label} • FX9 Dashboard`, iconURL: guild.iconURL() || undefined });
+    if (timestamp !== false) embed.setTimestamp();
+
+    let content;
+    if (mention === "everyone") content = "@everyone";
+    else if (mention === "here") content = "@here";
+
+    await ch.send({ content, embeds: [embed] });
+    res.json({ success: true, channel: ch.name });
+  });
+
   // Single user info from bot cache
   app.get('/api/users/:userId', (req, res) => {
     const user = client.users.cache.get(req.params.userId);

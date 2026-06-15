@@ -4,6 +4,24 @@ import {
 } from "discord.js";
 import { COLOR } from "../../utils/embeds.js";
 
+const ANNOUNCE_COLORS = {
+  blue:   0x1a6fff,
+  red:    0xe53935,
+  gold:   0xffd700,
+  green:  0x00c853,
+  black:  0x0d0d0d,
+  purple: 0x7c4dff,
+  orange: 0xff9800,
+};
+
+const ANNOUNCE_TYPES = {
+  general:     { emoji: "📢", label: "إعلان عام",     color: 0x1a6fff },
+  maintenance: { emoji: "🔧", label: "صيانة",          color: 0xff9800 },
+  update:      { emoji: "✅", label: "تحديث/إصدار",    color: 0x00c853 },
+  warning:     { emoji: "🚨", label: "تحذير",          color: 0xe53935 },
+  rules:       { emoji: "📋", label: "قواعد",          color: 0x7c4dff },
+};
+
 export const data = new SlashCommandBuilder()
   .setName("announce")
   .setDescription("📢 إرسال إعلان رسمي احترافي")
@@ -45,7 +63,6 @@ export const data = new SlashCommandBuilder()
       { name: "🔧 صيانة",           value: "maintenance"  },
       { name: "✅ تحديث/إصدار",     value: "update"       },
       { name: "🚨 تحذير",           value: "warning"      },
-
       { name: "📋 قواعد",           value: "rules"        },
     )
   )
@@ -66,40 +83,31 @@ export async function execute(interaction) {
   const type      = interaction.options.getString("type") ?? "general";
   const showTime  = interaction.options.getBoolean("timestamp") ?? true;
 
-  const colorMap = {
-    blue: COLOR.blue, red: COLOR.red, gold: COLOR.gold,
-    green: COLOR.green, black: COLOR.black, purple: COLOR.purple, orange: COLOR.orange,
-  };
-
-  const typeMap = {
-    general:     { emoji: "📢", label: "إعلان",   color: COLOR.blue   },
-    maintenance: { emoji: "🔧", label: "صيانة",   color: COLOR.orange },
-    update:      { emoji: "✅", label: "تحديث",   color: COLOR.green  },
-    warning:     { emoji: "🚨", label: "تحذير",   color: COLOR.red    },
-
-    rules:       { emoji: "📋", label: "قواعد",   color: COLOR.purple },
-  };
-
-  const typeInfo  = typeMap[type] ?? typeMap.general;
-  const finalColor = colorMap[colorKey] ?? typeInfo.color;
+  const typeInfo  = ANNOUNCE_TYPES[type] ?? ANNOUNCE_TYPES.general;
+  const finalColor = ANNOUNCE_COLORS[colorKey] ?? typeInfo.color;
 
   const embed = new EmbedBuilder()
     .setColor(finalColor)
-    .setTitle(`${typeInfo.emoji}  ${title}`);
-
-  embed.setDescription(
-    [
-      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-      message,
-      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-    ].join("\n")
-  );
+    .setTitle(`${typeInfo.emoji}  ${title}`)
+    .setDescription(
+      [
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        message,
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      ].join("\n")
+    )
+    .setAuthor({
+      name: interaction.guild.name,
+      iconURL: interaction.guild.iconURL() || undefined,
+    });
 
   if (thumbnail) embed.setThumbnail(thumbnail);
   if (image)     embed.setImage(image);
 
-  const footerBase = footerTxt ?? `FX9 — ${typeInfo.label} • بواسطة: ${interaction.user.username}`;
-  embed.setFooter({ text: footerBase, iconURL: interaction.user.displayAvatarURL() });
+  embed.setFooter({
+    text: footerTxt ?? `${typeInfo.label} • ${interaction.user.username}`,
+    iconURL: interaction.user.displayAvatarURL(),
+  });
 
   if (showTime) embed.setTimestamp();
 
