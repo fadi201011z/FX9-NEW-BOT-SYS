@@ -55,6 +55,18 @@ export async function resolveYouTubeChannelId(url) {
   return null;
 }
 
+async function fetchYouTubeChannelAvatar(channelId) {
+  try {
+    const res = await fetch(`https://www.youtube.com/channel/${channelId}`, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    });
+    const html = await res.text();
+    const m = html.match(/"avatar":\s*\[\s*\{\s*"url":\s*"([^"]+)"/);
+    if (m) return m[1].replace(/\\u0026/g, '&');
+  } catch {}
+  return null;
+}
+
 async function fetchLatestYouTubeVideo(channelId) {
   const rssUrl = channelId.startsWith('UC')
     ? `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`
@@ -74,6 +86,8 @@ async function fetchLatestYouTubeVideo(channelId) {
 
   if (!videoId || !title) return null;
 
+  const channelAvatar = await fetchYouTubeChannelAvatar(channelId);
+
   return {
     videoId,
     title: title.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"'),
@@ -81,6 +95,7 @@ async function fetchLatestYouTubeVideo(channelId) {
     thumbnail: `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
     channelId,
     channelName: channelName?.replace(/&amp;/g, '&') || channelId,
+    channelAvatar,
     publishedAt: publishedRaw ? new Date(publishedRaw).getTime() : Date.now(),
   };
 }
@@ -103,7 +118,7 @@ async function fetchKickStream(slug) {
     title: data.livestream.session_title || 'بدون عنوان',
     slug: data.slug || slug,
     channelName: data.user?.username || slug,
-    avatar: data.user?.profile_pic || null,
+    channelAvatar: data.user?.profile_pic || null,
     viewerCount: data.livestream.viewer_count || 0,
     thumbnail: data.livestream?.thumbnail?.url
       ? data.livestream.thumbnail.url.replace('{width}', '1280').replace('{height}', '720')
@@ -134,13 +149,23 @@ async function fetchLatestTweet(username) {
 
       if (!tweetUrl) continue;
 
+      let channelAvatar = null;
+      try {
+        const profileRes = await fetch(`https://${instance}/${username}`, {
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+        });
+        const profileHtml = await profileRes.text();
+        const imgMatch = profileHtml.match(/<img[^>]*class="avatar"[^>]*src="([^"]+)"/);
+        if (imgMatch) channelAvatar = imgMatch[1].startsWith('http') ? imgMatch[1] : `https://${instance}${imgMatch[1]}`;
+      } catch {}
+
       return {
         tweetId: tweetUrl.split('/').pop() || tweetUrl,
         text: title?.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>') || '',
         url: tweetUrl,
         userName: `@${username}`,
         profileUrl: `https://x.com/${username}`,
-        avatar: null,
+        channelAvatar,
       };
     } catch {}
   }

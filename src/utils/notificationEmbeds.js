@@ -1,49 +1,53 @@
 import { EmbedBuilder } from 'discord.js';
 
-const COLOR = {
-  youtube: 0xff0000,
-  kick:    0x53fc18,
-  twitter: 0x1da1f2,
+const PLATFORM = {
+  youtube: { name: 'YouTube', color: 0xff0000, logo: 'https://www.youtube.com/s/desktop/92a3e22b/img/favicon_144x144.png' },
+  kick:    { name: 'Kick',    color: 0x53fc18, logo: 'https://kick.com/favicon.ico' },
+  twitter: { name: 'Twitter', color: 0x1da1f2, logo: 'https://abs.twimg.com/favicons/twitter.2.ico' },
 };
 
 export function youtubeEmbed(video) {
   return new EmbedBuilder()
-    .setColor(COLOR.youtube)
-    .setTitle('📹 فيديو جديد على يوتيوب')
+    .setColor(PLATFORM.youtube.color)
+    .setAuthor({ name: PLATFORM.youtube.name, iconURL: PLATFORM.youtube.logo })
+    .setTitle('فيديو جديد على يوتيوب')
     .setDescription(`### [${video.title}](${video.url})`)
     .setURL(video.url)
-    .setThumbnail(video.thumbnail)
+    .setThumbnail(video.channelAvatar || video.thumbnail)
     .setImage(video.thumbnail)
     .addFields(
       { name: 'القناة', value: `[${video.channelName}](https://www.youtube.com/channel/${video.channelId})`, inline: true },
       { name: 'تاريخ النشر', value: `<t:${Math.floor(video.publishedAt / 1000)}:R>`, inline: true },
     )
-    .setFooter({ text: 'FX9 Notifier • YouTube' })
+    .setFooter({ text: 'FX9 Notifier' })
     .setTimestamp();
 }
 
 export function kickEmbed(stream) {
   return new EmbedBuilder()
-    .setColor(COLOR.kick)
-    .setTitle('🔴 مباشر الآن على Kick!')
+    .setColor(PLATFORM.kick.color)
+    .setAuthor({ name: PLATFORM.kick.name, iconURL: PLATFORM.kick.logo })
+    .setTitle('مباشر الآن على Kick!')
     .setDescription(`### [${stream.title}](${stream.url})`)
     .setURL(stream.url)
+    .setThumbnail(stream.channelAvatar)
     .setImage(stream.thumbnail)
     .addFields(
       { name: 'القناة', value: `[${stream.channelName}](https://kick.com/${stream.slug})`, inline: true },
       { name: 'المشاهدين', value: String(stream.viewerCount ?? 0), inline: true },
     )
-    .setFooter({ text: 'FX9 Notifier • Kick' })
+    .setFooter({ text: 'FX9 Notifier' })
     .setTimestamp();
 }
 
 export function twitterEmbed(tweet) {
   return new EmbedBuilder()
-    .setColor(COLOR.twitter)
-    .setTitle('🐦 تغريدة جديدة')
+    .setColor(PLATFORM.twitter.color)
+    .setAuthor({ name: PLATFORM.twitter.name, iconURL: PLATFORM.twitter.logo })
+    .setTitle('تغريدة جديدة')
     .setDescription(tweet.text?.slice(0, 2000) || '')
     .setURL(tweet.url)
-    .setAuthor({ name: tweet.userName, iconURL: tweet.avatar, url: tweet.profileUrl })
-    .setFooter({ text: 'FX9 Notifier • Twitter/X' })
+    .setThumbnail(tweet.channelAvatar)
+    .setFooter({ text: 'FX9 Notifier' })
     .setTimestamp();
 }
