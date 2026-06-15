@@ -8,34 +8,46 @@ const CHECK_INTERVAL_MS = 5 * 60 * 1000;
 // ═══════════════════════════════════════════════════════════════════════════
 
 export async function resolveYouTubeChannelId(url) {
-  const clean = url.trim().replace(/\/$/, '');
+  const clean = url.trim().replace(/\/[?#].*$/, '').replace(/\/$/, '');
 
+  // Direct channel ID: youtube.com/channel/UC...
   const chMatch = clean.match(/youtube\.com\/channel\/(UC[\w-]+)/i);
   if (chMatch) return chMatch[1];
 
-  const userMatch = clean.match(/youtube\.com\/user\/([\w-]+)/i);
-  if (userMatch) return userMatch[1];
-
+  // Extract handle/username for page fetch
+  let handle = null;
   const handleMatch = clean.match(/youtube\.com\/@([\w-]+)/i);
-  if (handleMatch) {
-    try {
-      const res = await fetch(`https://www.youtube.com/@${handleMatch[1]}`, {
-        headers: { 'User-Agent': 'Mozilla/5.0' },
-      });
-      const html = await res.text();
-      const idMatch = html.match(/"channelId":"(UC[\w-]+)"/);
-      if (idMatch) return idMatch[1];
-    } catch {}
-  }
-
+  if (handleMatch) handle = handleMatch[1];
+  const userMatch = clean.match(/youtube\.com\/user\/([\w-]+)/i);
+  if (!handle && userMatch) handle = userMatch[1];
   const cMatch = clean.match(/youtube\.com\/c\/([\w-]+)/i);
-  if (cMatch) {
+  if (!handle && cMatch) handle = cMatch[1];
+
+  if (!handle) return null;
+
+  // Fetch the channel page and extract channelId from ytInitialData JSON
+  for (const page of [`https://www.youtube.com/@${handle}`, `https://www.youtube.com/@${handle}/about`]) {
     try {
-      const res = await fetch(`https://www.youtube.com/c/${cMatch[1]}`, {
-        headers: { 'User-Agent': 'Mozilla/5.0' },
+      const res = await fetch(page, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
       });
       const html = await res.text();
-      const idMatch = html.match(/"channelId":"(UC[\w-]+)"/);
+
+      // Try to extract from ytInitialData JSON
+      const ytMatch = html.match(/ytInitialData\s*=\s*({.+?});\s*<\/script>/);
+      if (ytMatch) {
+        try {
+          const data = JSON.parse(ytMatch[1]);
+          const id = data?.metadata?.channelMetadataRenderer?.externalId
+                  || data?.header?.c4TabbedHeaderRenderer?.channelId
+                  || data?.microformat?.microformatDataRenderer?.externalId;
+          if (id) return id;
+        } catch {}
+      }
+
+      // Fallback: regex search for channelId
+      const idMatch = html.match(/"channelId":"(UC[\w-]+)"/)
+                   || html.match(/"externalId":"(UC[\w-]+)"/);
       if (idMatch) return idMatch[1];
     } catch {}
   }
