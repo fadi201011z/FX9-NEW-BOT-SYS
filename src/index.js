@@ -260,12 +260,16 @@ client.once('ready', async () => {
 
     const embed = new EmbedBuilder()
       .setColor(finalColor)
+      .setAuthor({ name: `${guild.name} • ${typeInfo.label}`, iconURL: guild.iconURL() || undefined })
       .setTitle(`${typeInfo.emoji}  ${title}`)
-      .setDescription(["━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", message, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"].join("\n"))
-      .setAuthor({ name: guild.name, iconURL: guild.iconURL() || undefined });
+      .setDescription([`> ${typeInfo.label} رسمي من إدارة **${guild.name}**`, '', '━━━━━━━━━━━━━━━━━━━━━━━━━━', '', message, '', '━━━━━━━━━━━━━━━━━━━━━━━━━━'].join("\n"))
+      .addFields(
+        { name: '📋 النوع', value: typeInfo.label, inline: true },
+        { name: '📅 التاريخ', value: `<t:${Math.floor(Date.now() / 1000)}:D>`, inline: true },
+      );
     if (thumbnail) embed.setThumbnail(thumbnail);
     if (image) embed.setImage(image);
-    embed.setFooter({ text: footer ?? `${typeInfo.label} • FX9 Dashboard`, iconURL: guild.iconURL() || undefined });
+    embed.setFooter({ text: footer ?? `${guild.name} • ${typeInfo.label}`, iconURL: guild.iconURL() || undefined });
     if (timestamp !== false) embed.setTimestamp();
 
     let content;

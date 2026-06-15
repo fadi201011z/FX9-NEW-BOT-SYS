@@ -88,25 +88,35 @@ export async function execute(interaction) {
 
   const embed = new EmbedBuilder()
     .setColor(finalColor)
+    .setAuthor({
+      name: `${interaction.guild.name} • ${typeInfo.label}`,
+      iconURL: interaction.guild.iconURL() || undefined,
+    })
     .setTitle(`${typeInfo.emoji}  ${title}`)
     .setDescription(
       [
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        `> ${typeInfo.label} رسمي من إدارة **${interaction.guild.name}**`,
+        '',
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━',
+        '',
         message,
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        '',
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━',
       ].join("\n")
-    )
-    .setAuthor({
-      name: interaction.guild.name,
-      iconURL: interaction.guild.iconURL() || undefined,
-    });
+    );
 
   if (thumbnail) embed.setThumbnail(thumbnail);
   if (image)     embed.setImage(image);
 
+  embed.addFields(
+    { name: '📋 النوع', value: typeInfo.label, inline: true },
+    { name: '👤 بواسطة', value: interaction.user.username, inline: true },
+    { name: '📅 التاريخ', value: `<t:${Math.floor(Date.now() / 1000)}:D>`, inline: true },
+  );
+
   embed.setFooter({
-    text: footerTxt ?? `${typeInfo.label} • ${interaction.user.username}`,
-    iconURL: interaction.user.displayAvatarURL(),
+    text: footerTxt ?? `${interaction.guild.name} • ${typeInfo.label}`,
+    iconURL: interaction.guild.iconURL() || undefined,
   });
 
   if (showTime) embed.setTimestamp();
