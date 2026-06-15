@@ -156,9 +156,9 @@ async function sendNotification(client, sub, embed) {
     const ch = await client.channels.fetch(sub.discordChannelId).catch(() => null);
     if (!ch) return;
     const parts = [];
-    if (sub.ping) parts.push('@here');
+    parts.push('@everyone');
     if (sub.customMessage) parts.push(sub.customMessage);
-    const content = parts.length > 0 ? parts.join(' | ') : undefined;
+    const content = parts.join(' | ');
     await ch.send({ content, embeds: [embed] });
   } catch (err) {
     console.error(`[Notif] Send error (${sub._id}):`, err.message);

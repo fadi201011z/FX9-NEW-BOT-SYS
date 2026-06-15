@@ -208,7 +208,7 @@ client.once('ready', async () => {
   app.post('/api/notifications/add', async (req, res) => {
     const { addSubscription } = await import('./data/notificationDB.js');
     const { resolveYouTubeChannelId } = await import('./handlers/notificationMonitor.js');
-    const { guildId, platform, url, discordChannelId, customMessage, ping } = req.body;
+    const { guildId, platform, url, discordChannelId, customMessage } = req.body;
     if (!guildId || !platform || !url || !discordChannelId) {
       return res.status(400).json({ error: 'Missing fields' });
     }
@@ -223,7 +223,7 @@ client.once('ready', async () => {
     }
     if (!channelId) return res.status(400).json({ error: 'Could not resolve channel ID from URL' });
     try {
-      const doc = await addSubscription({ guildId, platform, channelUrl: url, channelId, discordChannelId, customMessage, ping: !!ping });
+      const doc = await addSubscription({ guildId, platform, channelUrl: url, channelId, discordChannelId, customMessage });
       res.json({ success: true, id: doc._id });
     } catch (err) {
       res.status(500).json({ error: err.message });
