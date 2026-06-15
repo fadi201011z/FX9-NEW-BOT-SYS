@@ -207,12 +207,20 @@ client.once('ready', async () => {
 
   app.post('/api/notifications/add', async (req, res) => {
     const { addSubscription } = await import('./data/notificationDB.js');
-    const { resolveYouTubeChannelId, resolveTwitchUser } = await import('./handlers/notificationMonitor.js');
+    const { resolveYouTubeChannelId } = await import('./handlers/notificationMonitor.js');
     const { guildId, platform, url, discordChannelId, customMessage } = req.body;
     if (!guildId || !platform || !url || !discordChannelId) {
       return res.status(400).json({ error: 'Missing fields' });
     }
-    let channelId = platform === 'youtube' ? await resolveYouTubeChannelId(url) : resolveTwitchUser(url);
+    let channelId = url;
+    if (platform === 'youtube') channelId = await resolveYouTubeChannelId(url);
+    else if (platform === 'kick') {
+      const m = url.match(/kick\.com\/([\w-]+)/i);
+      channelId = m ? m[1] : url.trim().replace(/^@/, '');
+    } else if (platform === 'twitter') {
+      const m = url.match(/(?:twitter\.com|x\.com)\/(\w+)/i);
+      channelId = m ? m[1] : url.trim().replace(/^@/, '');
+    }
     if (!channelId) return res.status(400).json({ error: 'Could not resolve channel ID from URL' });
     try {
       const doc = await addSubscription({ guildId, platform, channelUrl: url, channelId, discordChannelId, customMessage });

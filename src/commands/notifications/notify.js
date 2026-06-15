@@ -9,8 +9,8 @@ async function resolveChannelId(platform, url) {
     const { resolveYouTubeChannelId } = await import('../handlers/notificationMonitor.js');
     return resolveYouTubeChannelId(url);
   }
-  if (platform === 'twitch') {
-    const m = url.match(/twitch\.tv\/([\w_]+)/i);
+  if (platform === 'kick') {
+    const m = url.match(/kick\.com\/([\w-]+)/i);
     return m ? m[1] : url.trim().replace(/^@/, '');
   }
   if (platform === 'twitter') {
@@ -22,7 +22,7 @@ async function resolveChannelId(platform, url) {
 
 export const data = new SlashCommandBuilder()
   .setName('notify')
-  .setDescription('🔔 إدارة إشتراكات الإشعارات (يوتيوب / تويتش)')
+  .setDescription('🔔 إدارة إشتراكات الإشعارات (يوتيوب / كيك / تويتر)')
   .addSubcommand(sub =>
     sub.setName('add')
       .setDescription('إضافة إشتراك إشعارات جديد')
@@ -32,7 +32,8 @@ export const data = new SlashCommandBuilder()
           .setRequired(true)
           .addChoices(
             { name: '📹 YouTube', value: 'youtube' },
-            { name: '🔴 Twitch', value: 'twitch' },
+            { name: '🔴 Kick', value: 'kick' },
+            { name: '🐦 Twitter/X', value: 'twitter' },
           ))
       .addStringOption(opt =>
         opt.setName('url')
@@ -107,10 +108,12 @@ export async function execute(interaction) {
         customMessage,
       });
 
+      const platLabel = platform === 'youtube' ? '📹 YouTube' : platform === 'kick' ? '🔴 Kick' : '🐦 Twitter';
+
       await interaction.editReply({
         content: [
           `✅ **تمت الإضافة!**`,
-          `┃ المنصة: **${platform === 'youtube' ? '📹 YouTube' : '🔴 Twitch'}**`,
+          `┃ المنصة: **${platLabel}**`,
           `┃ رابط القناة: ${url}`,
           `┃ قناة الإشعارات: <#${discordCh.id}>`,
           `┃ المعرف: \`${doc._id}\``,
@@ -150,7 +153,7 @@ export async function execute(interaction) {
     }
 
     const lines = subs.map((s, i) => {
-      const plat = s.platform === 'youtube' ? '📹' : s.platform === 'twitch' ? '🔴' : '🐦';
+      const plat = s.platform === 'youtube' ? '📹' : s.platform === 'kick' ? '🔴' : '🐦';
       return `\`${i + 1}.\` ${plat} **${s.channelName || s.channelId}** — <#${s.discordChannelId}> — \`${s._id}\``;
     });
 

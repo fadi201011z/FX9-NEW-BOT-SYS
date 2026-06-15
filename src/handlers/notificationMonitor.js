@@ -1,23 +1,21 @@
 import { getAllSubscriptions, updateSubscription } from '../data/notificationDB.js';
-import { youtubeEmbed, twitchEmbed } from '../utils/notificationEmbeds.js';
+import { youtubeEmbed, kickEmbed, twitterEmbed } from '../utils/notificationEmbeds.js';
 
 const CHECK_INTERVAL_MS = 5 * 60 * 1000;
-let twitchToken = null;
-let twitchTokenExpires = 0;
 
-// ─── Extract channel ID from YouTube URL ──────────────────────────────────
-async function resolveYouTubeChannelId(url) {
+// ═══════════════════════════════════════════════════════════════════════════
+//  YouTube — via RSS (no API needed)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export async function resolveYouTubeChannelId(url) {
   const clean = url.trim().replace(/\/$/, '');
 
-  // Direct channel ID: youtube.com/channel/UC...
   const chMatch = clean.match(/youtube\.com\/channel\/(UC[\w-]+)/i);
   if (chMatch) return chMatch[1];
 
-  // User: youtube.com/user/...
   const userMatch = clean.match(/youtube\.com\/user\/([\w-]+)/i);
   if (userMatch) return userMatch[1];
 
-  // @handle: youtube.com/@handle → fetch page for channelId
   const handleMatch = clean.match(/youtube\.com\/@([\w-]+)/i);
   if (handleMatch) {
     try {
@@ -30,7 +28,6 @@ async function resolveYouTubeChannelId(url) {
     } catch {}
   }
 
-  // /c/name → fetch page
   const cMatch = clean.match(/youtube\.com\/c\/([\w-]+)/i);
   if (cMatch) {
     try {
@@ -46,7 +43,6 @@ async function resolveYouTubeChannelId(url) {
   return null;
 }
 
-// ─── Fetch latest video via RSS ────────────────────────────────────────────
 async function fetchLatestYouTubeVideo(channelId) {
   const rssUrl = channelId.startsWith('UC')
     ? `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`
@@ -77,58 +73,76 @@ async function fetchLatestYouTubeVideo(channelId) {
   };
 }
 
-// ─── Twitch Auth ───────────────────────────────────────────────────────────
-async function ensureTwitchToken() {
-  if (twitchToken && Date.now() < twitchTokenExpires) return twitchToken;
-  const id = process.env.TWITCH_CLIENT_ID;
-  const secret = process.env.TWITCH_CLIENT_SECRET;
-  if (!id || !secret) return null;
+// ═══════════════════════════════════════════════════════════════════════════
+//  Kick — via public API (no auth needed)
+// ═══════════════════════════════════════════════════════════════════════════
 
-  const res = await fetch('https://id.twitch.tv/oauth2/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: id,
-      client_secret: secret,
-      grant_type: 'client_credentials',
-    }),
+async function fetchKickStream(slug) {
+  const res = await fetch(`https://kick.com/api/v2/channels/${slug}`, {
+    headers: { 'User-Agent': 'Mozilla/5.0' },
   });
+  if (!res.ok) return null;
   const data = await res.json();
-  if (data.access_token) {
-    twitchToken = data.access_token;
-    twitchTokenExpires = Date.now() + (data.expires_in - 60) * 1000;
-    return twitchToken;
+
+  if (!data?.livestream) return null;
+
+  return {
+    isLive: true,
+    title: data.livestream.session_title || 'بدون عنوان',
+    slug: data.slug || slug,
+    channelName: data.user?.username || slug,
+    avatar: data.user?.profile_pic || null,
+    viewerCount: data.livestream.viewer_count || 0,
+    thumbnail: data.livestream?.thumbnail?.url
+      ? data.livestream.thumbnail.url.replace('{width}', '1280').replace('{height}', '720')
+      : null,
+    url: `https://kick.com/${data.slug || slug}`,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Twitter — via Nitter RSS (no API needed)
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function fetchLatestTweet(username) {
+  const instances = ['nitter.net', 'nitter.privacydev.net', 'nitter.lqdev.tech'];
+  for (const instance of instances) {
+    try {
+      const res = await fetch(`https://${instance}/${username}/rss`, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+      });
+      if (!res.ok) continue;
+      const xml = await res.text();
+      const entryMatch = xml.match(/<entry>[\s\S]*?<\/entry>/);
+      if (!entryMatch) continue;
+
+      const entry = entryMatch[0];
+      const tweetUrl = entry.match(/<link[^>]*href="(.+?)"/)?.[1];
+      const title = entry.match(/<title>(.+?)<\/title>/)?.[1]?.trim();
+
+      if (!tweetUrl) continue;
+
+      return {
+        tweetId: tweetUrl.split('/').pop() || tweetUrl,
+        text: title?.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>') || '',
+        url: tweetUrl,
+        userName: `@${username}`,
+        profileUrl: `https://x.com/${username}`,
+        avatar: null,
+      };
+    } catch {}
   }
   return null;
 }
 
-// ─── Fetch Twitch stream status ────────────────────────────────────────────
-async function fetchTwitchStream(userLogin) {
-  const token = await ensureTwitchToken();
-  if (!token) return null;
+// ═══════════════════════════════════════════════════════════════════════════
+//  Common
+// ═══════════════════════════════════════════════════════════════════════════
 
-  const res = await fetch(`https://api.twitch.tv/helix/streams?user_login=${userLogin}`, {
-    headers: {
-      'Client-ID': process.env.TWITCH_CLIENT_ID,
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  const data = await res.json();
-  return data.data?.[0] || null;
-}
-
-// ─── Resolve Twitch user login from URL ────────────────────────────────────
-function resolveTwitchUser(url) {
-  const m = url.match(/twitch\.tv\/([\w_]+)/i);
-  return m ? m[1] : url.trim().replace(/^@/, '');
-}
-
-// ─── Send notification to Discord ──────────────────────────────────────────
 async function sendNotification(client, sub, embed) {
   try {
     const ch = await client.channels.fetch(sub.discordChannelId).catch(() => null);
     if (!ch) return;
-
     const content = sub.customMessage || undefined;
     await ch.send({ content, embeds: [embed] });
   } catch (err) {
@@ -136,15 +150,16 @@ async function sendNotification(client, sub, embed) {
   }
 }
 
-// ─── Check YouTube subscriptions ───────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+//  Checks
+// ═══════════════════════════════════════════════════════════════════════════
+
 async function checkYouTube(client) {
   const subs = getAllSubscriptions().filter(s => s.platform === 'youtube' && s.channelId);
-
   for (const sub of subs) {
     try {
       const video = await fetchLatestYouTubeVideo(sub.channelId);
       if (!video) continue;
-
       if (video.videoId !== sub.lastVideoId) {
         await sendNotification(client, sub, youtubeEmbed(video));
         await updateSubscription(sub._id.toString(), {
@@ -158,46 +173,60 @@ async function checkYouTube(client) {
   }
 }
 
-// ─── Check Twitch subscriptions ────────────────────────────────────────────
-async function checkTwitch(client) {
-  const subs = getAllSubscriptions().filter(s => s.platform === 'twitch' && s.channelId);
-
+async function checkKick(client) {
+  const subs = getAllSubscriptions().filter(s => s.platform === 'kick' && s.channelId);
   for (const sub of subs) {
     try {
-      const stream = await fetchTwitchStream(sub.channelId);
+      const stream = await fetchKickStream(sub.channelId);
       const isLive = !!stream;
 
       if (isLive && !sub.lastStreamStatus) {
-        // Just went live → send notification
-        const embed = twitchEmbed({
-          title: stream.title,
-          url: `https://twitch.tv/${sub.channelId}`,
-          thumbnail: stream.thumbnail_url
-            ? stream.thumbnail_url.replace('{width}', '1280').replace('{height}', '720')
-            : null,
-          userName: stream.user_name,
-          userLogin: sub.channelId,
-          gameName: stream.game_name,
-          viewerCount: stream.viewer_count,
-        });
-        await sendNotification(client, sub, embed);
+        await sendNotification(client, sub, kickEmbed(stream));
       }
 
-      await updateSubscription(sub._id.toString(), { lastStreamStatus: isLive });
+      if (sub.lastStreamStatus !== isLive) {
+        await updateSubscription(sub._id.toString(), { lastStreamStatus: isLive });
+      }
     } catch (err) {
-      console.error(`[Notif] Twitch check error (${sub._id}):`, err.message);
+      console.error(`[Notif] Kick check error (${sub._id}):`, err.message);
     }
   }
 }
 
-// ─── Main loop ─────────────────────────────────────────────────────────────
+async function checkTwitter(client) {
+  const subs = getAllSubscriptions().filter(s => s.platform === 'twitter' && s.channelId);
+  for (const sub of subs) {
+    try {
+      const tweet = await fetchLatestTweet(sub.channelId);
+      if (!tweet) continue;
+
+      if (tweet.tweetId !== sub.lastVideoId) {
+        await sendNotification(client, sub, twitterEmbed(tweet));
+        await updateSubscription(sub._id.toString(), {
+          lastVideoId: tweet.tweetId,
+          channelName: sub.channelName || tweet.userName,
+        });
+      }
+    } catch (err) {
+      console.error(`[Notif] Twitter check error (${sub._id}):`, err.message);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Main loop
+// ═══════════════════════════════════════════════════════════════════════════
+
 export function startNotificationMonitor(client) {
   async function run() {
-    await checkYouTube(client).catch(e => console.error('[Notif] YouTube batch error:', e.message));
-    await checkTwitch(client).catch(e => console.error('[Notif] Twitch batch error:', e.message));
+    await Promise.all([
+      checkYouTube(client).catch(e => console.error('[Notif] YouTube batch:', e.message)),
+      checkKick(client).catch(e => console.error('[Notif] Kick batch:', e.message)),
+      checkTwitter(client).catch(e => console.error('[Notif] Twitter batch:', e.message)),
+    ]);
   }
 
   run();
   setInterval(run, CHECK_INTERVAL_MS);
-  console.log('  🔔  Notification monitor active (check every 5 min)');
+  console.log('  🔔  Notification monitor active (YouTube + Kick + Twitter, every 5 min)');
 }
