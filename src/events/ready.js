@@ -45,10 +45,11 @@ export async function execute(client) {
   if (cmdData.length > 0) {
     try {
       const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
-      await rest.put(Routes.applicationCommands(client.user.id), { body: cmdData });
-      console.log(`[Deploy] ✅ ${cmdData.length} command(s) registered globally`);
 
-      // تحديث الأوامر في كل سيرفر عشان نمسح الكاش القديم
+      // مسح الأوامر العالمية عشان تظهر فقط في السيرفرات اللي فيها البوت
+      await rest.put(Routes.applicationCommands(client.user.id), { body: [] }).catch(() => {});
+
+      // تسجيل الأوامر في كل سيرفر على حدة
       let updated = 0;
       for (const [guildId] of client.guilds.cache) {
         try {
@@ -56,7 +57,7 @@ export async function execute(client) {
           updated++;
         } catch {}
       }
-      if (updated > 0) console.log(`[Deploy] ✅ Synced commands for ${updated} guild(s)`);
+      console.log(`[Deploy] ✅ ${cmdData.length} command(s) registered for ${updated} guild(s)`);
     } catch (err) {
       console.error('[Deploy] ❌ Failed to register commands:', err.message);
     }
