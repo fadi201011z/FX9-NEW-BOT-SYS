@@ -51,9 +51,9 @@ export function setMaintenancePresence(client, message) {
     rotationInterval = null;
   }
   setPresence(client, {
-    name: `🔧 ${message || 'البوت تحت الصيانة'}`,
+    name: `🛠️ ${message || 'نظام الصيانة نشط — سنعود قريباً'}`,
     type: ActivityType.Playing,
-    status: 'idle',
+    status: 'dnd',
   });
 }
 
