@@ -296,6 +296,8 @@ client.once('ready', async () => {
     } catch { res.json({ enabled: false }); }
   });
 
+  let lastStopTime = 0;
+
   app.post('/api/maintenance/sync', async (req, res) => {
     try {
       const Maintenance = (await import('./models/Maintenance.js')).default;
@@ -314,20 +316,33 @@ client.once('ready', async () => {
       }
 
       if (action === 'start') {
+        lastStopTime = 0;
         setMaintenancePresence(client, doc.message || 'البوت تحت الصيانة');
         const target = channelId || doc.channelId || '';
         console.log(`[Maintenance/Sync] إرسال إشعار البدء إلى ${target}`);
         if (target) await sendMaintenanceStart(client, target, doc.message, doc.endTime);
       } else if (action === 'stop') {
         clearMaintenancePresence(client);
-        const target = channelId || doc.channelId || '';
-        console.log(`[Maintenance/Sync] إرسال إشعار الانتهاء إلى ${target}`);
-        if (target) await sendMaintenanceEnd(client, target, doc.durationMinutes || 0);
+        const now = Date.now();
+        if (now - lastStopTime < 15000) {
+          console.log(`[Maintenance/Sync] تخطي إشعار الانتهاء — تم إرساله قبل ${(now - lastStopTime) / 1000} ث`);
+        } else {
+          lastStopTime = now;
+          const target = channelId || doc.channelId || '';
+          console.log(`[Maintenance/Sync] إرسال إشعار الانتهاء إلى ${target}`);
+          if (target) await sendMaintenanceEnd(client, target, doc.durationMinutes || 0);
+        }
       } else {
         if (doc.enabled) {
           if (doc.endTime && Date.now() >= doc.endTime) {
             await Maintenance.updateOne({ _id: doc._id }, { $set: { enabled: false, endTime: null, durationMinutes: 0 } });
             clearMaintenancePresence(client);
+            const now = Date.now();
+            if (now - lastStopTime >= 15000) {
+              lastStopTime = now;
+              const target = doc.channelId || '';
+              if (target) await sendMaintenanceEnd(client, target, doc.durationMinutes || 0);
+            }
           } else {
             setMaintenancePresence(client, doc.message || 'البوت تحت الصيانة');
           }
