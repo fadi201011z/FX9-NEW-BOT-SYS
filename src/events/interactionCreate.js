@@ -7,6 +7,28 @@ import {
   EmbedBuilder,
 } from 'discord.js';
 import { isCommandEnabled, canMemberUseCommand } from '../database.js';
+import Maintenance from '../models/Maintenance.js';
+import { ROLES } from '../config/roles.js';
+
+const DEV_ID = process.env.BOT_DEVELOPER_ID || null;
+
+async function isMaintenanceActive() {
+  try {
+    const doc = await Maintenance.findOne().lean();
+    if (!doc || !doc.enabled) return false;
+    if (doc.endTime && Date.now() >= doc.endTime) {
+      await Maintenance.updateOne({ _id: doc._id }, { $set: { enabled: false, endTime: null, durationMinutes: 0 } });
+      return false;
+    }
+    return doc.message || 'البوت تحت الصيانة والتطوير حالياً. انتظر لوقت لاحق.';
+  } catch { return false; }
+}
+
+function canBypassMaintenance(member) {
+  if (DEV_ID && member.id === DEV_ID) return true;
+  if (member.guild?.ownerId === member.id) return true;
+  return member.roles?.cache?.has(ROLES.DEVELOPER[0]) || false;
+}
 
 export const name = Events.InteractionCreate;
 export const once = false;
@@ -20,6 +42,18 @@ export async function execute(interaction) {
     if (interaction.isChatInputCommand()) {
       const cmd = interaction.client.commands.get(interaction.commandName);
       if (!cmd) return;
+
+      // ── Maintenance mode check ────────────────────────────────────────────
+      if (interaction.guildId && interaction.member) {
+        const mntMsg = await isMaintenanceActive();
+        if (mntMsg && !canBypassMaintenance(interaction.member)) {
+          await interaction.reply({
+            content: `🔧 **${mntMsg}**\n> 🤖 البوت في وضع الصيانة والتطوير. يُرجى المحاولة لاحقاً.\n👑 лишь المطورون وأصحاب السيرفر يمكنهم استخدام الأوامر الآن.`,
+            flags: 64,
+          }).catch(() => {});
+          return;
+        }
+      }
 
       if (interaction.guildId && !isCommandEnabled(interaction.guildId, interaction.commandName)) {
         interaction.reply({

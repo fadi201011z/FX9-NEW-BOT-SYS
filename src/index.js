@@ -280,6 +280,23 @@ client.once('ready', async () => {
     res.json({ success: true, channel: ch.name });
   });
 
+  // Maintenance mode status for dashboard sync
+  app.get('/api/maintenance', async (req, res) => {
+    try {
+      const Maintenance = (await import('./models/Maintenance.js')).default;
+      const doc = await Maintenance.findOne().lean();
+      if (doc && doc.enabled && doc.endTime && Date.now() >= doc.endTime) {
+        await Maintenance.updateOne({ _id: doc._id }, { $set: { enabled: false, endTime: null, durationMinutes: 0 } });
+        return res.json({ enabled: false });
+      }
+      res.json({ enabled: doc?.enabled || false, message: doc?.message || '', endTime: doc?.endTime || null });
+    } catch { res.json({ enabled: false }); }
+  });
+
+  app.post('/api/maintenance/sync', async (req, res) => {
+    res.json({ synced: true });
+  });
+
   // Single user info from bot cache
   app.get('/api/users/:userId', (req, res) => {
     const user = client.users.cache.get(req.params.userId);
