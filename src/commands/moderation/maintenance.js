@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, EmbedBuilder, ChannelType } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import Maintenance from '../../models/Maintenance.js';
 import { setMaintenancePresence, clearMaintenancePresence } from '../../utils/presence.js';
 import { sendMaintenanceStart, sendMaintenanceEnd } from '../../utils/maintenanceEmbed.js';
@@ -21,16 +21,6 @@ export const data = new SlashCommandBuilder()
         opt.setName('duration')
           .setDescription('المدة بالدقائق (0 أو بدون = غير محددة)')
           .setMinValue(0)
-      )
-      .addStringOption(opt =>
-        opt.setName('message')
-          .setDescription('رسالة الصيانة')
-          .setMaxLength(500)
-      )
-      .addChannelOption(opt =>
-        opt.setName('channel')
-          .setDescription('روم إرسال الإشعار')
-          .addChannelTypes(ChannelType.GuildText)
       )
   )
   .addSubcommand(sub =>
@@ -66,8 +56,6 @@ async function handleStart(interaction) {
 
   try {
     const duration = interaction.options.getInteger('duration');
-    const message  = interaction.options.getString('message');
-    const channel  = interaction.options.getChannel('channel');
 
     let doc = await Maintenance.findOne();
     if (!doc) doc = new Maintenance();
@@ -84,16 +72,11 @@ async function handleStart(interaction) {
       doc.durationMinutes = 0;
     }
 
-    if (message) doc.message = message;
-    if (channel) doc.channelId = channel.id;
-
     await doc.save();
 
     setMaintenancePresence(interaction.client, doc.message);
 
-    if (channel) {
-      await sendMaintenanceStart(interaction.client, channel.id, doc.message, doc.endTime);
-    } else if (doc.channelId) {
+    if (doc.channelId) {
       await sendMaintenanceStart(interaction.client, doc.channelId, doc.message, doc.endTime);
     }
 
@@ -106,8 +89,7 @@ async function handleStart(interaction) {
         doc.durationMinutes > 0
           ? `⏱ **المدة:** ${doc.durationMinutes} دقيقة`
           : '⏱ **المدة:** غير محددة',
-        channel ? `📢 **روم الإشعار:** <#${channel.id}>` : '',
-      ].filter(Boolean).join('\n'))
+      ].join('\n'))
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
