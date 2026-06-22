@@ -5,6 +5,7 @@ const maintenanceSchema = new mongoose.Schema({
   endTime:  { type: Number, default: null },
   durationMinutes: { type: Number, default: 0 },
   message:  { type: String, default: 'البوت تحت الصيانة والتطوير حالياً. انتظر لوقت لاحق.' },
+  channelId:{ type: String, default: '' },
   updatedAt:{ type: Number, default: Date.now },
   updatedBy:{ type: String, default: '' },
 }, { timestamps: true });

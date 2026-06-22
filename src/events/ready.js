@@ -4,6 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import path from 'path';
 import { updateStatusChannels } from '../utils/statusUpdater.js';
 import { startPresenceRotation, setMaintenancePresence, clearMaintenancePresence } from '../utils/presence.js';
+import { sendMaintenanceStart } from '../utils/maintenanceEmbed.js';
 import Maintenance from '../models/Maintenance.js';
 import { sendOnlineLog, startHeartbeat } from '../utils/botLogger.js';
 
@@ -75,6 +76,9 @@ export async function execute(client) {
         await Maintenance.updateOne({ _id: doc._id }, { $set: { enabled: false, endTime: null, durationMinutes: 0 } });
       } else {
         setMaintenancePresence(client, doc.message || 'البوت تحت الصيانة');
+        if (doc.channelId && !process.env.SUPPRESS_MAINTENANCE_EMBED) {
+          await sendMaintenanceStart(client, doc.channelId, doc.message, doc.endTime);
+        }
       }
     }
   } catch {}

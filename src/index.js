@@ -5,6 +5,7 @@ import path from 'path';
 import 'dotenv/config';
 import { initBotLogger, sendOfflineLog, sendErrorLog } from './utils/botLogger.js';
 import { startPresenceRotation, setMaintenancePresence, clearMaintenancePresence } from './utils/presence.js';
+import { sendMaintenanceStart, sendMaintenanceEnd } from './utils/maintenanceEmbed.js';
 import express from 'express';
 import { loadFromDisk, cleanStaleChannels } from './handlers/tempVoice.js';
 import { loadAllData } from './data/ticketDB.js';
@@ -298,16 +299,33 @@ client.once('ready', async () => {
   app.post('/api/maintenance/sync', async (req, res) => {
     try {
       const Maintenance = (await import('./models/Maintenance.js')).default;
+      const { action, channelId } = req.body || {};
+
+      if (channelId) {
+        await Maintenance.updateOne({}, { $set: { channelId } }, { upsert: true });
+      }
+
       const doc = await Maintenance.findOne().lean();
-      if (doc && doc.enabled) {
-        if (doc.endTime && Date.now() >= doc.endTime) {
-          await Maintenance.updateOne({ _id: doc._id }, { $set: { enabled: false, endTime: null, durationMinutes: 0 } });
-          clearMaintenancePresence(client);
-        } else {
-          setMaintenancePresence(client, doc.message || 'البوت تحت الصيانة');
-        }
-      } else {
+
+      if (action === 'start') {
+        setMaintenancePresence(client, doc?.message || 'البوت تحت الصيانة');
+        const target = channelId || doc?.channelId || '';
+        if (target) await sendMaintenanceStart(client, target, doc?.message, doc?.endTime);
+      } else if (action === 'stop') {
         clearMaintenancePresence(client);
+        const target = channelId || doc?.channelId || '';
+        if (target) await sendMaintenanceEnd(client, target, doc?.durationMinutes || 0);
+      } else {
+        if (doc && doc.enabled) {
+          if (doc.endTime && Date.now() >= doc.endTime) {
+            await Maintenance.updateOne({ _id: doc._id }, { $set: { enabled: false, endTime: null, durationMinutes: 0 } });
+            clearMaintenancePresence(client);
+          } else {
+            setMaintenancePresence(client, doc.message || 'البوت تحت الصيانة');
+          }
+        } else {
+          clearMaintenancePresence(client);
+        }
       }
     } catch { clearMaintenancePresence(client); }
     res.json({ synced: true });
