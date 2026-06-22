@@ -3,6 +3,22 @@ import { getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
 import { Colors } from '../utils/embeds.js';
 import { updateStatusChannels } from '../utils/statusUpdater.js';
+import Maintenance from '../models/Maintenance.js';
+
+const DEV_ID = process.env.BOT_DEVELOPER_ID || null;
+
+async function isMaintenanceBlocked(member, guild) {
+  try {
+    const doc = await Maintenance.findOne().lean();
+    if (!doc || !doc.enabled) return false;
+    if (doc.endTime && Date.now() >= doc.endTime) {
+      await Maintenance.updateOne({ _id: doc._id }, { $set: { enabled: false, endTime: null, durationMinutes: 0 } });
+      return false;
+    }
+    const bypass = (DEV_ID && member.id === DEV_ID) || guild.ownerId === member.id;
+    return !bypass;
+  } catch { return false; }
+}
 
 export const name = Events.VoiceStateUpdate;
 export const once = false;
@@ -11,6 +27,7 @@ export async function execute(oldState, newState) {
   const guild = newState.guild || oldState.guild;
   const member = newState.member || oldState.member;
   if (member?.user.bot) return;
+  if (await isMaintenanceBlocked(member, guild)) return;
 
   // ══════════════════════════════════════════════════════════════════════════
   //  VOICE: Temp channel creation / deletion / ownership transfer
