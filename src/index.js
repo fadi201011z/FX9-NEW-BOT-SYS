@@ -4,6 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import path from 'path';
 import 'dotenv/config';
 import { initBotLogger, sendOfflineLog, sendErrorLog } from './utils/botLogger.js';
+import { startPresenceRotation, setMaintenancePresence, clearMaintenancePresence } from './utils/presence.js';
 import express from 'express';
 import { loadFromDisk, cleanStaleChannels } from './handlers/tempVoice.js';
 import { loadAllData } from './data/ticketDB.js';
@@ -287,6 +288,7 @@ client.once('ready', async () => {
       const doc = await Maintenance.findOne().lean();
       if (doc && doc.enabled && doc.endTime && Date.now() >= doc.endTime) {
         await Maintenance.updateOne({ _id: doc._id }, { $set: { enabled: false, endTime: null, durationMinutes: 0 } });
+        clearMaintenancePresence(client);
         return res.json({ enabled: false });
       }
       res.json({ enabled: doc?.enabled || false, message: doc?.message || '', endTime: doc?.endTime || null });
@@ -294,6 +296,20 @@ client.once('ready', async () => {
   });
 
   app.post('/api/maintenance/sync', async (req, res) => {
+    try {
+      const Maintenance = (await import('./models/Maintenance.js')).default;
+      const doc = await Maintenance.findOne().lean();
+      if (doc && doc.enabled) {
+        if (doc.endTime && Date.now() >= doc.endTime) {
+          await Maintenance.updateOne({ _id: doc._id }, { $set: { enabled: false, endTime: null, durationMinutes: 0 } });
+          clearMaintenancePresence(client);
+        } else {
+          setMaintenancePresence(client, doc.message || 'البوت تحت الصيانة');
+        }
+      } else {
+        clearMaintenancePresence(client);
+      }
+    } catch { clearMaintenancePresence(client); }
     res.json({ synced: true });
   });
 

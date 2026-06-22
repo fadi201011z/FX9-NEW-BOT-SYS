@@ -48,7 +48,7 @@ export async function execute(interaction) {
         const mntMsg = await isMaintenanceActive();
         if (mntMsg && !canBypassMaintenance(interaction.member)) {
           await interaction.reply({
-            content: `🔧 **${mntMsg}**\n> 🤖 البوت في وضع الصيانة والتطوير. يُرجى المحاولة لاحقاً.\n👑 лишь المطورون وأصحاب السيرفر يمكنهم استخدام الأوامر الآن.`,
+            content: `🔧 **${mntMsg}**\n> 🤖 البوت في وضع الصيانة والتطوير حالياً. يُرجى المحاولة لاحقاً.\n👑 فقط المطورون وأصحاب السيرفر يمكنهم استخدام الأوامر الآن.`,
             flags: 64,
           }).catch(() => {});
           return;

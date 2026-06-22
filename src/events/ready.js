@@ -3,7 +3,8 @@ import { readdir } from 'fs/promises';
 import { fileURLToPath, pathToFileURL } from 'url';
 import path from 'path';
 import { updateStatusChannels } from '../utils/statusUpdater.js';
-import { startPresenceRotation } from '../utils/presence.js';
+import { startPresenceRotation, setMaintenancePresence, clearMaintenancePresence } from '../utils/presence.js';
+import Maintenance from '../models/Maintenance.js';
 import { sendOnlineLog, startHeartbeat } from '../utils/botLogger.js';
 
 export const name = Events.ClientReady;
@@ -65,6 +66,18 @@ export async function execute(client) {
 
   // ── SYS: Rotating presence ──────────────────────────────────────────
   startPresenceRotation(client);
+
+  // ── Check maintenance at startup ────────────────────────────────────
+  try {
+    const doc = await Maintenance.findOne().lean();
+    if (doc && doc.enabled) {
+      if (doc.endTime && Date.now() >= doc.endTime) {
+        await Maintenance.updateOne({ _id: doc._id }, { $set: { enabled: false, endTime: null, durationMinutes: 0 } });
+      } else {
+        setMaintenancePresence(client, doc.message || 'البوت تحت الصيانة');
+      }
+    }
+  } catch {}
 
   // ── SYS: Update status channels immediately ─────────────────────────
   for (const [, guild] of client.guilds.cache) {
