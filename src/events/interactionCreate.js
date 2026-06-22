@@ -30,6 +30,20 @@ function canBypassMaintenance(member) {
   return member.roles?.cache?.has(ROLES.DEVELOPER[0]) || false;
 }
 
+async function blockIfMaintenance(interaction) {
+  if (!interaction.guildId || !interaction.member) return false;
+  const mntMsg = await isMaintenanceActive();
+  if (mntMsg && !canBypassMaintenance(interaction.member)) {
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp({ content: `🔧 **${mntMsg}**\n> نعمل على تحسين البوت لكم. سنعود قريباً بأفضل حال.`, flags: 64 }).catch(() => {});
+    } else {
+      await interaction.reply({ content: `🔧 **${mntMsg}**\n> نعمل على تحسين البوت لكم. سنعود قريباً بأفضل حال.`, flags: 64 }).catch(() => {});
+    }
+    return true;
+  }
+  return false;
+}
+
 export const name = Events.InteractionCreate;
 export const once = false;
 
@@ -91,6 +105,7 @@ export async function execute(interaction) {
     //  String Select Menus
     // ══════════════════════════════════════════════════════════════════════
     if (interaction.isStringSelectMenu()) {
+      if (await blockIfMaintenance(interaction)) return;
       const { handleCategorySelect, handleQuickReply } = await import('../handlers/ticketHandler.js');
 
       if (interaction.customId === 'ticket_category') {
@@ -341,6 +356,7 @@ export async function execute(interaction) {
     //  Modal Submissions
     // ══════════════════════════════════════════════════════════════════════
     if (interaction.isModalSubmit()) {
+      if (await blockIfMaintenance(interaction)) return;
       const id = interaction.customId;
 
       // Ticket modals
@@ -446,6 +462,7 @@ export async function execute(interaction) {
     //  Buttons
     // ══════════════════════════════════════════════════════════════════════
     if (interaction.isButton()) {
+      if (await blockIfMaintenance(interaction)) return;
       const id = interaction.customId;
 
       // ── Rating buttons (ticket system) ──────────────────────────────
