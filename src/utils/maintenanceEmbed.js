@@ -63,10 +63,17 @@ export async function sendMaintenanceStart(client, channelId, message, endTime) 
     iconURL: client.user.displayAvatarURL(),
   });
 
+  const warningEmbed = new EmbedBuilder()
+    .setColor(0xFF6D00)
+    .setDescription([
+      '> ⚠️ **ملاحظة:** سيتم استئناف جميع الخدمات تلقائياً بمجرد انتهاء الصيانة.',
+      '> 📢 تابعوا الإعلانات في قناة التحديثات للمزيد من المعلومات.',
+    ].join('\n'));
+
   try {
     await channel.send({
       content: `<@&${NOTIFY_ROLE_ID}> 🔔 **إشعار صيانة** — البوت قيد الصيانة حالياً`,
-      embeds: [embed],
+      embeds: [embed, warningEmbed],
     });
   } catch (err) {
     console.error(`[MaintenanceEmbed] فشل إرسال إشعار البدء إلى ${channelId}:`, err.message);
