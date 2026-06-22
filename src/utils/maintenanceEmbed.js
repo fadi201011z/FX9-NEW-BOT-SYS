@@ -5,18 +5,27 @@ function formatDuration(milliseconds) {
   const days = Math.floor(totalSec / 86400);
   const hours = Math.floor((totalSec % 86400) / 3600);
   const minutes = Math.floor((totalSec % 3600) / 60);
-  const seconds = totalSec % 60;
   const parts = [];
   if (days > 0) parts.push(`**${days}** يوم`);
   if (hours > 0) parts.push(`**${hours}** ساعة`);
   if (minutes > 0) parts.push(`**${minutes}** دقيقة`);
-  if (seconds > 0 && parts.length === 0) parts.push(`**${seconds}** ثانية`);
-  return parts.join(' و ') || 'أقل من دقيقة';
+  if (parts.length === 0) parts.push('**أقل من دقيقة**');
+  return parts.join(' و ');
+}
+
+async function resolveChannel(client, channelId) {
+  if (!channelId) return null;
+  let channel = client.channels.cache.get(channelId);
+  if (!channel) {
+    try {
+      channel = await client.channels.fetch(channelId);
+    } catch { return null; }
+  }
+  return channel;
 }
 
 export async function sendMaintenanceStart(client, channelId, message, endTime) {
-  if (!channelId) return;
-  const channel = client.channels.cache.get(channelId);
+  const channel = await resolveChannel(client, channelId);
   if (!channel) return;
 
   const now = Date.now();
@@ -24,7 +33,7 @@ export async function sendMaintenanceStart(client, channelId, message, endTime) 
 
   const embed = new EmbedBuilder()
     .setAuthor({
-      name: 'نظام الصيانة | Maintenance System',
+      name: 'FX9 — نظام الصيانة',
       iconURL: client.user.displayAvatarURL(),
     })
     .setTitle('🛠️ إشعار بصيانة البوت')
@@ -66,40 +75,40 @@ export async function sendMaintenanceStart(client, channelId, message, endTime) 
   embed.addFields({
     name: '🕐 وقت البدء',
     value: `┕ <t:${Math.floor(now / 1000)}:F>\n┕ <t:${Math.floor(now / 1000)}:R>`,
-    inline: endTime,
+    inline: !!endTime,
   });
 
-  embed.setImage('https://i.imgur.com/5HjZxwH.png');
-
   embed.setFooter({
-    text: 'FX9 System — شكراً لتفهمكم وانتظاركم | سنعود قريباً بأفضل حال',
+    text: 'FX9 System — شكراً لتفهمكم وانتظاركم',
     iconURL: client.user.displayAvatarURL(),
   });
 
   const warningEmbed = new EmbedBuilder()
     .setColor(0xFF6D00)
     .setDescription([
-      '> ⚠️ **ملاحظة:** سيتم استئناف جميع الخدمات تلقائياً بمجرد انتهاء الصيانة. لا داعي للقلق.',
-      '> 📢 للمتابعة والتحديثات، تابع قناة التحديثات الرسمية.',
+      '> ⚠️ **ملاحظة:** سيتم استئناف جميع الخدمات تلقائياً بمجرد انتهاء الصيانة.',
+      '> 📢 تابعوا الإعلانات في قناة التحديثات للمزيد من المعلومات.',
     ].join('\n'));
 
-  await channel.send({
-    content: '🔔 **إشعار صيانة | Maintenance Notice**\n━━━━━━━━━━━━━━━━━━━━━━━━━',
-    embeds: [embed, warningEmbed],
-  }).catch(() => {});
+  try {
+    await channel.send({
+      content: '🔔 **إشعار صيانة** | Maintenance Notice',
+      embeds: [embed, warningEmbed],
+    });
+  } catch (err) {
+    console.error(`[MaintenanceEmbed] فشل إرسال إشعار البدء إلى ${channelId}:`, err.message);
+  }
 }
 
 export async function sendMaintenanceEnd(client, channelId, durationMinutes) {
-  if (!channelId) return;
-  const channel = client.channels.cache.get(channelId);
+  const channel = await resolveChannel(client, channelId);
   if (!channel) return;
 
   const now = Date.now();
-  const totalMs = durationMinutes > 0 ? durationMinutes * 60 * 1000 : 0;
 
   const embed = new EmbedBuilder()
     .setAuthor({
-      name: 'نظام الصيانة | Maintenance System',
+      name: 'FX9 — نظام الصيانة',
       iconURL: client.user.displayAvatarURL(),
     })
     .setTitle('✅ تم الانتهاء من الصيانة')
@@ -120,13 +129,11 @@ export async function sendMaintenanceEnd(client, channelId, durationMinutes) {
     .setColor(0x2E7D32)
     .setThumbnail(client.user.displayAvatarURL({ size: 1024 }));
 
-  embed.addFields(
-    {
-      name: '📅 وقت الانتهاء',
-      value: `┕ <t:${Math.floor(now / 1000)}:F>\n┕ <t:${Math.floor(now / 1000)}:R>`,
-      inline: true,
-    },
-  );
+  embed.addFields({
+    name: '📅 وقت الانتهاء',
+    value: `┕ <t:${Math.floor(now / 1000)}:F>\n┕ <t:${Math.floor(now / 1000)}:R>`,
+    inline: true,
+  });
 
   if (durationMinutes > 0) {
     const hours = Math.floor(durationMinutes / 60);
@@ -154,12 +161,16 @@ export async function sendMaintenanceEnd(client, channelId, durationMinutes) {
   });
 
   embed.setFooter({
-    text: 'FX9 System — نعتذر عن أي إزعاج، وشكراً لثقتكم | نسعد بخدمتكم دائماً',
+    text: 'FX9 System — نعتذر عن أي إزعاج، وشكراً لثقتكم',
     iconURL: client.user.displayAvatarURL(),
   });
 
-  await channel.send({
-    content: '✅ **انتهاء الصيانة | Maintenance Completed**\n━━━━━━━━━━━━━━━━━━━━━━━━━',
-    embeds: [embed],
-  }).catch(() => {});
+  try {
+    await channel.send({
+      content: '✅ **انتهاء الصيانة** | Maintenance Completed',
+      embeds: [embed],
+    });
+  } catch (err) {
+    console.error(`[MaintenanceEmbed] فشل إرسال إشعار الانتهاء إلى ${channelId}:`, err.message);
+  }
 }

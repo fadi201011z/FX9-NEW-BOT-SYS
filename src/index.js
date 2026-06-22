@@ -301,22 +301,30 @@ client.once('ready', async () => {
       const Maintenance = (await import('./models/Maintenance.js')).default;
       const { action, channelId } = req.body || {};
 
+      console.log(`[Maintenance/Sync] action=${action} channelId=${channelId}`);
+
       if (channelId) {
         await Maintenance.updateOne({}, { $set: { channelId } }, { upsert: true });
       }
 
-      const doc = await Maintenance.findOne().lean();
+      let doc = await Maintenance.findOne().lean();
+
+      if (!doc) {
+        doc = { enabled: false, message: '', channelId: '', endTime: null, durationMinutes: 0, _id: null };
+      }
 
       if (action === 'start') {
-        setMaintenancePresence(client, doc?.message || 'البوت تحت الصيانة');
-        const target = channelId || doc?.channelId || '';
-        if (target) await sendMaintenanceStart(client, target, doc?.message, doc?.endTime);
+        setMaintenancePresence(client, doc.message || 'البوت تحت الصيانة');
+        const target = channelId || doc.channelId || '';
+        console.log(`[Maintenance/Sync] إرسال إشعار البدء إلى ${target}`);
+        if (target) await sendMaintenanceStart(client, target, doc.message, doc.endTime);
       } else if (action === 'stop') {
         clearMaintenancePresence(client);
-        const target = channelId || doc?.channelId || '';
-        if (target) await sendMaintenanceEnd(client, target, doc?.durationMinutes || 0);
+        const target = channelId || doc.channelId || '';
+        console.log(`[Maintenance/Sync] إرسال إشعار الانتهاء إلى ${target}`);
+        if (target) await sendMaintenanceEnd(client, target, doc.durationMinutes || 0);
       } else {
-        if (doc && doc.enabled) {
+        if (doc.enabled) {
           if (doc.endTime && Date.now() >= doc.endTime) {
             await Maintenance.updateOne({ _id: doc._id }, { $set: { enabled: false, endTime: null, durationMinutes: 0 } });
             clearMaintenancePresence(client);
@@ -327,7 +335,9 @@ client.once('ready', async () => {
           clearMaintenancePresence(client);
         }
       }
-    } catch { clearMaintenancePresence(client); }
+    } catch (err) {
+      console.error('[Maintenance/Sync] خطأ:', err.message);
+    }
     res.json({ synced: true });
   });
 
