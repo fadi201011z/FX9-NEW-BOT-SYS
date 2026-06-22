@@ -1,5 +1,7 @@
 import { EmbedBuilder } from 'discord.js';
 
+const NOTIFY_ROLE_ID = '1499393262476329020';
+
 function formatDuration(milliseconds) {
   const totalSec = Math.floor(milliseconds / 1000);
   const days = Math.floor(totalSec / 86400);
@@ -47,53 +49,24 @@ export async function sendMaintenanceStart(client, channelId, message, endTime) 
       '',
       '🔹 **هل تتأثر الخدمات؟**',
       '> نعم، جميع أوامر البوت وحماية السيرفرات قد لا تعمل بشكل مؤقت.',
+      '',
+      '🔹 **متى سيعود العمل؟**',
+      endTime
+        ? `> بعد ${formatDuration(remainMs)} — سيتم استئناف الخدمات تلقائياً.`
+        : '> لم تحدد مدة زمنية — سنعلمكم فور الانتهاء.',
     ].join('\n'))
     .setColor(0xF57C00)
     .setThumbnail(client.user.displayAvatarURL({ size: 1024 }));
-
-  if (endTime) {
-    embed.addFields(
-      {
-        name: '⏳ الوقت المتبقي',
-        value: `┕ ${formatDuration(remainMs)}`,
-        inline: true,
-      },
-      {
-        name: '📅 ينتهي في',
-        value: `┕ <t:${Math.floor(endTime / 1000)}:F>\n┕ <t:${Math.floor(endTime / 1000)}:R>`,
-        inline: true,
-      },
-    );
-  } else {
-    embed.addFields({
-      name: '⏳ المدة المتوقعة',
-      value: '┕ غير محددة — سنعلمكم عند الانتهاء',
-      inline: false,
-    });
-  }
-
-  embed.addFields({
-    name: '🕐 وقت البدء',
-    value: `┕ <t:${Math.floor(now / 1000)}:F>\n┕ <t:${Math.floor(now / 1000)}:R>`,
-    inline: !!endTime,
-  });
 
   embed.setFooter({
     text: 'FX9 System — شكراً لتفهمكم وانتظاركم',
     iconURL: client.user.displayAvatarURL(),
   });
 
-  const warningEmbed = new EmbedBuilder()
-    .setColor(0xFF6D00)
-    .setDescription([
-      '> ⚠️ **ملاحظة:** سيتم استئناف جميع الخدمات تلقائياً بمجرد انتهاء الصيانة.',
-      '> 📢 تابعوا الإعلانات في قناة التحديثات للمزيد من المعلومات.',
-    ].join('\n'));
-
   try {
     await channel.send({
-      content: '🔔 **إشعار صيانة** | Maintenance Notice',
-      embeds: [embed, warningEmbed],
+      content: `<@&${NOTIFY_ROLE_ID}> 🔔 **إشعار صيانة** — البوت قيد الصيانة حالياً`,
+      embeds: [embed],
     });
   } catch (err) {
     console.error(`[MaintenanceEmbed] فشل إرسال إشعار البدء إلى ${channelId}:`, err.message);
@@ -103,8 +76,6 @@ export async function sendMaintenanceStart(client, channelId, message, endTime) 
 export async function sendMaintenanceEnd(client, channelId, durationMinutes) {
   const channel = await resolveChannel(client, channelId);
   if (!channel) return;
-
-  const now = Date.now();
 
   const embed = new EmbedBuilder()
     .setAuthor({
@@ -129,12 +100,6 @@ export async function sendMaintenanceEnd(client, channelId, durationMinutes) {
     .setColor(0x2E7D32)
     .setThumbnail(client.user.displayAvatarURL({ size: 1024 }));
 
-  embed.addFields({
-    name: '📅 وقت الانتهاء',
-    value: `┕ <t:${Math.floor(now / 1000)}:F>\n┕ <t:${Math.floor(now / 1000)}:R>`,
-    inline: true,
-  });
-
   if (durationMinutes > 0) {
     const hours = Math.floor(durationMinutes / 60);
     const mins = durationMinutes % 60;
@@ -146,17 +111,11 @@ export async function sendMaintenanceEnd(client, channelId, durationMinutes) {
       value: `┕ ${parts.join(' و ') || 'أقل من دقيقة'}`,
       inline: true,
     });
-  } else {
-    embed.addFields({
-      name: '⏱ المدة الإجمالية',
-      value: '┕ تمت العملية بنجاح',
-      inline: true,
-    });
   }
 
   embed.addFields({
     name: '💡 ملاحظة',
-    value: '> إذا واجهت أي مشكلة أو خلل، يرجى التواصل مع فريق الدعم الفني عبر التكتات.',
+    value: '> إذا واجهت أي مشكلة أو خلل بعد الصيانة، يرجى التواصل مع فريق الدعم الفني.',
     inline: false,
   });
 
@@ -167,7 +126,7 @@ export async function sendMaintenanceEnd(client, channelId, durationMinutes) {
 
   try {
     await channel.send({
-      content: '✅ **انتهاء الصيانة** | Maintenance Completed',
+      content: `<@&${NOTIFY_ROLE_ID}> ✅ **انتهاء الصيانة** — جميع الخدمات متاحة الآن`,
       embeds: [embed],
     });
   } catch (err) {
