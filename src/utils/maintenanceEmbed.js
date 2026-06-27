@@ -80,7 +80,7 @@ export async function sendMaintenanceStart(client, channelId, message, endTime) 
   }
 }
 
-export async function sendMaintenanceEnd(client, channelId, durationMinutes) {
+export async function sendMaintenanceEnd(client, channelId, durationMinutes, changelog) {
   const channel = await resolveChannel(client, channelId);
   if (!channel) return;
 
@@ -106,6 +106,24 @@ export async function sendMaintenanceEnd(client, channelId, durationMinutes) {
     ].join('\n'))
     .setColor(0x2E7D32)
     .setThumbnail(client.user.displayAvatarURL({ size: 1024 }));
+
+  // ── Changelog fields ──────────────────────────────────────────────
+  const cl = changelog || {};
+  const botText = (cl.botUpdates || '').trim() || 'لم يتم إضافة تحديثات';
+  const siteText = (cl.siteUpdates || '').trim() || 'لم يتم إضافة تحديثات';
+
+  if (botText !== 'لم يتم إضافة تحديثات' || siteText !== 'لم يتم إضافة تحديثات') {
+    embed.addFields({
+      name: '📦 تحديثات البوت',
+      value: botText.split('\n').map(l => l.trim() ? `> ${l.trim()}` : '').filter(Boolean).join('\n'),
+      inline: false,
+    });
+    embed.addFields({
+      name: '🌐 تحديثات الموقع',
+      value: siteText.split('\n').map(l => l.trim() ? `> ${l.trim()}` : '').filter(Boolean).join('\n'),
+      inline: false,
+    });
+  }
 
   if (durationMinutes > 0) {
     const hours = Math.floor(durationMinutes / 60);

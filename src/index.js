@@ -301,7 +301,7 @@ client.once('ready', async () => {
   app.post('/api/maintenance/sync', async (req, res) => {
     try {
       const Maintenance = (await import('./models/Maintenance.js')).default;
-      const { action, channelId } = req.body || {};
+      const { action, channelId, changelog } = req.body || {};
 
       console.log(`[Maintenance/Sync] action=${action} channelId=${channelId}`);
 
@@ -309,14 +309,21 @@ client.once('ready', async () => {
         await Maintenance.updateOne({}, { $set: { channelId } }, { upsert: true });
       }
 
+      if (changelog) {
+        const botUpdates = (changelog.botUpdates || '').trim() || 'لم يتم إضافة تحديثات';
+        const siteUpdates = (changelog.siteUpdates || '').trim() || 'لم يتم إضافة تحديثات';
+        await Maintenance.updateOne({}, { $set: { changelog: { botUpdates, siteUpdates } } }, { upsert: true });
+      }
+
       let doc = await Maintenance.findOne().lean();
 
       if (!doc) {
-        doc = { enabled: false, message: '', channelId: '', endTime: null, durationMinutes: 0, _id: null };
+        doc = { enabled: false, message: '', channelId: '', endTime: null, durationMinutes: 0, changelog: { botUpdates: '', siteUpdates: '' }, _id: null };
       }
 
       if (action === 'start') {
         lastStopTime = 0;
+        await Maintenance.updateOne({}, { $set: { changelog: { botUpdates: '', siteUpdates: '' } } }, { upsert: true });
         setMaintenancePresence(client, doc.message || 'البوت تحت الصيانة');
         const target = channelId || doc.channelId || '';
         console.log(`[Maintenance/Sync] إرسال إشعار البدء إلى ${target}`);
@@ -329,8 +336,9 @@ client.once('ready', async () => {
         } else {
           lastStopTime = now;
           const target = channelId || doc.channelId || '';
+          const cl = doc.changelog || { botUpdates: 'لم يتم إضافة تحديثات', siteUpdates: 'لم يتم إضافة تحديثات' };
           console.log(`[Maintenance/Sync] إرسال إشعار الانتهاء إلى ${target}`);
-          if (target) await sendMaintenanceEnd(client, target, doc.durationMinutes || 0);
+          if (target) await sendMaintenanceEnd(client, target, doc.durationMinutes || 0, cl);
         }
       } else {
         if (doc.enabled) {
