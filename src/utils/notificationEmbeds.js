@@ -24,20 +24,21 @@ export function youtubeEmbed(video) {
 }
 
 export function kickEmbed(stream) {
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(PLATFORM.kick.color)
-    .setAuthor({ name: PLATFORM.kick.name, iconURL: PLATFORM.kick.logo })
+    .setAuthor({ name: stream.channelName || PLATFORM.kick.name, iconURL: stream.channelAvatar || PLATFORM.kick.logo })
     .setTitle('مباشر الآن على Kick!')
-    .setDescription(`### [${stream.title}](${stream.url})`)
     .setURL(stream.url)
-    .setThumbnail(stream.channelAvatar)
-    .setImage(stream.thumbnail)
+    .setDescription(`### [${stream.title}](${stream.url})`)
+    .setThumbnail(PLATFORM.kick.logo)
     .addFields(
       { name: 'القناة', value: `[${stream.channelName}](https://kick.com/${stream.slug})`, inline: true },
       { name: 'المشاهدين', value: String(stream.viewerCount ?? 0), inline: true },
     )
     .setFooter({ text: 'FX9 Notifier' })
     .setTimestamp();
+  if (stream.thumbnail) embed.setImage(stream.thumbnail);
+  return embed;
 }
 
 export function twitterEmbed(tweet) {
