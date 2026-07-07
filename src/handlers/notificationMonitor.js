@@ -135,7 +135,9 @@ async function fetchKickStream(slug) {
         .replace(/{h}/gi, '720');
     }
     const channelAvatar = data.user?.profile_pic || data.user?.avatar || null;
+    const streamId = String(data.livestream.id || data.livestream._id || '');
     return {
+      id: streamId,
       isLive: true,
       title: data.livestream.session_title || 'بدون عنوان',
       slug: data.slug || slug,
@@ -249,16 +251,19 @@ async function checkKick(client) {
       const isLive = !!stream;
 
       if (sub.lastStreamStatus === undefined) {
-        await updateSubscription(sub._id.toString(), { lastStreamStatus: isLive });
+        await updateSubscription(sub._id.toString(), { lastStreamStatus: isLive, lastStreamId: stream?.id || '' });
         continue;
       }
 
-      if (isLive && !sub.lastStreamStatus) {
-        await sendNotification(client, sub, kickEmbed(stream));
-      }
-
-      if (sub.lastStreamStatus !== isLive) {
-        await updateSubscription(sub._id.toString(), { lastStreamStatus: isLive });
+      if (isLive) {
+        if (stream.id && stream.id !== sub.lastStreamId) {
+          await sendNotification(client, sub, kickEmbed(stream));
+          await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id });
+        }
+      } else {
+        if (sub.lastStreamStatus) {
+          await updateSubscription(sub._id.toString(), { lastStreamStatus: false, lastStreamId: '' });
+        }
       }
     } catch (err) {
       console.error(`[Notif] Kick check error (${sub._id}):`, err.message);
@@ -307,7 +312,7 @@ export async function checkSubscriptionNow(client, sub) {
     const stream = await fetchKickStream(sub.channelId);
     if (stream) {
       await sendNotification(client, sub, kickEmbed(stream));
-      await updateSubscription(sub._id.toString(), { lastStreamStatus: true });
+      await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id || '' });
       return `بث: ${stream.title}`;
     }
   }

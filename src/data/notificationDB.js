@@ -28,6 +28,7 @@ export async function addSubscription(data) {
       customMessage: data.customMessage || '',
       lastVideoId: data.lastVideoId || '',
       lastStreamStatus: false,
+      lastStreamId: '',
     },
     $setOnInsert: { createdAt: Date.now() },
   };
