@@ -105,26 +105,40 @@ async function fetchLatestYouTubeVideo(channelId) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function fetchKickStream(slug) {
-  const res = await fetch(`https://kick.com/api/v2/channels/${slug}`, {
-    headers: { 'User-Agent': 'Mozilla/5.0' },
-  });
-  if (!res.ok) return null;
-  const data = await res.json();
-
-  if (!data?.livestream) return null;
-
-  return {
-    isLive: true,
-    title: data.livestream.session_title || 'بدون عنوان',
-    slug: data.slug || slug,
-    channelName: data.user?.username || slug,
-    channelAvatar: data.user?.profile_pic || null,
-    viewerCount: data.livestream.viewer_count || 0,
-    thumbnail: data.livestream?.thumbnail?.url
-      ? data.livestream.thumbnail.url.replace('{width}', '1280').replace('{height}', '720')
-      : null,
-    url: `https://kick.com/${data.slug || slug}`,
-  };
+  try {
+    const res = await fetch(`https://kick.com/api/v2/channels/${slug}`, {
+      headers: {
+        'Accept': 'application/json',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36',
+        'Referer': 'https://kick.com/',
+      },
+    });
+    if (!res.ok) {
+      console.error(`[Kick] API returned ${res.status} for slug "${slug}"`);
+      return null;
+    }
+    const data = await res.json();
+    if (!data?.livestream) {
+      console.log(`[Kick] "${slug}" — no livestream`);
+      return null;
+    }
+    return {
+      isLive: true,
+      title: data.livestream.session_title || 'بدون عنوان',
+      slug: data.slug || slug,
+      channelName: data.user?.username || slug,
+      channelAvatar: data.user?.profile_pic || null,
+      viewerCount: data.livestream.viewer_count || 0,
+      thumbnail: data.livestream?.thumbnail?.url
+        ? data.livestream.thumbnail.url.replace('{width}', '1280').replace('{height}', '720')
+        : null,
+      url: `https://kick.com/${data.slug || slug}`,
+    };
+  } catch (err) {
+    console.error(`[Kick] fetchKickStream("${slug}") error:`, err.message);
+    return null;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

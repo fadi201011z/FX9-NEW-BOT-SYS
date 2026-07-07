@@ -218,8 +218,9 @@ client.once('ready', async () => {
     let channelId = preResolvedId || url;
     if (platform === 'youtube' && !preResolvedId) channelId = await resolveYouTubeChannelId(url);
     else if (platform === 'kick' && !preResolvedId) {
-      const m = url.match(/kick\.com\/([\w-]+)/i);
-      channelId = m ? m[1] : url.trim().replace(/^@/, '');
+      const clean = url.trim().replace(/\/[?#].*$/, '').replace(/\/$/, '');
+      const m = clean.match(/kick\.com\/(?:@?)([\w-]+)/i);
+      channelId = m ? m[1] : clean.replace(/^@/, '').replace(/^https?:\/\/[^/]+\//, '').replace(/\/.*$/, '');
     } else if (platform === 'twitter' && !preResolvedId) {
       const m = url.match(/(?:twitter\.com|x\.com)\/(\w+)/i);
       channelId = m ? m[1] : url.trim().replace(/^@/, '');
