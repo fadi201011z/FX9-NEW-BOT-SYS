@@ -19,18 +19,19 @@ export function getAllSubscriptions() {
 }
 
 export async function addSubscription(data) {
-  const doc = await Notification.create({
-    guildId: data.guildId,
-    platform: data.platform,
-    channelUrl: data.channelUrl,
-    channelId: data.channelId || '',
-    channelName: data.channelName || '',
-    discordChannelId: data.discordChannelId,
-    customMessage: data.customMessage || '',
-    lastVideoId: data.lastVideoId || '',
-    lastStreamStatus: false,
-    createdAt: Date.now(),
-  });
+  const filter = { guildId: data.guildId, platform: data.platform, channelUrl: data.channelUrl };
+  const update = {
+    $set: {
+      channelId: data.channelId || '',
+      channelName: data.channelName || '',
+      discordChannelId: data.discordChannelId,
+      customMessage: data.customMessage || '',
+      lastVideoId: data.lastVideoId || '',
+      lastStreamStatus: false,
+    },
+    $setOnInsert: { createdAt: Date.now() },
+  };
+  const doc = await Notification.findOneAndUpdate(filter, update, { upsert: true, new: true });
   subscriptions.set(doc._id.toString(), doc);
   return doc;
 }

@@ -123,6 +123,17 @@ async function fetchKickStream(slug) {
       console.log(`[Kick] "${slug}" — no livestream`);
       return null;
     }
+    let thumbnail = null;
+    const thumbRaw = data.livestream?.thumbnail;
+    if (typeof thumbRaw === 'string') {
+      thumbnail = thumbRaw;
+    } else if (thumbRaw?.url) {
+      thumbnail = thumbRaw.url
+        .replace(/\{width\}/gi, '1280')
+        .replace(/\{height\}/gi, '720')
+        .replace(/{w}/gi, '1280')
+        .replace(/{h}/gi, '720');
+    }
     return {
       isLive: true,
       title: data.livestream.session_title || 'بدون عنوان',
@@ -130,9 +141,7 @@ async function fetchKickStream(slug) {
       channelName: data.user?.username || slug,
       channelAvatar: data.user?.profile_pic || null,
       viewerCount: data.livestream.viewer_count || 0,
-      thumbnail: data.livestream?.thumbnail?.url
-        ? data.livestream.thumbnail.url.replace('{width}', '1280').replace('{height}', '720')
-        : null,
+      thumbnail,
       url: `https://kick.com/${data.slug || slug}`,
     };
   } catch (err) {
