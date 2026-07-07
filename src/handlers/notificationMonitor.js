@@ -135,7 +135,10 @@ async function fetchKickStream(slug) {
         .replace(/{h}/gi, '720');
     }
     const channelAvatar = data.user?.profile_pic || data.user?.avatar || null;
-    const streamId = String(data.livestream.id || data.livestream._id || '');
+    let streamId = '';
+    if (data.livestream.id !== undefined && data.livestream.id !== null) streamId = String(data.livestream.id);
+    else if (data.livestream._id !== undefined && data.livestream._id !== null) streamId = String(data.livestream._id);
+    else streamId = data.livestream.session_title + '|' + (data.livestream.created_at || '') + '|' + slug;
     return {
       id: streamId,
       isLive: true,
@@ -243,8 +246,11 @@ async function checkYouTube(client) {
   }
 }
 
+const recentlyNotified = new Set();
+
 async function checkKick(client) {
   const subs = getAllSubscriptions().filter(s => s.platform === 'kick' && s.channelId);
+  recentlyNotified.clear();
   for (const sub of subs) {
     try {
       const stream = await fetchKickStream(sub.channelId);
@@ -256,9 +262,11 @@ async function checkKick(client) {
       }
 
       if (isLive) {
-        if (stream.id && stream.id !== sub.lastStreamId) {
+        if (recentlyNotified.has(sub.channelId)) continue;
+        if (stream.id !== sub.lastStreamId) {
           await sendNotification(client, sub, kickEmbed(stream));
           await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id });
+          recentlyNotified.add(sub.channelId);
         }
       } else {
         if (sub.lastStreamStatus) {
