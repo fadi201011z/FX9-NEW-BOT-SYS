@@ -134,12 +134,13 @@ async function fetchKickStream(slug) {
         .replace(/{w}/gi, '1280')
         .replace(/{h}/gi, '720');
     }
+    const channelAvatar = data.user?.profile_pic || data.user?.avatar || null;
     return {
       isLive: true,
       title: data.livestream.session_title || 'بدون عنوان',
       slug: data.slug || slug,
       channelName: data.user?.username || slug,
-      channelAvatar: data.user?.profile_pic || null,
+      channelAvatar,
       viewerCount: data.livestream.viewer_count || 0,
       thumbnail,
       url: `https://kick.com/${data.slug || slug}`,
@@ -223,6 +224,10 @@ async function checkYouTube(client) {
     try {
       const video = await fetchLatestYouTubeVideo(sub.channelId);
       if (!video) continue;
+      if (!sub.lastVideoId) {
+        await updateSubscription(sub._id.toString(), { lastVideoId: video.videoId, channelName: video.channelName || sub.channelName });
+        continue;
+      }
       if (video.videoId !== sub.lastVideoId) {
         await sendNotification(client, sub, youtubeEmbed(video));
         await updateSubscription(sub._id.toString(), {
@@ -242,6 +247,11 @@ async function checkKick(client) {
     try {
       const stream = await fetchKickStream(sub.channelId);
       const isLive = !!stream;
+
+      if (sub.lastStreamStatus === undefined) {
+        await updateSubscription(sub._id.toString(), { lastStreamStatus: isLive });
+        continue;
+      }
 
       if (isLive && !sub.lastStreamStatus) {
         await sendNotification(client, sub, kickEmbed(stream));
