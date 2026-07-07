@@ -37,7 +37,7 @@ export function kickEmbed(stream) {
     )
     .setFooter({ text: 'FX9 Notifier' })
     .setTimestamp();
-  if (stream.thumbnail) embed.setImage(stream.thumbnail);
+  embed.setImage(stream.thumbnail || stream.channelAvatar);
   return embed;
 }
 

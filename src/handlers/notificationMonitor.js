@@ -125,7 +125,7 @@ async function fetchKickStream(slug) {
     }
     let thumbnail = null;
     const thumbRaw = data.livestream?.thumbnail;
-    if (typeof thumbRaw === 'string') {
+    if (typeof thumbRaw === 'string' && thumbRaw.startsWith('http')) {
       thumbnail = thumbRaw;
     } else if (thumbRaw?.url) {
       thumbnail = thumbRaw.url
@@ -133,6 +133,11 @@ async function fetchKickStream(slug) {
         .replace(/\{height\}/gi, '720')
         .replace(/{w}/gi, '1280')
         .replace(/{h}/gi, '720');
+    } else if (thumbRaw?.src) {
+      thumbnail = thumbRaw.src;
+    }
+    if (!thumbnail) {
+      thumbnail = data.livestream?.banner?.url || data.livestream?.banner || null;
     }
     const channelAvatar = data.user?.profile_pic || data.user?.avatar || null;
     let streamId = '';
