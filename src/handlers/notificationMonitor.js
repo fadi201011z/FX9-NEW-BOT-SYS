@@ -123,36 +123,23 @@ async function fetchKickStream(slug) {
       console.log(`[Kick] "${slug}" — no livestream`);
       return null;
     }
-    let thumbnail = null;
-    const thumbRaw = data.livestream?.thumbnail;
-    if (typeof thumbRaw === 'string' && thumbRaw.startsWith('http')) {
-      thumbnail = thumbRaw;
-    } else if (thumbRaw?.url) {
-      thumbnail = thumbRaw.url
-        .replace(/\{width\}/gi, '1280')
-        .replace(/\{height\}/gi, '720')
-        .replace(/{w}/gi, '1280')
-        .replace(/{h}/gi, '720');
-    } else if (thumbRaw?.src) {
-      thumbnail = thumbRaw.src;
-    }
-    if (!thumbnail) {
-      thumbnail = data.livestream?.banner?.url || data.livestream?.banner || null;
-    }
     const channelAvatar = data.user?.profile_pic || data.user?.avatar || null;
     let streamId = '';
     if (data.livestream.id !== undefined && data.livestream.id !== null) streamId = String(data.livestream.id);
     else if (data.livestream._id !== undefined && data.livestream._id !== null) streamId = String(data.livestream._id);
     else streamId = data.livestream.session_title + '|' + (data.livestream.created_at || '') + '|' + slug;
+    const thumbnail = streamId ? `https://images.kick.com/${streamId}/thumbnails/1280x720.jpg` : null;
+    const category = (data.livestream.categories && data.livestream.categories[0]?.name) || null;
     return {
       id: streamId,
       isLive: true,
-      title: data.livestream.session_title || 'بدون عنوان',
+      title: data.livestream.session_title || 'Untitled Stream',
       slug: data.slug || slug,
       channelName: data.user?.username || slug,
       channelAvatar,
       viewerCount: data.livestream.viewer_count || 0,
       thumbnail,
+      category,
       url: `https://kick.com/${data.slug || slug}`,
     };
   } catch (err) {

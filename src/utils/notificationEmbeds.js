@@ -27,17 +27,17 @@ export function kickEmbed(stream) {
   const embed = new EmbedBuilder()
     .setColor(PLATFORM.kick.color)
     .setAuthor({ name: stream.channelName || PLATFORM.kick.name, iconURL: stream.channelAvatar || PLATFORM.kick.logo })
-    .setTitle('مباشر الآن على Kick!')
+    .setTitle('🔴 Live Now on Kick!')
     .setURL(stream.url)
     .setDescription(`### [${stream.title}](${stream.url})`)
     .setThumbnail(PLATFORM.kick.logo)
     .addFields(
-      { name: 'القناة', value: `[${stream.channelName}](https://kick.com/${stream.slug})`, inline: true },
-      { name: 'المشاهدين', value: String(stream.viewerCount ?? 0), inline: true },
-    )
-    .setFooter({ text: 'FX9 Notifier' })
-    .setTimestamp();
-  embed.setImage(stream.thumbnail || stream.channelAvatar);
+      { name: 'Channel', value: `[${stream.channelName}](https://kick.com/${stream.slug})`, inline: true },
+      { name: 'Viewers', value: String(stream.viewerCount ?? 0), inline: true },
+    );
+  if (stream.category) embed.addFields({ name: 'Game', value: stream.category, inline: true });
+  if (stream.thumbnail) embed.setImage(stream.thumbnail);
+  embed.setFooter({ text: 'FX9 Notifier' }).setTimestamp();
   return embed;
 }
 

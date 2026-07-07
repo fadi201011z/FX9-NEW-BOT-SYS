@@ -53,9 +53,20 @@ export async function updateSubscription(id, updates) {
 export async function loadAllSubscriptions() {
   const rows = await Notification.find({}).lean();
   subscriptions.clear();
+  // Deduplicate: keep the newest doc per guild+platform+channelUrl
+  const seen = new Map();
   for (const row of rows) {
+    const key = `${row.guildId}|${row.platform}|${row.channelUrl}`;
+    const existing = seen.get(key);
+    if (!existing || (row.createdAt || 0) > (existing.createdAt || 0)) {
+      seen.set(key, row);
+    }
+  }
+  for (const row of seen.values()) {
     subscriptions.set(row._id.toString(), row);
   }
-  console.log(`[NotifDB] Loaded ${rows.length} subscriptions`);
-  return rows.length;
+  const removed = rows.length - seen.size;
+  if (removed > 0) console.log(`[NotifDB] Removed ${removed} duplicates, loaded ${seen.size} subscriptions`);
+  else console.log(`[NotifDB] Loaded ${rows.length} subscriptions`);
+  return seen.size;
 }
