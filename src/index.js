@@ -130,6 +130,7 @@ await Promise.all([loadCommandConfigsFromDB(), loadConfigsFromDB()]);
 // Periodic reload of command configs + guild configs (picks up dashboard changes)
 setInterval(() => loadCommandConfigsFromDB(), 5000);
 setInterval(() => loadConfigsFromDB(), 10000);
+setInterval(() => loadAllSubscriptions(), 15000);
 
 // ─── Ready Handler ─────────────────────────────────────────────────────────
 client.once('ready', async () => {
@@ -210,16 +211,16 @@ client.once('ready', async () => {
   app.post('/api/notifications/add', async (req, res) => {
     const { addSubscription } = await import('./data/notificationDB.js');
     const { resolveYouTubeChannelId } = await import('./handlers/notificationMonitor.js');
-    const { guildId, platform, url, discordChannelId, customMessage } = req.body;
+    const { guildId, platform, url, discordChannelId, customMessage, channelId: preResolvedId } = req.body;
     if (!guildId || !platform || !url || !discordChannelId) {
       return res.status(400).json({ error: 'Missing fields' });
     }
-    let channelId = url;
-    if (platform === 'youtube') channelId = await resolveYouTubeChannelId(url);
-    else if (platform === 'kick') {
+    let channelId = preResolvedId || url;
+    if (platform === 'youtube' && !preResolvedId) channelId = await resolveYouTubeChannelId(url);
+    else if (platform === 'kick' && !preResolvedId) {
       const m = url.match(/kick\.com\/([\w-]+)/i);
       channelId = m ? m[1] : url.trim().replace(/^@/, '');
-    } else if (platform === 'twitter') {
+    } else if (platform === 'twitter' && !preResolvedId) {
       const m = url.match(/(?:twitter\.com|x\.com)\/(\w+)/i);
       channelId = m ? m[1] : url.trim().replace(/^@/, '');
     }
