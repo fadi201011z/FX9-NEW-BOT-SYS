@@ -114,6 +114,10 @@ export async function execute(interaction) {
       if (interaction.customId === 'ticket_quickreply') {
         return handleQuickReply(interaction.client, interaction);
       }
+      if (interaction.customId === 'ticket_actions') {
+        const { handleTicketActions } = await import('../handlers/ticketHandler.js');
+        return handleTicketActions(interaction.client, interaction);
+      }
 
       if (interaction.customId === 'ticket_log_menu') {
         const { handleTicketLogMenu } = await import('../handlers/ticketLogMenu.js');
@@ -479,20 +483,10 @@ export async function execute(interaction) {
         return handleRatingButton(interaction.client, interaction);
       }
 
-      // ── Ticket buttons ──────────────────────────────────────────────
+      // ── Old ticket buttons (backward compatibility) ─────────────────
       if (['ticket_claim', 'ticket_unclaim', 'ticket_rename', 'ticket_close'].includes(id)) {
-        const { updateTicketActivity } = await import('../handlers/inactivityHandler.js');
-        updateTicketActivity(interaction.channelId);
-
-        const { handleClaimTicket, handleUnclaimTicket, handleRenameTicket } = await import('../handlers/ticketHandler.js');
-        const { handleCloseTicket } = await import('../handlers/closeHandler.js');
-
-        switch (id) {
-          case 'ticket_claim':   return handleClaimTicket(interaction.client, interaction);
-          case 'ticket_unclaim': return handleUnclaimTicket(interaction.client, interaction);
-          case 'ticket_rename':  return handleRenameTicket(interaction);
-          case 'ticket_close':   return handleCloseTicket(interaction.client, interaction);
-        }
+        const { handleTicketActionButton } = await import('../handlers/ticketHandler.js');
+        return handleTicketActionButton(interaction.client, interaction);
       }
 
       // ── Temp Voice buttons ──────────────────────────────────────────

@@ -35,7 +35,9 @@ export async function handleCloseTicket(client, interaction) {
     return;
   }
 
-  await interaction.deferReply({ ephemeral: true });
+  const isSelect = interaction.isStringSelectMenu?.() ?? false;
+  if (isSelect) { await interaction.deferUpdate(); }
+  else { await interaction.deferReply({ ephemeral: true }); }
 
   ticket.status   = "closed";
   ticket.closedAt = Date.now();
@@ -83,7 +85,8 @@ export async function handleCloseTicket(client, interaction) {
 
   await sendOrUpdateTicketLog(client, ticket);
 
-  await interaction.editReply({ content: "✅ تم إغلاق التكت. القناة ستُحذف بعد التقييم أو خلال 20 دقيقة." });
+  if (isSelect) { await interaction.followUp({ content: "✅ تم إغلاق التكت. القناة ستُحذف بعد التقييم أو خلال 20 دقيقة.", ephemeral: true }); }
+  else { await interaction.editReply({ content: "✅ تم إغلاق التكت. القناة ستُحذف بعد التقييم أو خلال 20 دقيقة." }); }
 
   if (closeTimers.has(ticket.ticketId)) clearTimeout(closeTimers.get(ticket.ticketId));
   closeTimers.set(ticket.ticketId, setTimeout(() => deleteChannels(client, ticket), AUTO_CLOSE_DELAY));

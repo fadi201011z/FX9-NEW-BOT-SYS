@@ -160,17 +160,31 @@ export async function handleTicketModalSubmit(client, interaction) {
 }
 
 export async function handleClaimTicket(client, interaction) {
-  await interaction.deferReply({ ephemeral: true });
+  const isSelect = interaction.isStringSelectMenu?.() ?? false;
+  if (isSelect) { await interaction.deferUpdate(); }
+  else { await interaction.deferReply({ ephemeral: true }); }
 
   const config = getGuildConfig(interaction.guildId);
   const member = await interaction.guild.members.fetch(interaction.user.id);
   const ok = config.supportRoleIds?.some((id) => member.roles.cache.has(id)) || member.permissions.has(PermissionsBitField.Flags.ManageChannels);
 
-  if (!ok) { await interaction.editReply({ content: "❌ لا تملك رتبة الدعم لاستلام هذا التكت." }); return; }
+  if (!ok) {
+    if (isSelect) { await interaction.followUp({ content: "❌ لا تملك رتبة الدعم لاستلام هذا التكت.", ephemeral: true }); }
+    else { await interaction.editReply({ content: "❌ لا تملك رتبة الدعم لاستلام هذا التكت." }); }
+    return;
+  }
 
   const ticket = getTicket(interaction.channelId) ?? getTicketByAdminChannel(interaction.channelId);
-  if (!ticket) { await interaction.editReply({ content: "❌ التكت غير موجود." }); return; }
-  if (ticket.status === "claimed") { await interaction.editReply({ content: `❌ مستلم بالفعل من <@${ticket.claimedBy}>.` }); return; }
+  if (!ticket) {
+    if (isSelect) { await interaction.followUp({ content: "❌ التكت غير موجود.", ephemeral: true }); }
+    else { await interaction.editReply({ content: "❌ التكت غير موجود." }); }
+    return;
+  }
+  if (ticket.status === "claimed") {
+    if (isSelect) { await interaction.followUp({ content: `❌ مستلم بالفعل من <@${ticket.claimedBy}>.`, ephemeral: true }); }
+    else { await interaction.editReply({ content: `❌ مستلم بالفعل من <@${ticket.claimedBy}>.` }); }
+    return;
+  }
 
   ticket.status = "claimed";
   ticket.claimedBy = interaction.user.id;
@@ -210,23 +224,32 @@ export async function handleClaimTicket(client, interaction) {
     await ch?.send({ embeds: [logE] });
   }
 
-  await interaction.editReply({ content: "✅ تم استلام التكت." });
+  if (isSelect) { await interaction.followUp({ content: "✅ تم استلام التكت.", ephemeral: true }); }
+  else { await interaction.editReply({ content: "✅ تم استلام التكت." }); }
 
   await sendOrUpdateTicketLog(client, ticket);
 }
 
 export async function handleUnclaimTicket(client, interaction) {
-  await interaction.deferReply({ ephemeral: true });
+  const isSelect = interaction.isStringSelectMenu?.() ?? false;
+  if (isSelect) { await interaction.deferUpdate(); }
+  else { await interaction.deferReply({ ephemeral: true }); }
 
   const ticket = getTicket(interaction.channelId) ?? getTicketByAdminChannel(interaction.channelId);
-  if (!ticket) { await interaction.editReply({ content: "❌ التكت غير موجود." }); return; }
+  if (!ticket) {
+    if (isSelect) { await interaction.followUp({ content: "❌ التكت غير موجود.", ephemeral: true }); }
+    else { await interaction.editReply({ content: "❌ التكت غير موجود." }); }
+    return;
+  }
 
   const config = getGuildConfig(interaction.guildId);
   const member = await interaction.guild.members.fetch(interaction.user.id);
   const isSupport = config.supportRoleIds?.some((id) => member.roles.cache.has(id)) || member.permissions.has(PermissionsBitField.Flags.ManageChannels);
 
   if (ticket.claimedBy !== interaction.user.id && !isSupport) {
-    await interaction.editReply({ content: "❌ لا يمكنك Unclaim هذا التكت." }); return;
+    if (isSelect) { await interaction.followUp({ content: "❌ لا يمكنك Unclaim هذا التكت.", ephemeral: true }); }
+    else { await interaction.editReply({ content: "❌ لا يمكنك Unclaim هذا التكت." }); }
+    return;
   }
 
   const prev = ticket.claimedBy;
@@ -260,7 +283,8 @@ export async function handleUnclaimTicket(client, interaction) {
     await ch?.send({ embeds: [logE] });
   }
   await sendOrUpdateTicketLog(client, ticket);
-  await interaction.editReply({ content: "✅ تم إعادة التكت للفريق." });
+  if (isSelect) { await interaction.followUp({ content: "✅ تم إعادة التكت للفريق.", ephemeral: true }); }
+  else { await interaction.editReply({ content: "✅ تم إعادة التكت للفريق." }); }
 }
 
 export async function handleRenameTicket(interaction) {
@@ -333,6 +357,64 @@ export async function handleQuickReply(client, interaction) {
   }
 
   await interaction.reply({ content: `✅ تم إرسال الرد للعضو.`, ephemeral: true });
+}
+
+// ── Old button handler (backward compatibility) ────────────────────────────
+const BUTTON_ACTION_MAP = { ticket_claim: 'claim', ticket_unclaim: 'unclaim', ticket_rename: 'rename', ticket_close: 'close' };
+
+export async function handleTicketActionButton(client, interaction) {
+  const { updateTicketActivity } = await import("./inactivityHandler.js");
+  updateTicketActivity(interaction.channelId);
+
+  const action = BUTTON_ACTION_MAP[interaction.customId];
+  const ticket = getTicket(interaction.channelId) ?? getTicketByAdminChannel(interaction.channelId);
+  if (!ticket) {
+    await interaction.reply({ content: "❌ التكت غير موجود.", ephemeral: true });
+    return;
+  }
+
+  switch (action) {
+    case 'claim':
+      return handleClaimTicket(client, interaction);
+    case 'unclaim':
+      return handleUnclaimTicket(client, interaction);
+    case 'rename':
+      return handleRenameTicket(interaction);
+    case 'close': {
+      const { handleCloseTicket } = await import("./closeHandler.js");
+      return handleCloseTicket(client, interaction);
+    }
+    default:
+      await interaction.reply({ content: "❌ إجراء غير معروف.", ephemeral: true });
+  }
+}
+
+// ── Ticket Actions Select Menu (replaces 4 individual buttons) ──────────────
+export async function handleTicketActions(client, interaction) {
+  const { updateTicketActivity } = await import("./inactivityHandler.js");
+  updateTicketActivity(interaction.channelId);
+
+  const action = interaction.values[0];
+  const ticket = getTicket(interaction.channelId) ?? getTicketByAdminChannel(interaction.channelId);
+  if (!ticket) {
+    await interaction.reply({ content: "❌ التكت غير موجود.", ephemeral: true });
+    return;
+  }
+
+  switch (action) {
+    case 'claim':
+      return handleClaimTicket(client, interaction);
+    case 'unclaim':
+      return handleUnclaimTicket(client, interaction);
+    case 'rename':
+      return handleRenameTicket(interaction);
+    case 'close': {
+      const { handleCloseTicket } = await import("./closeHandler.js");
+      return handleCloseTicket(client, interaction);
+    }
+    default:
+      await interaction.reply({ content: "❌ إجراء غير معروف.", ephemeral: true });
+  }
 }
 
 // ── Restore All Panels (called on startup) ──────────────────────────────────

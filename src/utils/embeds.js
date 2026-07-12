@@ -255,24 +255,31 @@ export function ticketEmbed(t, adminChannel = false) {
 
 export function ticketButtons(claimed, claimedByUsername, adminMode = false) {
   const row1 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('ticket_claim')
-      .setLabel(claimed ? `✅ ${claimedByUsername ?? 'مستلم'}` : '📩 استلام')
-      .setStyle(claimed ? ButtonStyle.Success : ButtonStyle.Primary)
-      .setDisabled(claimed),
-    new ButtonBuilder()
-      .setCustomId('ticket_unclaim')
-      .setLabel('📤 إلغاء الاستلام')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(!claimed),
-    new ButtonBuilder()
-      .setCustomId('ticket_rename')
-      .setLabel('✏️ إعادة تسمية')
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId('ticket_close')
-      .setLabel('🔒 إغلاق')
-      .setStyle(ButtonStyle.Danger),
+    new StringSelectMenuBuilder()
+      .setCustomId('ticket_actions')
+      .setPlaceholder('📋 اختر إجراء...')
+      .addOptions(
+        new StringSelectMenuOptionBuilder()
+          .setLabel(claimed ? `✅ مستلم بواسطة ${claimedByUsername ?? '—'}` : '📩 استلام التكت')
+          .setDescription(claimed ? 'تم استلام هذا التكت بالفعل' : 'استلام وتولي مسؤولية التكت')
+          .setValue('claim')
+          .setEmoji('📩'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('📤 إلغاء الاستلام')
+          .setDescription('إعادة التكت للفريق')
+          .setValue('unclaim')
+          .setEmoji('📤'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('✏️ إعادة تسمية')
+          .setDescription('تغيير اسم قناة التكت')
+          .setValue('rename')
+          .setEmoji('✏️'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('🔒 إغلاق التكت')
+          .setDescription('إغلاق وحذف التكت بشكل نهائي')
+          .setValue('close')
+          .setEmoji('🔒'),
+      )
   );
 
   const rows = [row1];
