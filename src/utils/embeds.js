@@ -7,6 +7,7 @@ import {
   StringSelectMenuOptionBuilder,
 } from 'discord.js';
 import { CATEGORY_LABEL } from '../data/ticketTypes.js';
+import { formatDuration } from './parseDuration.js';
 
 // ════════════════════════════════════════════════════════════════════════════
 //  PREMIUM Color Palette 2025
