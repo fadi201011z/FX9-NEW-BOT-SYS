@@ -43,7 +43,7 @@ export async function generateWelcomeCard(member) {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-  const cx = WIDTH / 2, cy = HEIGHT / 2, r = 90;
+  const cx = WIDTH / 2 + 40, cy = HEIGHT / 2, r = 90;
   roundImage(ctx, avatarImg, cx, cy, r);
 
   ctx.strokeStyle = '#ffffff';

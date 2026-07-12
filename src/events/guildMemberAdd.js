@@ -68,17 +68,13 @@ export async function execute(member) {
       try {
         const card = await generateWelcomeCard(member);
         const attachment = new AttachmentBuilder(card, { name: 'welcome.png' });
-        const welcomeEmbed = new EmbedBuilder()
-          .setColor(isNewAccount ? Colors.CRIMSON : Colors.WHITE)
-          .setDescription([
-            `## 👋 أهلاً بك ${member}`,
-            `مرحباً في **${guild.name}**!`,
-            `أنت العضو رقم **#${guild.memberCount}**`,
-            isNewAccount ? '\n⚠️ **هذا الحساب عمره أقل من 7 أيام**' : '',
-          ].filter(Boolean).join('\n'))
-          .setTimestamp()
-          .setFooter({ text: `⚔️ FX9-SYS  •  ${guild.name}` });
-        await welcomeCh.send({ files: [attachment], embeds: [welcomeEmbed] }).catch(() => {});
+        const text = [
+          `> 👋 أهلاً بك ${member}`,
+          `> مرحباً في **${guild.name}**!`,
+          `> أنت العضو رقم **#${guild.memberCount}**`,
+          isNewAccount ? `\n> ⚠️ **هذا الحساب عمره أقل من 7 أيام**` : '',
+        ].filter(Boolean).join('\n');
+        await welcomeCh.send({ content: text, files: [attachment] }).catch(() => {});
       } catch (err) {
         console.error('[WelcomeCard] فشل إنشاء البطاقة:', err.message);
         const fallback = new EmbedBuilder()
