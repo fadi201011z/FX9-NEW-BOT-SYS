@@ -3,7 +3,7 @@ import { readdir } from 'fs/promises';
 import { fileURLToPath, pathToFileURL } from 'url';
 import path from 'path';
 import 'dotenv/config';
-import { initBotLogger, sendOfflineLog, sendErrorLog } from './utils/botLogger.js';
+import { initBotLogger, sendOnlineLog, sendOfflineLog, sendErrorLog, startHeartbeat } from './utils/botLogger.js';
 import { startPresenceRotation, setMaintenancePresence, clearMaintenancePresence } from './utils/presence.js';
 import { sendMaintenanceStart, sendMaintenanceEnd } from './utils/maintenanceEmbed.js';
 import express from 'express';
@@ -546,6 +546,10 @@ client.once('ready', async () => {
   // Ticket: inactivity monitor
   const { startInactivityMonitor } = await import('./handlers/inactivityHandler.js');
   startInactivityMonitor(client);
+
+  // Bot logger: send online status + start heartbeat
+  sendOnlineLog();
+  startHeartbeat();
 
   // Notification: start monitor
   const { startNotificationMonitor } = await import('./handlers/notificationMonitor.js');

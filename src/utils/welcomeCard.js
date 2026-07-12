@@ -11,10 +11,9 @@ const WIDTH = 800;
 const HEIGHT = 400;
 const FONT = 'Noto Sans Arabic';
 
-let fontReady = false;
+let fontPromise = null;
 
-async function ensureFont() {
-  if (fontReady) return;
+async function initFont() {
   try {
     const dir = join(__dirname, '..', '..', 'fonts');
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -27,12 +26,13 @@ async function ensureFont() {
       console.log('[WelcomeFont] تم تحميل الخط');
     }
     GlobalFonts.registerFromPath(FONT_PATH, FONT);
-    fontReady = true;
     console.log(`[WelcomeFont] الخط "${FONT}" جاهز`);
   } catch (err) {
     console.error('[WelcomeFont] فشل تحميل الخط:', err.message);
   }
 }
+
+fontPromise = initFont();
 
 function coverFit(ctx, img, dw, dh) {
   const sx = img.width / dw;
@@ -57,6 +57,8 @@ function roundImage(ctx, img, cx, cy, r) {
 }
 
 export async function generateWelcomeCard(member, guild, isNewAccount = false) {
+  await fontPromise;
+
   const canvas = createCanvas(WIDTH, HEIGHT);
   const ctx = canvas.getContext('2d');
 
@@ -73,7 +75,7 @@ export async function generateWelcomeCard(member, guild, isNewAccount = false) {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-  const ax = 80, ay = 200, r = 70;
+  const ax = WIDTH - 120, ay = 200, r = 70;
   roundImage(ctx, avatarImg, ax, ay, r);
 
   ctx.strokeStyle = '#ffffff';
@@ -82,50 +84,47 @@ export async function generateWelcomeCard(member, guild, isNewAccount = false) {
   ctx.arc(ax, ay, r, 0, Math.PI * 2);
   ctx.stroke();
 
-  const fontSize = 28;
-  const fn = fontReady ? FONT : 'sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ctx.font = `bold ${fontSize}px ${fn}`;
-  ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.fillText('👋 مرحباً بك', 180, 145);
+  ctx.textAlign = 'right';
 
-  ctx.font = `bold 24px ${fn}`;
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `bold 30px ${FONT}`;
+  ctx.fillText('👋 مرحباً بك', WIDTH - 190, 140);
+
+  ctx.font = `bold 26px ${FONT}`;
   ctx.fillStyle = '#fbbf24';
-  const name = member.user.username.length > 18 ? member.user.username.slice(0, 15) + '...' : member.user.username;
-  ctx.fillText(name, 180, 178);
+  const name = member.user.username.length > 16 ? member.user.username.slice(0, 13) + '...' : member.user.username;
+  ctx.fillText(name, WIDTH - 190, 178);
 
-  ctx.font = `16px ${fn}`;
+  ctx.font = `16px ${FONT}`;
   ctx.fillStyle = '#94a3b8';
-  ctx.fillText(`أنت العضو رقم #${guild.memberCount}`, 180, 218);
+  ctx.fillText(`أنت العضو رقم #${guild.memberCount}`, WIDTH - 190, 220);
 
-  ctx.font = `13px ${fn}`;
+  ctx.font = `13px ${FONT}`;
   ctx.fillStyle = '#64748b';
-  ctx.fillText(guild.name, 180, 245);
+  ctx.fillText(guild.name, WIDTH - 190, 248);
 
   ctx.strokeStyle = 'rgba(255,255,255,0.15)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(180, 270);
-  ctx.lineTo(WIDTH - 40, 270);
+  ctx.moveTo(40, 275);
+  ctx.lineTo(WIDTH - 190, 275);
   ctx.stroke();
 
   if (isNewAccount) {
     ctx.fillStyle = '#ef4444';
-    ctx.font = `bold 12px ${fn}`;
-    ctx.textAlign = 'left';
+    ctx.font = `bold 12px ${FONT}`;
+    ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
-    ctx.fillText('⚠️ هذا الحساب عمره أقل من 7 أيام', 180, 282);
+    ctx.fillText('⚠️ هذا الحساب عمره أقل من 7 أيام', WIDTH - 190, 285);
   }
 
-  ctx.font = `11px ${fn}`;
+  ctx.font = `11px ${FONT}`;
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.textAlign = 'right';
+  ctx.textAlign = 'left';
   ctx.textBaseline = 'bottom';
   const d = new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' });
-  ctx.fillText(`FX9 • ${d}`, WIDTH - 20, HEIGHT - 12);
-
-  if (!fontReady) await ensureFont();
+  ctx.fillText(`FX9 • ${d}`, 20, HEIGHT - 12);
 
   return canvas.toBuffer('image/png');
 }
