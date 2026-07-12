@@ -280,6 +280,14 @@ export async function execute(interaction) {
       }
 
       // ═══════════════════════════════════════════════════════════════
+      //  Heartbeat Menu
+      // ═══════════════════════════════════════════════════════════════
+      if (interaction.customId.startsWith('hb_cat_')) {
+        const { handleHeartbeatSelect } = await import('../utils/botLogger.js');
+        return handleHeartbeatSelect(interaction);
+      }
+
+      // ═══════════════════════════════════════════════════════════════
       //  Setup Menu
       // ═══════════════════════════════════════════════════════════════
       if (interaction.customId === 'setup_menu') {
