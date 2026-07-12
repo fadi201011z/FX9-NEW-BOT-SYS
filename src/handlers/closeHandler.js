@@ -1,4 +1,4 @@
-import { PermissionsBitField } from "discord.js";
+import { PermissionsBitField, EmbedBuilder } from "discord.js";
 import {
   getTicket, saveTicket, getAdminStats, saveAdminStats,
   getGuildConfig, getTicketByAdminChannel, getTicketById,
@@ -118,13 +118,30 @@ export async function handleRatingButton(client, interaction) {
     await saveAdminStats(stats);
   }
 
-  const stars   = "⭐".repeat(rating);
-  const replyMsg = `✨ شكراً! أعطيت **${stars}** (${rating}/5) — تقييمك يساعدنا على تحسين الخدمة.`;
+  const stars     = "⭐".repeat(rating);
+  const labels    = { 1: 'سيئة جداً', 2: 'سيئة', 3: 'مقبولة', 4: 'جيدة', 5: 'ممتازة' };
+  const colors    = { 1: 0xef4444, 2: 0xf97316, 3: 0xf59e0b, 4: 0x22c55e, 5: 0x10b981 };
+  const emojis    = { 1: '😞', 2: '😕', 3: '😐', 4: '😊', 5: '🤩' };
+  const replyMsg  = [
+    '```ansi',
+    `\u001b[1;33m✦   شكراً لتقييمك   ✦`,
+    '```',
+    '',
+    `${emojis[rating]} **تقييمك:** ${stars} (${rating}/5) — **${labels[rating]}**`,
+    '',
+    '> 💙 **رأيك يهمنا** — تقييمك سيساعدنا على تحسين الخدمة',
+  ].join('\n');
+
+  const replyEmbed = new EmbedBuilder()
+    .setColor(colors[rating] ?? 0x22c55e)
+    .setTitle('✅ تم استلام تقييمك')
+    .setDescription(replyMsg)
+    .setFooter({ text: 'FX9 Support • Feedback • شكراً لثقتك' });
 
   try {
-    await interaction.update({ content: replyMsg, embeds: [], components: [] });
+    await interaction.update({ embeds: [replyEmbed], components: [] });
   } catch {
-    try { await interaction.reply({ content: replyMsg, ephemeral: true }); } catch {}
+    try { await interaction.reply({ embeds: [replyEmbed], ephemeral: true }); } catch {}
   }
 
   try {

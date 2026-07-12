@@ -312,29 +312,44 @@ export function ticketButtons(claimed, claimedByUsername, adminMode = false) {
 
 export function ratingEmbed(ticketId, adminUsername) {
   const desc = [
-    '```',
-    '  ✦  شكراً لتواصلك مع FX9 Support  ✦  ',
+    '```ansi',
+    '\u001b[1;33m╔══════════════════════════════════╗',
+    '\u001b[1;33m║    ✦  تقييم تجربة الدعم  ✦      ║',
+    '\u001b[1;33m╚══════════════════════════════════╝',
     '```',
     '',
-    adminUsername ? `> **الإداري المساعد:** ${adminUsername}\n` : '',
-    `### ⭐ قيّم تجربتك`,
+    `> ### 👋 شكراً لتواصلك مع ${adminUsername ? `**${adminUsername}**` : 'فريق الدعم'}`,
     '',
-    `> ⭐☆☆☆☆  —  سيئة جداً`,
-    `> ⭐⭐☆☆☆  —  سيئة`,
-    `> ⭐⭐⭐☆☆  —  مقبولة`,
-    `> ⭐⭐⭐⭐☆  —  جيدة`,
-    `> ⭐⭐⭐⭐⭐  —  ممتازة`,
+    `${DIV2}`,
+    '',
+    '### ✨ قيّم تجربتك',
+    '> اختر التصنيف الذي يناسب مستوى الخدمة',
+    '',
+    '```ansi',
+    '\u001b[1;31m 1️⃣  \u001b[0m\u001b[1;37mسيئة جداً  \u001b[0m\u001b[1;30m│ غير راضٍ تماماً عن الخدمة',
+    '\u001b[1;31m 2️⃣  \u001b[0m\u001b[1;37mسيئة       \u001b[0m\u001b[1;30m│ الخدمة لم تلبي التوقعات',
+    '\u001b[1;33m 3️⃣  \u001b[0m\u001b[1;37mمقبولة     \u001b[0m\u001b[1;30m│ خدمة متوسطة وتحتاج تحسين',
+    '\u001b[1;32m 4️⃣  \u001b[0m\u001b[1;37mجيدة       \u001b[0m\u001b[1;30m│ خدمة جيدة ونلنا الرضا',
+    '\u001b[1;32m 5️⃣  \u001b[0m\u001b[1;37mممتازة     \u001b[0m\u001b[1;30m│ خدمة استثنائية ورائعة',
+    '```',
+    '',
+    `${DIV2}`,
+    '',
+    `> 📋 **التذكرة:** \`${ticketId}\``,
     '',
     `${DIV}`,
-    `> \`📋 التذكرة: ${ticketId}\``,
-    '> 💙 **تقييمك يساعدنا على التحسن**',
+    '',
+    '> 💙 **رأيك يهمنا** — تقييمك يساعدنا على تطوير الخدمة وتقديم الأفضل',
+    '> ⏳ سيتم حذف القناة تلقائياً بعد التقييم',
   ].filter(Boolean).join('\n');
 
   return new EmbedBuilder()
-    .setColor(COLOR.gold)
+    .setColor(0xf59e0b)
+    .setAuthor({ name: 'FX9 Support • نظام التقييم', iconURL: 'https://cdn.discordapp.com/emojis/1100192159824027751.webp' })
     .setTitle('⭐ تقييم تجربة الدعم')
     .setDescription(desc)
-    .setFooter({ text: 'FX9 Support • Feedback' });
+    .setFooter({ text: 'FX9 Support • Feedback • تقييمك سر تطورنا' })
+    .setTimestamp();
 }
 
 export function ratingButtons(ticketId) {
