@@ -1,8 +1,9 @@
-import { Events, EmbedBuilder } from 'discord.js';
+import { Events, EmbedBuilder, AttachmentBuilder } from 'discord.js';
 import { getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
 import { Colors, alertEmbed } from '../utils/embeds.js';
 import { updateStatusChannels } from '../utils/statusUpdater.js';
+import { generateWelcomeCard } from '../utils/welcomeCard.js';
 
 export const name = Events.GuildMemberAdd;
 export const once = false;
@@ -64,19 +65,23 @@ export async function execute(member) {
     const welcomeCh = await getLogChannel(guild, welcomeChId);
     // التأكد أن القناة الموجودة في الكاش هي نفسها المطلوبة حالياً في الداتا بيز
     if (welcomeCh && welcomeCh.id === welcomeChId) {
-      const welcome = new EmbedBuilder()
-        .setColor(isNewAccount ? Colors.CRIMSON : Colors.WHITE)
-        .setDescription(
-          `## 👋 أهلاً بك ${member}\n` +
-          `مرحباً في **${guild.name}**!\n` +
-          `أنت العضو رقم **#${guild.memberCount}**` +
-          (isNewAccount ? '\n\n⚠️ هذا الحساب عمره أقل من 7 أيام' : '')
-        )
-        .setThumbnail(avatarURL)
-        .setTimestamp()
-        .setFooter({ text: `⚔️ FX9-SYS  •  ${guild.name}` });
-
-      await welcomeCh.send({ embeds: [welcome] }).catch(() => {});
+      try {
+        const card = await generateWelcomeCard(member, guild);
+        const attachment = new AttachmentBuilder(card, { name: 'welcome.png' });
+        await welcomeCh.send({
+          content: isNewAccount ? '⚠️ هذا الحساب عمره أقل من 7 أيام' : undefined,
+          files: [attachment],
+        }).catch(() => {});
+      } catch (err) {
+        console.error('[WelcomeCard] فشل إنشاء البطاقة:', err.message);
+        const fallback = new EmbedBuilder()
+          .setColor(isNewAccount ? Colors.CRIMSON : Colors.WHITE)
+          .setDescription(`## 👋 أهلاً بك ${member}\n` + `مرحباً في **${guild.name}**!\n` + `أنت العضو رقم **#${guild.memberCount}**`)
+          .setThumbnail(avatarURL)
+          .setTimestamp()
+          .setFooter({ text: `⚔️ FX9-SYS  •  ${guild.name}` });
+        await welcomeCh.send({ embeds: [fallback] }).catch(() => {});
+      }
     }
   }
 
