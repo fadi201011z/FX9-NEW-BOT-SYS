@@ -43,17 +43,20 @@ export async function removeSubscription(id) {
 }
 
 export async function updateSubscription(id, updates) {
-  const sub = subscriptions.get(id);
-  if (!sub) return null;
-  Object.assign(sub, updates);
-  await Notification.findOneAndUpdate({ _id: id }, sub, { new: true }).catch(() => {});
-  return sub;
+  try {
+    const doc = await Notification.findOneAndUpdate({ _id: id }, { $set: updates }, { new: true }).lean();
+    if (doc) {
+      const cached = subscriptions.get(id);
+      if (cached) Object.assign(cached, updates);
+    }
+    return doc;
+  } catch {
+    return null;
+  }
 }
 
 export async function loadAllSubscriptions() {
   const rows = await Notification.find({}).lean();
-  subscriptions.clear();
-  // Deduplicate: keep the newest doc per guild+platform+channelUrl
   const seen = new Map();
   for (const row of rows) {
     const key = `${row.guildId}|${row.platform}|${row.channelUrl}`;
@@ -62,8 +65,18 @@ export async function loadAllSubscriptions() {
       seen.set(key, row);
     }
   }
+  const validIds = new Set();
   for (const row of seen.values()) {
-    subscriptions.set(row._id.toString(), row);
+    const id = row._id.toString();
+    validIds.add(id);
+    if (subscriptions.has(id)) {
+      Object.assign(subscriptions.get(id), row);
+    } else {
+      subscriptions.set(id, row);
+    }
+  }
+  for (const [id] of subscriptions) {
+    if (!validIds.has(id)) subscriptions.delete(id);
   }
   const removed = rows.length - seen.size;
   if (removed > 0) console.log(`[NotifDB] Removed ${removed} duplicates, loaded ${seen.size} subscriptions`);

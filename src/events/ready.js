@@ -172,9 +172,7 @@ export async function execute(client) {
   const { startInactivityMonitor } = await import('../handlers/inactivityHandler.js');
   startInactivityMonitor(client);
 
-  // ── NOTIFICATION: Start monitor ──────────────────────────────────────
-  const { startNotificationMonitor } = await import('../handlers/notificationMonitor.js');
-  startNotificationMonitor(client);
+  // ── NOTIFICATION: Started in index.js ────────────────────────────────
 
   // ── Graceful shutdown ───────────────────────────────────────────────
   async function gracefulShutdown(signal) {
