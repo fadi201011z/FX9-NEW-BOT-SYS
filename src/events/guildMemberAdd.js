@@ -66,12 +66,9 @@ export async function execute(member) {
     // التأكد أن القناة الموجودة في الكاش هي نفسها المطلوبة حالياً في الداتا بيز
     if (welcomeCh && welcomeCh.id === welcomeChId) {
       try {
-        const card = await generateWelcomeCard(member, guild);
+        const card = await generateWelcomeCard(member, guild, isNewAccount);
         const attachment = new AttachmentBuilder(card, { name: 'welcome.png' });
-        await welcomeCh.send({
-          content: isNewAccount ? '⚠️ هذا الحساب عمره أقل من 7 أيام' : undefined,
-          files: [attachment],
-        }).catch(() => {});
+        await welcomeCh.send({ files: [attachment] }).catch(() => {});
       } catch (err) {
         console.error('[WelcomeCard] فشل إنشاء البطاقة:', err.message);
         const fallback = new EmbedBuilder()

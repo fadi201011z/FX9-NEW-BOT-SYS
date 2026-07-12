@@ -1,8 +1,38 @@
-import { createCanvas, loadImage } from '@napi-rs/canvas';
+import { createCanvas, loadImage, GlobalFonts } from '@napi-rs/canvas';
+import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const FONT_PATH = join(__dirname, '..', '..', 'fonts', 'NotoSansArabic-Regular.ttf');
+const FONT_URL = 'https://github.com/google/fonts/raw/main/ofl/notosansarabic/NotoSansArabic%5Bwdth%2Cwght%5D.ttf';
 const BG_URL = 'https://j.top4top.io/p_3845prskm1.png';
 const WIDTH = 800;
 const HEIGHT = 400;
+const FONT = 'Noto Sans Arabic';
+
+let fontReady = false;
+
+async function ensureFont() {
+  if (fontReady) return;
+  try {
+    const dir = join(__dirname, '..', '..', 'fonts');
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    if (!existsSync(FONT_PATH)) {
+      console.log('[WelcomeFont] تحميل الخط العربي...');
+      const res = await fetch(FONT_URL);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const buf = Buffer.from(await res.arrayBuffer());
+      writeFileSync(FONT_PATH, buf);
+      console.log('[WelcomeFont] تم تحميل الخط');
+    }
+    GlobalFonts.registerFromPath(FONT_PATH, FONT);
+    fontReady = true;
+    console.log(`[WelcomeFont] الخط "${FONT}" جاهز`);
+  } catch (err) {
+    console.error('[WelcomeFont] فشل تحميل الخط:', err.message);
+  }
+}
 
 function coverFit(ctx, img, dw, dh) {
   const sx = img.width / dw;
@@ -26,7 +56,7 @@ function roundImage(ctx, img, cx, cy, r) {
   ctx.restore();
 }
 
-export async function generateWelcomeCard(member, guild) {
+export async function generateWelcomeCard(member, guild, isNewAccount = false) {
   const canvas = createCanvas(WIDTH, HEIGHT);
   const ctx = canvas.getContext('2d');
 
@@ -52,35 +82,50 @@ export async function generateWelcomeCard(member, guild) {
   ctx.arc(ax, ay, r, 0, Math.PI * 2);
   ctx.stroke();
 
+  const fontSize = 28;
+  const fn = fontReady ? FONT : 'sans-serif';
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 30px sans-serif';
+  ctx.font = `bold ${fontSize}px ${fn}`;
   ctx.textAlign = 'left';
-  ctx.fillText('👋 مرحباً بك', 180, 165);
+  ctx.textBaseline = 'top';
+  ctx.fillText('👋 مرحباً بك', 180, 145);
 
-  ctx.font = 'bold 26px sans-serif';
+  ctx.font = `bold 24px ${fn}`;
   ctx.fillStyle = '#fbbf24';
-  ctx.fillText(member.user.username, 180, 210);
+  const name = member.user.username.length > 18 ? member.user.username.slice(0, 15) + '...' : member.user.username;
+  ctx.fillText(name, 180, 178);
 
-  ctx.font = '16px sans-serif';
+  ctx.font = `16px ${fn}`;
   ctx.fillStyle = '#94a3b8';
-  ctx.fillText(`أنت العضو رقم #${guild.memberCount}`, 180, 248);
+  ctx.fillText(`أنت العضو رقم #${guild.memberCount}`, 180, 218);
 
-  ctx.font = '14px sans-serif';
+  ctx.font = `13px ${fn}`;
   ctx.fillStyle = '#64748b';
-  ctx.fillText(guild.name, 180, 275);
+  ctx.fillText(guild.name, 180, 245);
 
   ctx.strokeStyle = 'rgba(255,255,255,0.15)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(180, 290);
-  ctx.lineTo(WIDTH - 40, 290);
+  ctx.moveTo(180, 270);
+  ctx.lineTo(WIDTH - 40, 270);
   ctx.stroke();
 
-  ctx.font = '12px sans-serif';
+  if (isNewAccount) {
+    ctx.fillStyle = '#ef4444';
+    ctx.font = `bold 12px ${fn}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('⚠️ هذا الحساب عمره أقل من 7 أيام', 180, 282);
+  }
+
+  ctx.font = `11px ${fn}`;
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
   ctx.textAlign = 'right';
+  ctx.textBaseline = 'bottom';
   const d = new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' });
-  ctx.fillText(`FX9 • ${d}`, WIDTH - 20, HEIGHT - 15);
+  ctx.fillText(`FX9 • ${d}`, WIDTH - 20, HEIGHT - 12);
+
+  if (!fontReady) await ensureFont();
 
   return canvas.toBuffer('image/png');
 }
