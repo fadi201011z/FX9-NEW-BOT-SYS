@@ -44,12 +44,13 @@ export async function generateWelcomeCard(member) {
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
   const cx = WIDTH / 2 + 40, cy = HEIGHT / 2, r = 90;
-  roundImage(ctx, avatarImg, cx, cy, r);
+  const avatarR = 93;
+  roundImage(ctx, avatarImg, cx, cy, avatarR);
 
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 5;
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 5;
   ctx.stroke();
 
   return canvas.toBuffer('image/png');
