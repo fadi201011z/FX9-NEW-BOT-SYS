@@ -242,24 +242,39 @@ client.once('ready', async () => {
 
   app.post('/api/notifications/checknow/:id', async (req, res) => {
     const { getSubscription, updateSubscription } = await import('./data/notificationDB.js');
-    const { fetchLatestYouTubeVideo, youtubeEmbed } = await import('./handlers/notificationMonitor.js');
+    const { fetchLatestYouTubeVideo, fetchKickStream, fetchLatestTweet, youtubeEmbed, kickEmbed, twitterEmbed } = await import('./handlers/notificationMonitor.js');
+    const { sendNotification } = await import('./handlers/notificationMonitor.js');
     const sub = getSubscription(req.params.id);
-    if (!sub || sub.platform !== 'youtube') return res.status(404).json({ error: 'Not found or not YouTube' });
-    const video = await fetchLatestYouTubeVideo(sub.channelId);
-    if (!video) return res.json({ error: 'Could not fetch video from RSS' });
-    try {
-      const ch = await client.channels.fetch(sub.discordChannelId).catch(() => null);
-      if (!ch) return res.json({ error: 'Discord channel not found' });
-      const { sendNotification } = await import('./handlers/notificationMonitor.js');
+    if (!sub) return res.status(404).json({ error: 'Subscription not found' });
+
+    if (sub.platform === 'youtube') {
+      const video = await fetchLatestYouTubeVideo(sub.channelId);
+      if (!video) return res.json({ found: false, error: 'تعذر جلب الفيديو من RSS' });
+      if (sub.lastVideoId === video.videoId) return res.json({ found: false, message: 'لا يوجد فيديو جديد' });
       await sendNotification(client, sub, youtubeEmbed(video));
-      await updateSubscription(sub._id.toString(), {
-        lastVideoId: video.videoId,
-        channelName: video.channelName || sub.channelName,
-      });
-      res.json({ success: true, videoId: video.videoId, title: video.title });
-    } catch (err) {
-      res.json({ error: err.message });
+      await updateSubscription(sub._id.toString(), { lastVideoId: video.videoId, channelName: video.channelName || sub.channelName });
+      return res.json({ found: true, platform: 'youtube', title: video.title, url: video.url });
     }
+
+    if (sub.platform === 'kick') {
+      const stream = await fetchKickStream(sub.channelId);
+      if (!stream) return res.json({ found: false, error: 'تعذر جلب البث من Kick' });
+      if (sub.lastStreamId === stream.id) return res.json({ found: false, message: 'لا يوجد بث جديد' });
+      await sendNotification(client, sub, kickEmbed(stream));
+      await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id });
+      return res.json({ found: true, platform: 'kick', title: stream.title, url: stream.url });
+    }
+
+    if (sub.platform === 'twitter') {
+      const tweet = await fetchLatestTweet(sub.channelId);
+      if (!tweet) return res.json({ found: false, error: 'تعذر جلب التغريدة' });
+      if (sub.lastVideoId === tweet.tweetId) return res.json({ found: false, message: 'لا يوجد تغريدة جديدة' });
+      await sendNotification(client, sub, twitterEmbed(tweet));
+      await updateSubscription(sub._id.toString(), { lastVideoId: tweet.tweetId });
+      return res.json({ found: true, platform: 'twitter', text: tweet.text?.slice(0, 100), url: tweet.url });
+    }
+
+    res.json({ error: 'منصة غير مدعومة' });
   });
 
   app.get('/api/notifications/debug/:guildId', async (req, res) => {

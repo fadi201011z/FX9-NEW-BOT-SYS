@@ -67,6 +67,8 @@ async function fetchYouTubeChannelAvatar(channelId) {
   return null;
 }
 
+export { youtubeEmbed, kickEmbed, twitterEmbed } from '../utils/notificationEmbeds.js';
+
 export async function fetchLatestYouTubeVideo(channelId) {
   const rssUrl = channelId.startsWith('UC')
     ? `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`
@@ -104,7 +106,7 @@ export async function fetchLatestYouTubeVideo(channelId) {
 //  Kick — via public API (no auth needed)
 // ═══════════════════════════════════════════════════════════════════════════
 
-async function fetchKickStream(slug) {
+export async function fetchKickStream(slug) {
   try {
     const res = await fetch(`https://kick.com/api/v2/channels/${slug}`, {
       headers: {
@@ -152,7 +154,7 @@ async function fetchKickStream(slug) {
 //  Twitter — via Nitter RSS (no API needed)
 // ═══════════════════════════════════════════════════════════════════════════
 
-async function fetchLatestTweet(username) {
+export async function fetchLatestTweet(username) {
   const instances = ['nitter.net', 'nitter.privacydev.net', 'nitter.lqdev.tech'];
   for (const instance of instances) {
     try {
