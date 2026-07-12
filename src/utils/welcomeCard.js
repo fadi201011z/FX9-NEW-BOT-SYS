@@ -1,4 +1,4 @@
-import { createCanvas, loadImage, GlobalFonts } from '@napi-rs/canvas';
+import { createCanvas, loadImage } from '@napi-rs/canvas';
 
 const BG_URL = 'https://j.top4top.io/p_3845prskm1.jpg';
 const WIDTH = 800;
