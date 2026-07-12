@@ -163,30 +163,29 @@ const DIV2 = '━━━━━━━━━━━━━━━━━━━━━━
 export function panelEmbed() {
   return new EmbedBuilder()
     .setColor(0x6366f1)
-    .setTitle('〉FX9 Ticket Tool  〉مركز الدعم')
+    .setTitle('FX9 Ticket Tool • مركز الدعم')
     .setDescription([
-      `### ◈ أهلاً بك في مركز الدعم`,
-      `> لفتح تذكرة، اختر القسم المناسب من القائمة أدناه`,
+      '### ✦ أهلاً بك في مركز الدعم',
+      '> اختر القسم المناسب من القائمة أدناه',
       '',
       `${DIV}`,
       '```ansi',
-      '\u001b[1;36m🛠️  \u001b[0m\u001b[1;37mالدعم التقني     \u001b[0m\u001b[1;30m| مشاكل وأعطال',
-      '\u001b[1;31m🚫  \u001b[0m\u001b[1;37mالبلاغات        \u001b[0m\u001b[1;30m| شكاوى وتقارير',
-      '\u001b[1;32m🤝  \u001b[0m\u001b[1;37mالشراكات        \u001b[0m\u001b[1;30m| تعاون واستضافة',
-      '\u001b[1;33m❓  \u001b[0m\u001b[1;37mاستفسارات عامة  \u001b[0m\u001b[1;30m| أسئلة واستفسارات',
+      '\u001b[1;36m🛠️  \u001b[0m\u001b[1;37mالدعم التقني     \u001b[0m\u001b[1;30m│ مشاكل وأعطال',
+      '\u001b[1;31m🚫  \u001b[0m\u001b[1;37mالبلاغات        \u001b[0m\u001b[1;30m│ شكاوى وتقارير',
+      '\u001b[1;32m🤝  \u001b[0m\u001b[1;37mالشراكات        \u001b[0m\u001b[1;30m│ تعاون واستضافة',
+      '\u001b[1;33m❓  \u001b[0m\u001b[1;37mاستفسارات عامة  \u001b[0m\u001b[1;30m│ أسئلة واستفسارات',
       '```',
       `${DIV}`,
       '',
-
-      `### ⏱ وقت الاستجابة المتوقع`,
-      `> **يصل إلى 24 ساعة** — فريقنا يعمل على مدار الساعة`,
+      '### ⏱ وقت الاستجابة المتوقع',
+      '> يصل إلى **24 ساعة** — فريقنا يعمل على مدار الساعة',
       '',
       `${DIV}`,
       '',
       '>>> 🔒 **محادثتك خاصة** ولا يراها إلا المسؤولون المخولون',
-      `💡 **يرجى كتابة تفاصيل واضحة** ليسهل علينا مساعدتك`,
+      '💡 **يرجى كتابة تفاصيل واضحة** ليسهل علينا مساعدتك',
     ].join('\n'))
-    .setFooter({ text: '〉FX9 Ticket Tool  •  Support System' })
+    .setFooter(footer('FX9 • مركز الدعم'))
     .setTimestamp();
 }
 
@@ -222,17 +221,19 @@ export function ticketEmbed(t, adminChannel = false) {
   const color = adminChannel ? COLOR.purple : (CATEGORY_COLOR[t.category] ?? COLOR.blue);
   const label = CATEGORY_LABEL[t.category] ?? t.category;
 
+  const statusLine = adminChannel
+    ? '```ansi\n\u001b[1;35m⚠️  قناة إدارة  │  الرد هنا يصل للعضو تلقائياً\u001b[0m\n```'
+    : '```ansi\n\u001b[1;32m✅  تم الفتح    │  فريق الدعم سيتواصل معك\u001b[0m\n```';
+
   const desc = [
     `${DIV}`,
-    adminChannel
-      ? '```ansi\n\u001b[1;35m⚠️ قناة إدارة — الرد هنا يصل للعضو تلقائياً\u001b[0m\n```'
-      : '```ansi\n\u001b[1;32m✅ تم فتح التذكرة — فريق الدعم سيتواصل معك\u001b[0m\n```',
+    statusLine,
     `${DIV}`,
     '',
-    `**👤 العضو**  ─  <@${t.userId}> \`${t.username}\``,
+    `**👤 العضو**  ─  <@${t.userId}> ${t.username ?? ''}`,
     `**📂 القسم**  ─  ${label}`,
     `**🎯 الأولوية**  ─  ${PRIORITY_LABEL[t.priority]}`,
-    `**🆔 رقم التذكرة**  ─  \`${t.ticketId}\``,
+    `**🆔 التذكرة**  ─  ${t.ticketId}`,
     '',
     `${DIV}`,
     '',
@@ -248,9 +249,9 @@ export function ticketEmbed(t, adminChannel = false) {
 
   return new EmbedBuilder()
     .setColor(color)
-    .setTitle(adminChannel ? `🔐 ${t.ticketId} — ${label} [إدارة]` : `🎫 ${t.ticketId} — ${label}`)
+    .setTitle(adminChannel ? `🔐 ${t.ticketId} — ${label}` : `🎫 ${t.ticketId} — ${label}`)
     .setDescription(desc)
-    .setFooter({ text: adminChannel ? `FX9 Support • ${t.ticketId} • Admin` : `FX9 Support • ${t.ticketId}` })
+    .setFooter(footer(adminChannel ? `FX9 • ${t.ticketId} • إدارة` : `FX9 • ${t.ticketId}`))
     .setTimestamp();
 }
 
@@ -345,10 +346,10 @@ export function ratingEmbed(ticketId, adminUsername) {
 
   return new EmbedBuilder()
     .setColor(0xf59e0b)
-    .setAuthor({ name: 'FX9 Support • نظام التقييم', iconURL: 'https://cdn.discordapp.com/emojis/1100192159824027751.webp' })
+    .setAuthor({ name: 'FX9 • نظام التقييم', iconURL: 'https://cdn.discordapp.com/emojis/1100192159824027751.webp' })
     .setTitle('⭐ تقييم تجربة الدعم')
     .setDescription(desc)
-    .setFooter({ text: 'FX9 Support • Feedback • تقييمك سر تطورنا' })
+    .setFooter(footer('FX9 • تقييم'))
     .setTimestamp();
 }
 
@@ -370,17 +371,17 @@ export function closeEmbed(ticket, closedBy) {
   const stars = ticket.rating ? '⭐'.repeat(ticket.rating) : 'لم يُقيّم';
   const desc = [
     `${DIV}`,
-    `**🎫 التذكرة**  ─  \`${ticket.ticketId}\``,
+    `**🎫 التذكرة**  ─  ${ticket.ticketId}`,
     `**📂 القسم**  ─  ${CATEGORY_LABEL?.[ticket.category] ?? ticket.category ?? '—'}`,
     `${DIV}`,
     '',
-    `**👤 فاتح التذكرة**  ─  <@${ticket.userId}> \`${ticket.username ?? ''}\``,
-    `**📩 المستلم**  ─  ${ticket.claimedBy ? `<@${ticket.claimedBy}> \`${ticket.claimedByUsername ?? ''}\`` : '❌ غير مستلم'}`,
+    `**👤 فاتح التذكرة**  ─  <@${ticket.userId}> ${ticket.username ?? ''}`,
+    `**📩 المستلم**  ─  ${ticket.claimedBy ? `<@${ticket.claimedBy}> ${ticket.claimedByUsername ?? ''}` : '❌ غير مستلم'}`,
     `**🔒 أغلقت بواسطة**  ─  <@${closedBy}>`,
     '',
     `${DIV}`,
     '',
-    `**⏱ المدة**  ─  \`${formatDuration(Date.now() - ticket.openedAt)}\``,
+    `**⏱ المدة**  ─  ${formatDuration(Date.now() - ticket.openedAt)}`,
     `**📅 فتحت**  ─  <t:${Math.floor(ticket.openedAt / 1000)}:f>`,
     `**📅 أغلقت**  ─  <t:${Math.floor(Date.now() / 1000)}:f>`,
     '',
@@ -391,15 +392,15 @@ export function closeEmbed(ticket, closedBy) {
     '',
     `${DIV}`,
     '',
-    `> ⏳ سيتم حذف القناة تلقائياً بعد 20 دقيقة إن لم يتم التقييم`,
-    '> ✨ يمكنك التقييم الآن باستخدام الأزرار أعلاه',
+    '> ⏳ **سيتم حذف القناة تلقائياً** بعد 20 دقيقة إن لم يتم التقييم',
+    '> ✨ يمكنك التقييم الآن باستخدام الأزرار أدناه',
   ].join('\n');
 
   return new EmbedBuilder()
     .setColor(COLOR.red)
     .setTitle(`🔒 تم إغلاق التذكرة — ${ticket.ticketId}`)
     .setDescription(desc)
-    .setFooter({ text: `FX9 Support • ${ticket.ticketId} • Summary` })
+    .setFooter(footer(`FX9 • ${ticket.ticketId} • إغلاق`))
     .setTimestamp();
 }
 
@@ -419,10 +420,10 @@ export function logEmbed(title, color, fields) {
 export function inactivityEmbed(ticketId) {
   return new EmbedBuilder()
     .setColor(COLOR.orange)
-    .setTitle('⚠️ تحذير عدم النشاط')
+    .setTitle('⚠️ تحذير عدم نشاط')
     .setDescription([
       `${DIV}`,
-      `**🆔 التذكرة**  ─  \`${ticketId}\``,
+      `**🆔 التذكرة**  ─  ${ticketId}`,
       `${DIV}`,
       '',
       '> ⏰ **لم يتم إرسال أي رسائل منذ 24 ساعة**',
@@ -431,24 +432,26 @@ export function inactivityEmbed(ticketId) {
       '',
       `${DIV}`,
       '',
-      '> 💬 يرجى الرد إذا كنت لا تزال بحاجة للمساعدة',
+      '> 💬 يرجى الرد إن كنت لا تزال بحاجة للمساعدة',
     ].join('\n'))
-    .setFooter({ text: 'FX9 Support • Inactivity Warning' })
+    .setFooter(footer('FX9 • تنبيه عدم نشاط'))
     .setTimestamp();
 }
 
 export function buildTicketLogEmbed(ticket) {
   const stars = ticket.rating ? '⭐'.repeat(ticket.rating) : 'لم يُقيّم';
+  const statusEmoji = ticket.status === 'closed' ? '🔒' : ticket.status === 'claimed' ? '📩' : '🟢';
+  const statusText = ticket.status === 'closed' ? 'مغلقة' : ticket.status === 'claimed' ? 'مستلمة' : 'مفتوحة';
   const e = new EmbedBuilder()
     .setColor(
       ticket.status === 'closed' ? COLOR.red
         : ticket.status === 'claimed' ? COLOR.blue
           : COLOR.green
     )
-    .setTitle(`🎫 ${ticket.ticketId} — ${CATEGORY_LABEL?.[ticket.category] ?? ticket.category ?? 'تذكرة'}`)
+    .setTitle(`🎫 ${ticket.ticketId}  │  ${CATEGORY_LABEL?.[ticket.category] ?? ticket.category ?? 'تذكرة'}`)
     .setDescription(DIV)
     .addFields(
-      { name: '📌 الحالة', value: ticket.status === 'closed' ? '🔒 مغلقة' : ticket.status === 'claimed' ? '📩 مستلمة' : '🟢 مفتوحة', inline: true },
+      { name: '📌 الحالة', value: `${statusEmoji} ${statusText}`, inline: true },
       { name: '👤 العضو', value: `<@${ticket.userId}>`, inline: true },
       { name: '📩 المستلم', value: ticket.claimedBy ? `<@${ticket.claimedBy}>` : '—', inline: true },
       { name: '📅 فتحت', value: ticket.openedAt ? `<t:${Math.floor(ticket.openedAt / 1000)}:f>` : '—', inline: true },
@@ -459,14 +462,14 @@ export function buildTicketLogEmbed(ticket) {
   if (ticket.rating) e.addFields({ name: '⭐ التقييم', value: `${stars} (${ticket.rating}/5)`, inline: true });
 
   return e
-    .setFooter({ text: `FX9 Support • ${ticket.ticketId}` })
+    .setFooter(footer(`FX9 • ${ticket.ticketId}`))
     .setTimestamp();
 }
 
 export function ticketLogMenu(ticket) {
   const options = [
     new StringSelectMenuOptionBuilder()
-      .setLabel('عرض التفاصيل الكاملة')
+      .setLabel('التفاصيل الكاملة')
       .setDescription(`جميع معلومات التذكرة ${ticket.ticketId}`)
       .setValue(`details||${ticket.ticketId}`)
       .setEmoji('📋'),
@@ -474,16 +477,16 @@ export function ticketLogMenu(ticket) {
 
   if (ticket.channelId) options.push(
     new StringSelectMenuOptionBuilder()
-      .setLabel('فتح قناة العضو')
-      .setDescription(`الذهاب إلى قناة التذكرة ${ticket.ticketId}`)
+      .setLabel('قناة العضو')
+      .setDescription(`الذهاب لقناة التذكرة ${ticket.ticketId}`)
       .setValue(`user_channel||${ticket.ticketId}`)
       .setEmoji('📩'),
   );
 
   if (ticket.adminChannelId) options.push(
     new StringSelectMenuOptionBuilder()
-      .setLabel('فتح قناة الإدارة')
-      .setDescription(`الذهاب إلى قناة الإدارة ${ticket.ticketId}`)
+      .setLabel('قناة الإدارة')
+      .setDescription(`الذهاب لقناة الإدارة ${ticket.ticketId}`)
       .setValue(`admin_channel||${ticket.ticketId}`)
       .setEmoji('🔐'),
   );

@@ -136,7 +136,7 @@ export async function handleRatingButton(client, interaction) {
     .setColor(colors[rating] ?? 0x22c55e)
     .setTitle('✅ تم استلام تقييمك')
     .setDescription(replyMsg)
-    .setFooter({ text: 'FX9 Support • Feedback • شكراً لثقتك' });
+    .setFooter({ text: '⚔️ FX9 • تقييم • شكراً لثقتك' });
 
   try {
     await interaction.update({ embeds: [replyEmbed], components: [] });
