@@ -67,7 +67,7 @@ async function fetchYouTubeChannelAvatar(channelId) {
   return null;
 }
 
-async function fetchLatestYouTubeVideo(channelId) {
+export async function fetchLatestYouTubeVideo(channelId) {
   const rssUrl = channelId.startsWith('UC')
     ? `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`
     : `https://www.youtube.com/feeds/videos.xml?user=${channelId}`;
@@ -197,7 +197,7 @@ async function fetchLatestTweet(username) {
 //  Common
 // ═══════════════════════════════════════════════════════════════════════════
 
-async function sendNotification(client, sub, embed) {
+export async function sendNotification(client, sub, embed) {
   try {
     const ch = await client.channels.fetch(sub.discordChannelId).catch(() => null);
     if (!ch) return;

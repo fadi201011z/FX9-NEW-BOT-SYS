@@ -240,6 +240,54 @@ client.once('ready', async () => {
     res.json({ success: true });
   });
 
+  app.post('/api/notifications/checknow/:id', async (req, res) => {
+    const { getSubscription, updateSubscription } = await import('./data/notificationDB.js');
+    const { fetchLatestYouTubeVideo, youtubeEmbed } = await import('./handlers/notificationMonitor.js');
+    const sub = getSubscription(req.params.id);
+    if (!sub || sub.platform !== 'youtube') return res.status(404).json({ error: 'Not found or not YouTube' });
+    const video = await fetchLatestYouTubeVideo(sub.channelId);
+    if (!video) return res.json({ error: 'Could not fetch video from RSS' });
+    try {
+      const ch = await client.channels.fetch(sub.discordChannelId).catch(() => null);
+      if (!ch) return res.json({ error: 'Discord channel not found' });
+      const { sendNotification } = await import('./handlers/notificationMonitor.js');
+      await sendNotification(client, sub, youtubeEmbed(video));
+      await updateSubscription(sub._id.toString(), {
+        lastVideoId: video.videoId,
+        channelName: video.channelName || sub.channelName,
+      });
+      res.json({ success: true, videoId: video.videoId, title: video.title });
+    } catch (err) {
+      res.json({ error: err.message });
+    }
+  });
+
+  app.get('/api/notifications/debug/:guildId', async (req, res) => {
+    const { getSubscriptions } = await import('./data/notificationDB.js');
+    const { getAllSubscriptions } = await import('./data/notificationDB.js');
+    const { fetchLatestYouTubeVideo } = await import('./handlers/notificationMonitor.js');
+    const subs = getSubscriptions(req.params.guildId).filter(s => s.platform === 'youtube');
+    if (subs.length === 0) return res.json({ error: 'No YouTube subs' });
+    const allYouTube = getAllSubscriptions().filter(s => s.platform === 'youtube');
+    const results = [];
+    for (const sub of allYouTube) {
+      const rssVideo = await fetchLatestYouTubeVideo(sub.channelId).catch(() => null);
+      results.push({
+        _id: sub._id,
+        guildId: sub.guildId,
+        channelUrl: sub.channelUrl,
+        channelId: sub.channelId,
+        channelName: sub.channelName,
+        lastVideoId: sub.lastVideoId || '(empty)',
+        discordChannelId: sub.discordChannelId,
+        rssVideoId: rssVideo?.videoId || null,
+        rssTitle: rssVideo?.title || null,
+        wouldNotify: !!(rssVideo && sub.lastVideoId && rssVideo.videoId !== sub.lastVideoId),
+      });
+    }
+    res.json({ subs: results, allYouTubeCount: allYouTube.length });
+  });
+
   // ── Send announcement from dashboard ─────────────────────────────────
   app.post('/api/announce', async (req, res) => {
     const { guildId, channelId, title, message, mention, color, image, thumbnail, footer, type, timestamp } = req.body;
