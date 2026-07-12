@@ -202,14 +202,16 @@ export async function fetchLatestTweet(username) {
 export async function sendNotification(client, sub, embed) {
   try {
     const ch = await client.channels.fetch(sub.discordChannelId).catch(() => null);
-    if (!ch) return;
+    if (!ch) return false;
     const parts = [];
     parts.push('@everyone');
     if (sub.customMessage) parts.push(sub.customMessage);
     const content = parts.join(' | ');
     await ch.send({ content, embeds: [embed] });
+    return true;
   } catch (err) {
     console.error(`[Notif] Send error (${sub._id}):`, err.message);
+    return false;
   }
 }
 
@@ -228,11 +230,13 @@ async function checkYouTube(client) {
         continue;
       }
       if (video.videoId !== sub.lastVideoId) {
-        await sendNotification(client, sub, youtubeEmbed(video));
-        await updateSubscription(sub._id.toString(), {
-          lastVideoId: video.videoId,
-          channelName: video.channelName || sub.channelName,
-        });
+        const sent = await sendNotification(client, sub, youtubeEmbed(video));
+        if (sent) {
+          await updateSubscription(sub._id.toString(), {
+            lastVideoId: video.videoId,
+            channelName: video.channelName || sub.channelName,
+          });
+        }
       }
     } catch (err) {
       console.error(`[Notif] YouTube check error (${sub._id}):`, err.message);
@@ -258,9 +262,11 @@ async function checkKick(client) {
       if (isLive) {
         if (recentlyNotified.has(sub.channelId)) continue;
         if (stream.id !== sub.lastStreamId) {
-          await sendNotification(client, sub, kickEmbed(stream));
-          await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id });
-          recentlyNotified.add(sub.channelId);
+          const sent = await sendNotification(client, sub, kickEmbed(stream));
+          if (sent) {
+            await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id });
+            recentlyNotified.add(sub.channelId);
+          }
         }
       } else {
         if (sub.lastStreamStatus) {
@@ -281,11 +287,13 @@ async function checkTwitter(client) {
       if (!tweet) continue;
 
       if (tweet.tweetId !== sub.lastVideoId) {
-        await sendNotification(client, sub, twitterEmbed(tweet));
-        await updateSubscription(sub._id.toString(), {
-          lastVideoId: tweet.tweetId,
-          channelName: sub.channelName || tweet.userName,
-        });
+        const sent = await sendNotification(client, sub, twitterEmbed(tweet));
+        if (sent) {
+          await updateSubscription(sub._id.toString(), {
+            lastVideoId: tweet.tweetId,
+            channelName: sub.channelName || tweet.userName,
+          });
+        }
       }
     } catch (err) {
       console.error(`[Notif] Twitter check error (${sub._id}):`, err.message);
@@ -301,33 +309,39 @@ export async function checkSubscriptionNow(client, sub) {
   if (sub.platform === 'youtube' && sub.channelId) {
     const video = await fetchLatestYouTubeVideo(sub.channelId);
     if (video) {
-      await sendNotification(client, sub, youtubeEmbed(video));
-      await updateSubscription(sub._id.toString(), {
-        lastVideoId: video.videoId,
-        channelName: video.channelName || sub.channelName,
-      });
-      return `فيديو: ${video.title}`;
+      const sent = await sendNotification(client, sub, youtubeEmbed(video));
+      if (sent) {
+        await updateSubscription(sub._id.toString(), {
+          lastVideoId: video.videoId,
+          channelName: video.channelName || sub.channelName,
+        });
+      }
+      return sent ? `فيديو: ${video.title}` : '❌ فشل الإرسال';
     }
   }
 
   if (sub.platform === 'kick' && sub.channelId) {
     const stream = await fetchKickStream(sub.channelId);
     if (stream) {
-      await sendNotification(client, sub, kickEmbed(stream));
-      await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id || '' });
-      return `بث: ${stream.title}`;
+      const sent = await sendNotification(client, sub, kickEmbed(stream));
+      if (sent) {
+        await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id || '' });
+      }
+      return sent ? `بث: ${stream.title}` : '❌ فشل الإرسال';
     }
   }
 
   if (sub.platform === 'twitter' && sub.channelId) {
     const tweet = await fetchLatestTweet(sub.channelId);
     if (tweet) {
-      await sendNotification(client, sub, twitterEmbed(tweet));
-      await updateSubscription(sub._id.toString(), {
-        lastVideoId: tweet.tweetId,
-        channelName: sub.channelName || tweet.userName,
-      });
-      return `تغريدة: ${tweet.text?.slice(0, 50)}`;
+      const sent = await sendNotification(client, sub, twitterEmbed(tweet));
+      if (sent) {
+        await updateSubscription(sub._id.toString(), {
+          lastVideoId: tweet.tweetId,
+          channelName: sub.channelName || tweet.userName,
+        });
+      }
+      return sent ? `تغريدة: ${tweet.text?.slice(0, 50)}` : '❌ فشل الإرسال';
     }
   }
 

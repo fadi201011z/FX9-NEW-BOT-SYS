@@ -251,27 +251,61 @@ client.once('ready', async () => {
       const video = await fetchLatestYouTubeVideo(sub.channelId);
       if (!video) return res.json({ found: false, error: 'تعذر جلب الفيديو من RSS' });
       if (sub.lastVideoId === video.videoId) return res.json({ found: false, message: 'لا يوجد فيديو جديد' });
-      await sendNotification(client, sub, youtubeEmbed(video));
-      await updateSubscription(sub._id.toString(), { lastVideoId: video.videoId, channelName: video.channelName || sub.channelName });
-      return res.json({ found: true, platform: 'youtube', title: video.title, url: video.url });
+      const sent = await sendNotification(client, sub, youtubeEmbed(video));
+      if (sent) await updateSubscription(sub._id.toString(), { lastVideoId: video.videoId, channelName: video.channelName || sub.channelName });
+      return res.json({ found: true, sent, platform: 'youtube', title: video.title, url: video.url });
     }
 
     if (sub.platform === 'kick') {
       const stream = await fetchKickStream(sub.channelId);
       if (!stream) return res.json({ found: false, error: 'تعذر جلب البث من Kick' });
       if (sub.lastStreamId === stream.id) return res.json({ found: false, message: 'لا يوجد بث جديد' });
-      await sendNotification(client, sub, kickEmbed(stream));
-      await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id });
-      return res.json({ found: true, platform: 'kick', title: stream.title, url: stream.url });
+      const sent = await sendNotification(client, sub, kickEmbed(stream));
+      if (sent) await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id });
+      return res.json({ found: true, sent, platform: 'kick', title: stream.title, url: stream.url });
     }
 
     if (sub.platform === 'twitter') {
       const tweet = await fetchLatestTweet(sub.channelId);
       if (!tweet) return res.json({ found: false, error: 'تعذر جلب التغريدة' });
       if (sub.lastVideoId === tweet.tweetId) return res.json({ found: false, message: 'لا يوجد تغريدة جديدة' });
-      await sendNotification(client, sub, twitterEmbed(tweet));
-      await updateSubscription(sub._id.toString(), { lastVideoId: tweet.tweetId });
-      return res.json({ found: true, platform: 'twitter', text: tweet.text?.slice(0, 100), url: tweet.url });
+      const sent = await sendNotification(client, sub, twitterEmbed(tweet));
+      if (sent) await updateSubscription(sub._id.toString(), { lastVideoId: tweet.tweetId });
+      return res.json({ found: true, sent, platform: 'twitter', text: tweet.text?.slice(0, 100), url: tweet.url });
+    }
+
+    res.json({ error: 'منصة غير مدعومة' });
+  });
+
+  app.post('/api/notifications/resend/:id', async (req, res) => {
+    const { getSubscription, updateSubscription } = await import('./data/notificationDB.js');
+    const { fetchLatestYouTubeVideo, fetchKickStream, fetchLatestTweet, youtubeEmbed, kickEmbed, twitterEmbed } = await import('./handlers/notificationMonitor.js');
+    const { sendNotification } = await import('./handlers/notificationMonitor.js');
+    const sub = getSubscription(req.params.id);
+    if (!sub) return res.status(404).json({ error: 'Subscription not found' });
+
+    if (sub.platform === 'youtube') {
+      const video = await fetchLatestYouTubeVideo(sub.channelId);
+      if (!video) return res.json({ sent: false, error: 'تعذر جلب الفيديو من RSS' });
+      const sent = await sendNotification(client, sub, youtubeEmbed(video));
+      if (sent) await updateSubscription(sub._id.toString(), { lastVideoId: video.videoId, channelName: video.channelName || sub.channelName });
+      return res.json({ sent, platform: 'youtube', title: video.title, url: video.url });
+    }
+
+    if (sub.platform === 'kick') {
+      const stream = await fetchKickStream(sub.channelId);
+      if (!stream) return res.json({ sent: false, error: 'تعذر جلب البث من Kick' });
+      const sent = await sendNotification(client, sub, kickEmbed(stream));
+      if (sent) await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id });
+      return res.json({ sent, platform: 'kick', title: stream.title, url: stream.url });
+    }
+
+    if (sub.platform === 'twitter') {
+      const tweet = await fetchLatestTweet(sub.channelId);
+      if (!tweet) return res.json({ sent: false, error: 'تعذر جلب التغريدة' });
+      const sent = await sendNotification(client, sub, twitterEmbed(tweet));
+      if (sent) await updateSubscription(sub._id.toString(), { lastVideoId: tweet.tweetId });
+      return res.json({ sent, platform: 'twitter', text: tweet.text?.slice(0, 100), url: tweet.url });
     }
 
     res.json({ error: 'منصة غير مدعومة' });
