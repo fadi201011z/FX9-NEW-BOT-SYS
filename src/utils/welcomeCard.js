@@ -1,8 +1,8 @@
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 
 const BG_URL = 'https://j.top4top.io/p_3845prskm1.png';
-const WIDTH = 800;
-const HEIGHT = 400;
+const WIDTH = 1920;
+const HEIGHT = 1080;
 
 function coverFit(ctx, img, dw, dh) {
   const sx = img.width / dw;
@@ -32,7 +32,7 @@ export async function generateWelcomeCard(member) {
 
   const [bgImg, avatarImg] = await Promise.all([
     loadImage(BG_URL),
-    loadImage(member.user.displayAvatarURL({ extension: 'png', size: 256 })),
+    loadImage(member.user.displayAvatarURL({ extension: 'png', size: 512 })),
   ]);
 
   coverFit(ctx, bgImg, WIDTH, HEIGHT);
@@ -43,8 +43,8 @@ export async function generateWelcomeCard(member) {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-  const cx = WIDTH / 2 + 40, cy = HEIGHT / 2, r = 90;
-  const avatarR = 93;
+  const cx = 1324, cy = 494, r = 245;
+  const avatarR = 248;
   roundImage(ctx, avatarImg, cx, cy, avatarR);
 
   ctx.beginPath();
