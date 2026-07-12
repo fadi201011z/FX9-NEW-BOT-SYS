@@ -9,58 +9,51 @@ import {
 import { CATEGORY_LABEL } from '../data/ticketTypes.js';
 
 // ════════════════════════════════════════════════════════════════════════════
-//  SYS — Color Palette  (Black / Red / White Theme)
+//  PREMIUM Color Palette 2025
 // ════════════════════════════════════════════════════════════════════════════
+
 export const Colors = {
-  RED:     0xe74c3c,
-  CRIMSON: 0xc0392b,
-  BLOOD:   0x8b0000,
-  DARK:    0x1a1a1a,
-  CHARCOAL:0x2c2c2c,
-  WHITE:   0xffffff,
-  SUCCESS: 0xffffff,
-  ERROR:   0xe74c3c,
-  INFO:    0x1a1a1a,
-  WARNING: 0xe67e22,
-  MOD:     0xe74c3c,
-  RAID:    0x8b0000,
-  JOIN:    0x2ecc71,
-  LEAVE:   0x636e72,
-  EDIT:    0x2980b9,
-  VOICE:   0x00cec9,
-  ROLE:    0xe74c3c,
-  BOTLOG:  0x1a1a1a,
+  RED:     0xef4444,
+  CRIMSON: 0xdc2626,
+  BLOOD:   0x991b1b,
+  DARK:    0x0f172a,
+  CHARCOAL:0x1e293b,
+  WHITE:   0xf8fafc,
+  SUCCESS: 0x22c55e,
+  ERROR:   0xef4444,
+  INFO:    0x3b82f6,
+  WARNING: 0xf59e0b,
+  MOD:     0xef4444,
+  RAID:    0x991b1b,
+  JOIN:    0x22c55e,
+  LEAVE:   0x64748b,
+  EDIT:    0x3b82f6,
+  VOICE:   0x06b6d4,
+  ROLE:    0xef4444,
+  BOTLOG:  0x0f172a,
 };
 
-// ════════════════════════════════════════════════════════════════════════════
-//  TICKET — Color Palette
-// ════════════════════════════════════════════════════════════════════════════
 export const COLOR = {
-  blue:   0x1a6fff,
-  black:  0x0d0d0d,
-  red:    0xe53935,
-  white:  0xffffff,
-  gold:   0xffd700,
-  green:  0x00c853,
-  orange: 0xff9800,
-  purple: 0x7c4dff,
+  blue:   0x3b82f6,
+  black:  0x0f172a,
+  red:    0xef4444,
+  white:  0xf8fafc,
+  gold:   0xfbbf24,
+  green:  0x22c55e,
+  orange: 0xf97316,
+  purple: 0x8b5cf6,
 };
 
 // ════════════════════════════════════════════════════════════════════════════
-//  Shared helpers
+//  Premium helpers
 // ════════════════════════════════════════════════════════════════════════════
+
 export const EPHEMERAL = 64;
 
-const FOOTER_ICON = 'https://cdn.discordapp.com/emojis/1176695614518677504.webp';
+const R = '\u200b';
 
-function footer(section = 'Guardian Bot') {
-  return { text: `⚔️ FX9-SYS  •  ${section}` };
-}
-
-function safeSet(embed, desc) {
-  const s = String(desc ?? '').trim();
-  if (s.length > 0) embed.setDescription(s.slice(0, 4096));
-  return embed;
+function footer(text = 'FX9-SYS') {
+  return { text: `⚔️ ${text}` };
 }
 
 function base(color, section) {
@@ -75,61 +68,63 @@ function base(color, section) {
 // ════════════════════════════════════════════════════════════════════════════
 
 export function sysSuccessEmbed(title, desc) {
-  return safeSet(base(Colors.WHITE, 'إشعار').setTitle(`✅  ${title}`), desc);
+  const e = base(Colors.SUCCESS, 'FX9-SYS').setTitle(`✅ ${title}`);
+  if (desc) e.setDescription(desc);
+  return e;
 }
 
 export function sysErrorEmbed(title, desc) {
-  return safeSet(base(Colors.RED, 'خطأ').setTitle(`❌  ${title}`), desc);
+  const e = base(Colors.ERROR, 'FX9-SYS').setTitle(`❌ ${title}`);
+  if (desc) e.setDescription(desc);
+  return e;
 }
 
 export function infoEmbed(title, desc) {
-  return safeSet(base(Colors.DARK, 'معلومات').setTitle(`ℹ️  ${title}`), desc);
+  const e = base(Colors.INFO, 'FX9-SYS').setTitle(`ℹ️ ${title}`);
+  if (desc) e.setDescription(desc);
+  return e;
 }
 
 export function warnEmbed(title, desc) {
-  return safeSet(base(Colors.WARNING, 'تحذير').setTitle(`⚠️  ${title}`), desc);
+  const e = base(Colors.WARNING, 'FX9-SYS').setTitle(`⚠️ ${title}`);
+  if (desc) e.setDescription(desc);
+  return e;
 }
 
 export function sysLogEmbed(title, desc, color = Colors.CHARCOAL, section = 'السجلات العامة') {
-  return safeSet(base(color, section).setTitle(title), desc);
+  const e = base(color, section).setTitle(title);
+  if (desc) e.setDescription(desc);
+  return e;
 }
 
 export function modEmbed(action, target, moderator, reason, extra = {}) {
-  const embed = base(Colors.RED, 'سجلات الإشراف')
-    .setTitle(`🔨  ${action}`)
+  const e = base(Colors.MOD, 'سجلات الإشراف')
+    .setTitle(`🔨 ${action}`)
     .addFields(
-      {
-        name: '👤  العضو المستهدف',
-        value: `${target}\n${target?.id ? `\`\`\`${target.id}\`\`\`` : ''}`,
-        inline: true,
-      },
-      { name: '🛡️  المشرف', value: `${moderator}`, inline: true },
-      { name: '\u200b', value: '\u200b', inline: true },
-      { name: '📋  السبب', value: `\`\`\`${(reason || 'لم يُذكر سبب').slice(0, 990)}\`\`\``, inline: false },
+      { name: '👤 العضو', value: `${target}\n\`${target?.id || ''}\``, inline: true },
+      { name: '🛡️ المشرف', value: `${moderator}`, inline: true },
+      { name: R, value: R, inline: true },
+      { name: '📋 السبب', value: `\`\`\`${(reason || 'لم يُذكر').slice(0, 990)}\`\`\``, inline: false },
     );
-  for (const [name, value] of Object.entries(extra)) {
-    embed.addFields({ name, value: String(value).slice(0, 1024), inline: true });
-  }
-  return embed;
+  for (const [k, v] of Object.entries(extra)) e.addFields({ name: k, value: String(v).slice(0, 1024), inline: true });
+  return e;
 }
 
 export function alertEmbed(title, desc) {
-  const embed = base(Colors.BLOOD, 'نظام الحماية').setTitle(`🚨  ${title}`);
-  if (desc) safeSet(embed, desc);
-  return embed;
+  const e = base(Colors.RAID, 'نظام الحماية').setTitle(`🚨 ${title}`);
+  if (desc) e.setDescription(desc);
+  return e;
 }
 
-export function botLogEmbed(status, desc, color = Colors.DARK) {
-  return safeSet(
-    base(color, 'سجل البوت')
-      .setTitle(status)
-      .addFields({ name: '🕐  الوقت', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true }),
-    desc
-  );
+export function botLogEmbed(status, desc, color = Colors.BOTLOG) {
+  const e = base(color, 'سجل البوت').setTitle(status)
+    .addFields({ name: '🕐 الوقت', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true });
+  if (desc) e.setDescription(desc);
+  return e;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//  TICKET — Compat aliases (SYS-style names that TICKET handlers may use)
+//  TICKET — Color map
 // ════════════════════════════════════════════════════════════════════════════
 
 const CATEGORY_COLOR = {
@@ -140,126 +135,166 @@ const CATEGORY_COLOR = {
 };
 
 export function successEmbed(desc) {
-  return new EmbedBuilder().setColor(COLOR.green).setTitle("✅ تم بنجاح").setDescription(desc).setTimestamp();
+  return new EmbedBuilder()
+    .setColor(COLOR.green)
+    .setTitle('✅ تم بنجاح')
+    .setDescription(desc)
+    .setTimestamp()
+    .setFooter(footer('FX9-SYS'));
 }
 
 export function errorEmbed(desc) {
-  return new EmbedBuilder().setColor(COLOR.red).setTitle("❌ خطأ").setDescription(desc).setTimestamp();
+  return new EmbedBuilder()
+    .setColor(COLOR.red)
+    .setTitle('❌ خطأ')
+    .setDescription(desc)
+    .setTimestamp()
+    .setFooter(footer('FX9-SYS'));
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//  TICKET — Panel
+//  TICKET — Premium Panel
 // ════════════════════════════════════════════════════════════════════════════
+
+const DIV = '━━━━━━━━━━━━━━━━━━━━━━━━';
+const DIV2 = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
 
 export function panelEmbed() {
   return new EmbedBuilder()
-    .setColor(0x0099FF)
-    .setTitle("〉FX9 Ticket Tool🎫 — مـركـز الـدعم الـفني")
-    .setDescription(
-      [
-        "### 〉مرحباً بك في واجهة التحكم ",
-        "نحن هنا لضمان تقديم أفضل خدمة لك. يرجى اختيار القسم المناسب من القائمة بالأسفل لبدء المحادثة مع فريق العمل المختص.",
-        "",
-        "**◈ الأقسام المتاحة حالياً :**",
-        "```",
-        "🛠️ | الدعم التقني   • للمشاكل والأخطاء التقنية",
-        "🚫 | البلاغات      • لتقديم الشكاوى الرسمية",
-        "🤝 | الشراكات     • لعروض التعاون والاستضافة",
-        "❓ | استفسارات عامة • لأي سؤال أو مساعدة أخرى",
-        "```",
-        "",
-        "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**",
-        "### 〉إرشادات هامة",
-        "> 💡 **وضوح الطلب:** يرجى كتابة تفاصيل مشكلتك فور فتح التذكرة لسرعة الرد.",
-        "> ⏱️ **وقت الاستجابة:** يعمل فريقنا على الرد خلال مدة أقصاها **24 ساعة**.",
-        "> 🔒 **الخصوصية:** محادثتك خاصة تماماً ولا يراها إلا المسؤولين.",
-        "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**",
-        "",
-        "**｢ اضغط على الزر المناسب بالأسفل لفتح تذكرة جديدة ｣**"
-      ].join("\n")
-    )
-    .setFooter({ text: "FX9 Ticket Tool🎫 • نظام الدعم الفني حد" })
+    .setColor(0x6366f1)
+    .setTitle('〉FX9 Ticket Tool  〉مركز الدعم')
+    .setDescription([
+      `### ◈ أهلاً بك في مركز الدعم`,
+      `> لفتح تذكرة، اختر القسم المناسب من القائمة أدناه`,
+      '',
+      `${DIV}`,
+      '```ansi',
+      '\u001b[1;36m🛠️  \u001b[0m\u001b[1;37mالدعم التقني     \u001b[0m\u001b[1;30m| مشاكل وأعطال',
+      '\u001b[1;31m🚫  \u001b[0m\u001b[1;37mالبلاغات        \u001b[0m\u001b[1;30m| شكاوى وتقارير',
+      '\u001b[1;32m🤝  \u001b[0m\u001b[1;37mالشراكات        \u001b[0m\u001b[1;30m| تعاون واستضافة',
+      '\u001b[1;33m❓  \u001b[0m\u001b[1;37mاستفسارات عامة  \u001b[0m\u001b[1;30m| أسئلة واستفسارات',
+      '```',
+      `${DIV}`,
+      '',
+
+      `### ⏱ وقت الاستجابة المتوقع`,
+      `> **يصل إلى 24 ساعة** — فريقنا يعمل على مدار الساعة`,
+      '',
+      `${DIV}`,
+      '',
+      '>>> 🔒 **محادثتك خاصة** ولا يراها إلا المسؤولون المخولون',
+      `💡 **يرجى كتابة تفاصيل واضحة** ليسهل علينا مساعدتك`,
+    ].join('\n'))
+    .setFooter({ text: '〉FX9 Ticket Tool  •  Support System' })
     .setTimestamp();
 }
 
 export function panelMenu() {
   return new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
-      .setCustomId("ticket_category")
-      .setPlaceholder("📋 اختر نوع طلبك لفتح تكت...")
+      .setCustomId('ticket_category')
+      .setPlaceholder('📋 اختر نوع الطلب لفتح تذكرة...')
       .addOptions(
-        new StringSelectMenuOptionBuilder().setLabel("دعم فني").setDescription("مشاكل تقنية وأعطال").setValue("technical").setEmoji("🛠️"),
-        new StringSelectMenuOptionBuilder().setLabel("شكاوى").setDescription("الإبلاغ عن تصرف أو مشكلة").setValue("complaint").setEmoji("🚫"),
-        new StringSelectMenuOptionBuilder().setLabel("شراكات").setDescription("عروض تعاون وشراكة").setValue("partnership").setEmoji("🤝"),
-        new StringSelectMenuOptionBuilder().setLabel("أخرى").setDescription("استفسارات لا تندرج في الأقسام أعلاه").setValue("other").setEmoji("❓")
+        new StringSelectMenuOptionBuilder()
+          .setLabel('الدعم التقني').setDescription('مشاكل تقنية وأعطال')
+          .setValue('technical').setEmoji('🛠️'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('البلاغات').setDescription('الإبلاغ عن تصرف أو مشكلة')
+          .setValue('complaint').setEmoji('🚫'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('الشراكات').setDescription('عروض تعاون وشراكة')
+          .setValue('partnership').setEmoji('🤝'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('أخرى').setDescription('استفسارات لا تندرج بالأقسام أعلاه')
+          .setValue('other').setEmoji('❓'),
       )
   );
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//  TICKET — Ticket embed + buttons
+//  TICKET — Premium Ticket Embed + Action Buttons
 // ════════════════════════════════════════════════════════════════════════════
 
+const PRIORITY_LABEL = { high: '🔴 عالية', medium: '🟡 متوسطة', low: '🟢 منخفضة' };
+
 export function ticketEmbed(t, adminChannel = false) {
-  const PRIORITY_LABEL = { high: "🔴 عالية", medium: "🟡 متوسطة", low: "🟢 منخفضة" };
+  const color = adminChannel ? COLOR.purple : (CATEGORY_COLOR[t.category] ?? COLOR.blue);
+  const label = CATEGORY_LABEL[t.category] ?? t.category;
+
+  const desc = [
+    `${DIV}`,
+    adminChannel
+      ? '```ansi\n\u001b[1;35m⚠️ قناة إدارة — الرد هنا يصل للعضو تلقائياً\u001b[0m\n```'
+      : '```ansi\n\u001b[1;32m✅ تم فتح التذكرة — فريق الدعم سيتواصل معك\u001b[0m\n```',
+    `${DIV}`,
+    '',
+    `**👤 العضو**  ─  <@${t.userId}> \`${t.username}\``,
+    `**📂 القسم**  ─  ${label}`,
+    `**🎯 الأولوية**  ─  ${PRIORITY_LABEL[t.priority]}`,
+    `**🆔 رقم التذكرة**  ─  \`${t.ticketId}\``,
+    '',
+    `${DIV}`,
+    '',
+    `**📌 العنوان**`,
+    `> ${t.title}`,
+    '',
+    `**📝 الوصف**`,
+    `> ${t.description}`,
+    t.evidence ? `\n**🔗 الأدلة**\n> ${t.evidence}` : '',
+    '',
+    `${DIV}`,
+  ].filter(Boolean).join('\n');
+
   return new EmbedBuilder()
-    .setColor(adminChannel ? COLOR.purple : (CATEGORY_COLOR[t.category] ?? COLOR.blue))
-    .setTitle(adminChannel
-      ? `🔐 [إداري] ${t.ticketId} — ${CATEGORY_LABEL[t.category] ?? t.category}`
-      : `🎫 ${t.ticketId} — ${CATEGORY_LABEL[t.category] ?? t.category}`)
-    .setDescription(
-      [
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        adminChannel
-          ? "**⚠️ هذه القناة للإدارة فقط — اكتب ردك هنا وسيصل للعضو تلقائياً**"
-          : "**✅ تم فتح تكتك — فريق الدعم سيتواصل معك قريباً**",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        `**👤 العضو:** <@${t.userId}> \`(${t.username})\``,
-        `**📂 القسم:** ${CATEGORY_LABEL[t.category] ?? t.category}`,
-        `**🎯 الأولوية:** ${PRIORITY_LABEL[t.priority]}`,
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        "**📌 العنوان:**",
-        `> ${t.title}`,
-        "",
-        "**📝 الوصف:**",
-        `> ${t.description}`,
-        t.evidence ? `\n**🔗 الأدلة:**\n> ${t.evidence}` : "",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-      ].filter(Boolean).join("\n")
-    )
-    .setFooter({ text: adminChannel ? "FX9 Support System • Admin View" : "FX9 Support System • User View" })
+    .setColor(color)
+    .setTitle(adminChannel ? `🔐 ${t.ticketId} — ${label} [إدارة]` : `🎫 ${t.ticketId} — ${label}`)
+    .setDescription(desc)
+    .setFooter({ text: adminChannel ? `FX9 Support • ${t.ticketId} • Admin` : `FX9 Support • ${t.ticketId}` })
     .setTimestamp();
 }
 
 export function ticketButtons(claimed, claimedByUsername, adminMode = false) {
   const row1 = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId("ticket_claim")
-      .setLabel(claimed ? `✅ ${claimedByUsername ?? "مستلم"}` : "📩 Claim")
+      .setCustomId('ticket_claim')
+      .setLabel(claimed ? `✅ ${claimedByUsername ?? 'مستلم'}` : '📩 استلام')
       .setStyle(claimed ? ButtonStyle.Success : ButtonStyle.Primary)
       .setDisabled(claimed),
-    new ButtonBuilder().setCustomId("ticket_unclaim").setLabel("📤 Unclaim").setStyle(ButtonStyle.Secondary).setDisabled(!claimed),
-    new ButtonBuilder().setCustomId("ticket_rename").setLabel("✏️ Rename").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("ticket_close").setLabel("🔒 Close").setStyle(ButtonStyle.Danger)
+    new ButtonBuilder()
+      .setCustomId('ticket_unclaim')
+      .setLabel('📤 إلغاء الاستلام')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(!claimed),
+    new ButtonBuilder()
+      .setCustomId('ticket_rename')
+      .setLabel('✏️ إعادة تسمية')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('ticket_close')
+      .setLabel('🔒 إغلاق')
+      .setStyle(ButtonStyle.Danger),
   );
+
   const rows = [row1];
+
   if (adminMode) {
     const row2 = new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder()
-        .setCustomId("ticket_quickreply")
-        .setPlaceholder("📋 Quick Reply — اختر رداً سريعاً...")
+        .setCustomId('ticket_quickreply')
+        .setPlaceholder('📋 رد سريع — اختر رداً جاهزاً...')
         .addOptions(
-          new StringSelectMenuOptionBuilder().setLabel("قيد المراجعة").setDescription("نراجع طلبك حالياً").setValue("reviewing").setEmoji("🔍"),
-          new StringSelectMenuOptionBuilder().setLabel("طلب أدلة").setDescription("طلب صور أو أدلة إضافية").setValue("need_evidence").setEmoji("📸"),
-          new StringSelectMenuOptionBuilder().setLabel("تم الحل").setDescription("تم حل المشكلة").setValue("resolved").setEmoji("✅"),
-          new StringSelectMenuOptionBuilder().setLabel("يرجى التوضيح").setDescription("نحتاج توضيحاً إضافياً").setValue("clarify").setEmoji("❓"),
-          new StringSelectMenuOptionBuilder().setLabel("شكراً للتواصل").setDescription("رسالة ترحيب وشكر").setValue("thanks").setEmoji("🙏"),
-          new StringSelectMenuOptionBuilder().setLabel("سيتم التحويل").setDescription("تحويل الطلب لجهة أخرى").setValue("transfer").setEmoji("🔄"),
-          new StringSelectMenuOptionBuilder().setLabel("مشكلة معروفة").setDescription("نعمل على حلها حالياً").setValue("known_issue").setEmoji("⚠️")
+          new StringSelectMenuOptionBuilder().setLabel('قيد المراجعة').setDescription('نراجع طلبك حالياً').setValue('reviewing').setEmoji('🔍'),
+          new StringSelectMenuOptionBuilder().setLabel('طلب أدلة').setDescription('نحتاج صوراً أو أدلة إضافية').setValue('need_evidence').setEmoji('📸'),
+          new StringSelectMenuOptionBuilder().setLabel('تم الحل').setDescription('تم حل المشكلة بنجاح').setValue('resolved').setEmoji('✅'),
+          new StringSelectMenuOptionBuilder().setLabel('يرجى التوضيح').setDescription('نحتاج توضيحاً إضافياً').setValue('clarify').setEmoji('❓'),
+          new StringSelectMenuOptionBuilder().setLabel('شكراً للتواصل').setDescription('رسالة شكر وترحيب').setValue('thanks').setEmoji('🙏'),
+          new StringSelectMenuOptionBuilder().setLabel('سيتم التحويل').setDescription('تحويل الطلب للجهة المختصة').setValue('transfer').setEmoji('🔄'),
+          new StringSelectMenuOptionBuilder().setLabel('مشكلة معروفة').setDescription('نعمل على حلها حالياً').setValue('known_issue').setEmoji('⚠️'),
         )
     );
     rows.push(row2);
   }
+
   return rows;
 }
 
@@ -268,43 +303,85 @@ export function ticketButtons(claimed, claimedByUsername, adminMode = false) {
 // ════════════════════════════════════════════════════════════════════════════
 
 export function ratingEmbed(ticketId, adminUsername) {
+  const desc = [
+    '```',
+    '  ✦  شكراً لتواصلك مع FX9 Support  ✦  ',
+    '```',
+    '',
+    adminUsername ? `> **الإداري المساعد:** ${adminUsername}\n` : '',
+    `### ⭐ قيّم تجربتك`,
+    '',
+    `> ⭐☆☆☆☆  —  سيئة جداً`,
+    `> ⭐⭐☆☆☆  —  سيئة`,
+    `> ⭐⭐⭐☆☆  —  مقبولة`,
+    `> ⭐⭐⭐⭐☆  —  جيدة`,
+    `> ⭐⭐⭐⭐⭐  —  ممتازة`,
+    '',
+    `${DIV}`,
+    `> \`📋 التذكرة: ${ticketId}\``,
+    '> 💙 **تقييمك يساعدنا على التحسن**',
+  ].filter(Boolean).join('\n');
+
   return new EmbedBuilder()
     .setColor(COLOR.gold)
-    .setTitle("⭐  كيف كانت تجربتك مع الدعم؟")
-    .setDescription(
-      [
-        "```",
-        "  شكراً لتواصلك مع FX9 Support  ",
-        "```",
-        adminUsername ? `\nالإداري الذي ساعدك: **${adminUsername}**` : "",
-        "",
-        "**قيّم تجربتك من ١ إلى ٥ نجوم:**",
-        "",
-        "> ⭐ — تجربة ضعيفة جداً",
-        "> ⭐⭐ — تجربة ضعيفة",
-        "> ⭐⭐⭐ — تجربة مقبولة",
-        "> ⭐⭐⭐⭐ — تجربة جيدة",
-        "> ⭐⭐⭐⭐⭐ — تجربة ممتازة",
-        "",
-        `> *رقم التكت: \`${ticketId}\`*`,
-        "\n> 💙 تقييمك يساعدنا على تحسين جودة الخدمة.",
-      ].filter(Boolean).join("\n")
-    )
-    .setFooter({ text: "FX9 Support System • Feedback" });
+    .setTitle('⭐ تقييم تجربة الدعم')
+    .setDescription(desc)
+    .setFooter({ text: 'FX9 Support • Feedback' });
 }
 
 export function ratingButtons(ticketId) {
   return new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`rate_1_${ticketId}`).setLabel("⭐ 1").setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId(`rate_2_${ticketId}`).setLabel("⭐ 2").setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId(`rate_3_${ticketId}`).setLabel("⭐ 3").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`rate_4_${ticketId}`).setLabel("⭐ 4").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`rate_5_${ticketId}`).setLabel("⭐ 5").setStyle(ButtonStyle.Success)
+    new ButtonBuilder().setCustomId(`rate_1_${ticketId}`).setEmoji('1️⃣').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`rate_2_${ticketId}`).setEmoji('2️⃣').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`rate_3_${ticketId}`).setEmoji('3️⃣').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`rate_4_${ticketId}`).setEmoji('4️⃣').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`rate_5_${ticketId}`).setEmoji('5️⃣').setStyle(ButtonStyle.Success),
   );
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//  TICKET — Log / Misc
+//  TICKET — Close Summary (used by closeHandler)
+// ════════════════════════════════════════════════════════════════════════════
+
+export function closeEmbed(ticket, closedBy) {
+  const stars = ticket.rating ? '⭐'.repeat(ticket.rating) : 'لم يُقيّم';
+  const desc = [
+    `${DIV}`,
+    `**🎫 التذكرة**  ─  \`${ticket.ticketId}\``,
+    `**📂 القسم**  ─  ${CATEGORY_LABEL?.[ticket.category] ?? ticket.category ?? '—'}`,
+    `${DIV}`,
+    '',
+    `**👤 فاتح التذكرة**  ─  <@${ticket.userId}> \`${ticket.username ?? ''}\``,
+    `**📩 المستلم**  ─  ${ticket.claimedBy ? `<@${ticket.claimedBy}> \`${ticket.claimedByUsername ?? ''}\`` : '❌ غير مستلم'}`,
+    `**🔒 أغلقت بواسطة**  ─  <@${closedBy}>`,
+    '',
+    `${DIV}`,
+    '',
+    `**⏱ المدة**  ─  \`${formatDuration(Date.now() - ticket.openedAt)}\``,
+    `**📅 فتحت**  ─  <t:${Math.floor(ticket.openedAt / 1000)}:f>`,
+    `**📅 أغلقت**  ─  <t:${Math.floor(Date.now() / 1000)}:f>`,
+    '',
+    `${DIV}`,
+    '',
+    `**📌 العنوان**  ─  ${ticket.title ?? '—'}`,
+    `**⭐ التقييم**  ─  ${stars}`,
+    '',
+    `${DIV}`,
+    '',
+    `> ⏳ سيتم حذف القناة تلقائياً بعد 20 دقيقة إن لم يتم التقييم`,
+    '> ✨ يمكنك التقييم الآن باستخدام الأزرار أعلاه',
+  ].join('\n');
+
+  return new EmbedBuilder()
+    .setColor(COLOR.red)
+    .setTitle(`🔒 تم إغلاق التذكرة — ${ticket.ticketId}`)
+    .setDescription(desc)
+    .setFooter({ text: `FX9 Support • ${ticket.ticketId} • Summary` })
+    .setTimestamp();
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  TICKET — Log & Inactivity
 // ════════════════════════════════════════════════════════════════════════════
 
 export function logEmbed(title, color, fields) {
@@ -313,87 +390,85 @@ export function logEmbed(title, color, fields) {
     .setTitle(`📋 ${title}`)
     .addFields(fields)
     .setTimestamp()
-    .setFooter({ text: "FX9 Support System • Log" });
+    .setFooter(footer('FX9-SYS • سجل'));
 }
 
 export function inactivityEmbed(ticketId) {
   return new EmbedBuilder()
     .setColor(COLOR.orange)
-    .setTitle("⚠️ تحذير خمول التكت")
-    .setDescription(
-      [
-        `**رقم التكت: \`${ticketId}\`**`,
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        "⏰ لم يتم إرسال أي رسائل منذ **24 ساعة**.",
-        "",
-        "إذا لم يكن هناك نشاط خلال **12 ساعة إضافية** سيُغلق التكت تلقائياً.",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        "> يرجى الرد إذا كنت لا تزال تحتاج للمساعدة.",
-      ].join("\n")
-    )
-    .setFooter({ text: "FX9 Support System • Inactivity Warning" })
+    .setTitle('⚠️ تحذير عدم النشاط')
+    .setDescription([
+      `${DIV}`,
+      `**🆔 التذكرة**  ─  \`${ticketId}\``,
+      `${DIV}`,
+      '',
+      '> ⏰ **لم يتم إرسال أي رسائل منذ 24 ساعة**',
+      '',
+      'إذا لم يكن هناك رد خلال **12 ساعة** سيتم إغلاق التذكرة تلقائياً.',
+      '',
+      `${DIV}`,
+      '',
+      '> 💬 يرجى الرد إذا كنت لا تزال بحاجة للمساعدة',
+    ].join('\n'))
+    .setFooter({ text: 'FX9 Support • Inactivity Warning' })
     .setTimestamp();
 }
 
 export function buildTicketLogEmbed(ticket) {
-  const stars = ticket.rating ? "⭐".repeat(ticket.rating) : "لم يُقيّم";
-  const embed = new EmbedBuilder()
+  const stars = ticket.rating ? '⭐'.repeat(ticket.rating) : 'لم يُقيّم';
+  const e = new EmbedBuilder()
     .setColor(
-      ticket.status === "closed" ? COLOR.red :
-      ticket.status === "claimed" ? COLOR.blue :
-      COLOR.green
+      ticket.status === 'closed' ? COLOR.red
+        : ticket.status === 'claimed' ? COLOR.blue
+          : COLOR.green
     )
-    .setTitle(`🎫 ${ticket.ticketId} — ${CATEGORY_LABEL?.[ticket.category] ?? ticket.category ?? "تكت"}`)
-    .setDescription("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    .setTitle(`🎫 ${ticket.ticketId} — ${CATEGORY_LABEL?.[ticket.category] ?? ticket.category ?? 'تذكرة'}`)
+    .setDescription(DIV)
     .addFields(
-      { name: "📌 الحالة", value: ticket.status === "closed" ? "🔒 مغلق" : ticket.status === "claimed" ? "📩 مستلم" : "🟢 مفتوح", inline: true },
-      { name: "👤 العضو",  value: `<@${ticket.userId}>`, inline: true },
-      { name: "📩 المستلم", value: ticket.claimedBy ? `<@${ticket.claimedBy}>` : "—", inline: true },
-      { name: "📅 فتح في", value: ticket.openedAt ? `<t:${Math.floor(ticket.openedAt / 1000)}:f>` : "—", inline: true },
-      { name: "📅 أغلق في", value: ticket.closedAt ? `<t:${Math.floor(ticket.closedAt / 1000)}:f>` : "—", inline: true },
-      { name: "📌 العنوان", value: ticket.title ?? "—", inline: false },
+      { name: '📌 الحالة', value: ticket.status === 'closed' ? '🔒 مغلقة' : ticket.status === 'claimed' ? '📩 مستلمة' : '🟢 مفتوحة', inline: true },
+      { name: '👤 العضو', value: `<@${ticket.userId}>`, inline: true },
+      { name: '📩 المستلم', value: ticket.claimedBy ? `<@${ticket.claimedBy}>` : '—', inline: true },
+      { name: '📅 فتحت', value: ticket.openedAt ? `<t:${Math.floor(ticket.openedAt / 1000)}:f>` : '—', inline: true },
+      { name: '📅 أغلقت', value: ticket.closedAt ? `<t:${Math.floor(ticket.closedAt / 1000)}:f>` : '—', inline: true },
+      { name: '📌 العنوان', value: ticket.title ?? '—', inline: false },
     );
 
-  if (ticket.ticketId) embed.setFooter({ text: `FX9 Support System • ${ticket.ticketId}` });
-  embed.setTimestamp();
+  if (ticket.rating) e.addFields({ name: '⭐ التقييم', value: `${stars} (${ticket.rating}/5)`, inline: true });
 
-  if (ticket.rating) embed.addFields({ name: "⭐ التقييم", value: `${stars} (${ticket.rating}/5)`, inline: true });
-  return embed;
+  return e
+    .setFooter({ text: `FX9 Support • ${ticket.ticketId}` })
+    .setTimestamp();
 }
 
 export function ticketLogMenu(ticket) {
   const options = [
     new StringSelectMenuOptionBuilder()
       .setLabel('عرض التفاصيل الكاملة')
-      .setDescription(`جميع معلومات التكت ${ticket.ticketId}`)
+      .setDescription(`جميع معلومات التذكرة ${ticket.ticketId}`)
       .setValue(`details||${ticket.ticketId}`)
       .setEmoji('📋'),
   ];
 
-  if (ticket.channelId) {
-    options.push(
-      new StringSelectMenuOptionBuilder()
-        .setLabel('فتح قناة العضو')
-        .setDescription(`الذهاب إلى قناة التكت ${ticket.ticketId}`)
-        .setValue(`user_channel||${ticket.ticketId}`)
-        .setEmoji('📩'),
-    );
-  }
+  if (ticket.channelId) options.push(
+    new StringSelectMenuOptionBuilder()
+      .setLabel('فتح قناة العضو')
+      .setDescription(`الذهاب إلى قناة التذكرة ${ticket.ticketId}`)
+      .setValue(`user_channel||${ticket.ticketId}`)
+      .setEmoji('📩'),
+  );
 
-  if (ticket.adminChannelId) {
-    options.push(
-      new StringSelectMenuOptionBuilder()
-        .setLabel('فتح قناة الإدارة')
-        .setDescription(`الذهاب إلى قناة الإدارة للتكت ${ticket.ticketId}`)
-        .setValue(`admin_channel||${ticket.ticketId}`)
-        .setEmoji('🔐'),
-    );
-  }
+  if (ticket.adminChannelId) options.push(
+    new StringSelectMenuOptionBuilder()
+      .setLabel('فتح قناة الإدارة')
+      .setDescription(`الذهاب إلى قناة الإدارة ${ticket.ticketId}`)
+      .setValue(`admin_channel||${ticket.ticketId}`)
+      .setEmoji('🔐'),
+  );
 
   return new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId('ticket_log_menu')
-      .setPlaceholder('🔽 إجراءات التكت...')
+      .setPlaceholder('🔽 إجراءات التذكرة...')
       .addOptions(options),
   );
 }

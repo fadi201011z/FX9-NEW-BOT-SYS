@@ -1,11 +1,11 @@
-import { PermissionsBitField, EmbedBuilder } from "discord.js";
+import { PermissionsBitField } from "discord.js";
 import {
   getTicket, saveTicket, getAdminStats, saveAdminStats,
   getGuildConfig, getTicketByAdminChannel, getTicketById,
 } from "../data/ticketDB.js";
-import { logEmbed, ratingEmbed, ratingButtons, COLOR } from "../utils/embeds.js";
+import { closeEmbed, ratingEmbed, ratingButtons } from "../utils/embeds.js";
 import { sendOrUpdateTicketLog } from "../utils/ticketLogUtils.js";
-import { CATEGORY_LABEL } from "../data/ticketTypes.js";
+import { formatDuration } from "../utils/parseDuration.js";
 
 const AUTO_CLOSE_DELAY = 20 * 60 * 1000;
 const closeTimers = new Map();
@@ -49,32 +49,7 @@ export async function handleCloseTicket(client, interaction) {
     await saveAdminStats(stats);
   }
 
-  const stars = ticket.rating ? "⭐".repeat(ticket.rating) : "لم يُقيّم";
-  const closeEmbed = new EmbedBuilder()
-    .setColor(COLOR.red)
-    .setTitle("🔒 تم إغلاق التكت")
-    .setDescription([
-      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-      `**🎫 رقم التكت:** \`${ticket.ticketId}\``,
-      `**📂 القسم:** ${CATEGORY_LABEL?.[ticket.category] ?? ticket.category ?? "—"}`,
-      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-      `**👤 فتح التذكرة:** <@${ticket.userId}> \`${ticket.username ?? ""}\``,
-      `**📩 استلم التكت:** ${ticket.claimedBy ? `<@${ticket.claimedBy}> \`${ticket.claimedByUsername ?? ""}\`` : "❌ غير مستلم"}`,
-      `**🔒 أغلق التكت:** <@${interaction.user.id}>`,
-      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-      `**⏱ المدة:** ${formatDuration(Date.now() - ticket.openedAt)}`,
-      `**📅 فتح في:** <t:${Math.floor(ticket.openedAt / 1000)}:f>`,
-      `**📅 أغلق في:** <t:${Math.floor(Date.now() / 1000)}:f>`,
-      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-      `**📌 العنوان:** ${ticket.title ?? "—"}`,
-      `**⭐ التقييم:** ${stars}`,
-      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-      "",
-      `⏳ **القناة ستُحذف تلقائياً بعد 20 دقيقة** إذا لم يتم التقييم.`,
-      "يمكنك التقييم الآن بالضغط على الأزرار أدناه ✨",
-    ].join("\n"))
-    .setFooter({ text: "FX9 Support System • Ticket Summary" })
-    .setTimestamp();
+  const closeMsg = closeEmbed(ticket, interaction.user.id);
 
   const ratingPayload = {
     embeds:     [ratingEmbed(ticket.ticketId, ticket.claimedByUsername)],
@@ -92,7 +67,7 @@ export async function handleCloseTicket(client, interaction) {
 
   const userCh = client.channels.cache.get(ticket.channelId);
   if (userCh) {
-    await userCh.send({ embeds: [closeEmbed] });
+    await userCh.send({ embeds: [closeMsg] });
     if (ratingInChannel) {
       await userCh.send({
         content: `<@${ticket.userId}> ⭐ **قيّم تجربتك** بالضغط على الأزرار أدناه — تُحذف القناة تلقائياً بعد **20 دقيقة**.`,
@@ -103,7 +78,7 @@ export async function handleCloseTicket(client, interaction) {
 
   if (ticket.adminChannelId) {
     const adminCh = client.channels.cache.get(ticket.adminChannelId);
-    if (adminCh) await adminCh.send({ embeds: [closeEmbed] });
+    if (adminCh) await adminCh.send({ embeds: [closeMsg] });
   }
 
   await sendOrUpdateTicketLog(client, ticket);
@@ -157,8 +132,4 @@ export async function handleRatingButton(client, interaction) {
   await deleteChannels(client, ticket);
 }
 
-function formatDuration(ms) {
-  const h = Math.floor(ms / 3600000);
-  const m = Math.floor((ms % 3600000) / 60000);
-  return `${h}س ${m}د`;
-}
+
