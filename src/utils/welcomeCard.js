@@ -43,7 +43,7 @@ export async function generateWelcomeCard(member) {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-  const cx = 1340, cy = 475, r = 245;
+  const cx = 1340, cy = 492, r = 245;
   const avatarR = 248;
   roundImage(ctx, avatarImg, cx, cy, avatarR);
 
