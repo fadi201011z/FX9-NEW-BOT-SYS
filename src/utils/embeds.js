@@ -53,7 +53,7 @@ export const EPHEMERAL = 64;
 
 const R = '\u200b';
 
-function footer(text = 'FX9-SYS') {
+export function footer(text = 'FX9-SYS') {
   return { text: `⚔️ ${text}` };
 }
 

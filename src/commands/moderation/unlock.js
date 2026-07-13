@@ -1,8 +1,10 @@
 import { SlashCommandBuilder, PermissionFlagsBits, ChannelType, EmbedBuilder } from 'discord.js';
 import { requireRole, getLogChannel } from '../../utils/permissions.js';
-import { Colors } from '../../utils/embeds.js';
+import { Colors, COLOR, footer } from '../../utils/embeds.js';
 import { getConfig } from '../../database.js';
 import { COMMAND_ROLES, clearAdminOverwrites } from '../../config/roles.js';
+
+const DIV = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
 
 export const data = new SlashCommandBuilder()
   .setName('unlock')
@@ -19,58 +21,77 @@ export async function execute(interaction) {
 
   const channel = interaction.options.getChannel('channel') ?? interaction.channel;
 
-  // 🛡️ التحقق الذكي: هل القناة مفتوحة بالفعل؟
   const everyoneRole = interaction.guild.roles.everyone;
   const currentPermissions = channel.permissionOverwrites.cache.get(everyoneRole.id);
 
-  // إذا لم يكن هناك منع (Deny) لصلاحية SendMessages، فهي مفتوحة
   if (!currentPermissions || !currentPermissions.deny.has(PermissionFlagsBits.SendMessages)) {
-    return interaction.reply({ 
-      content: `⚠️ القناة ${channel} مفتوحة بالفعل ولا تحتاج لإعادة فتح.`, 
-      ephemeral: true 
+    return interaction.reply({
+      content: `⚠️ القناة ${channel} مفتوحة بالفعل ولا تحتاج لإعادة فتح.`,
+      ephemeral: true
     });
   }
 
-  // 1) إعادة @everyone لوضعه الافتراضي (null = وراثة من التصنيف/السيرفر)
-  await channel.permissionOverwrites.edit(everyoneRole, {
-    SendMessages: null,
-  });
-
-  // 2) مسح الـ overrides الصريحة التي أضافها /lock للرتب الإدارية
+  await channel.permissionOverwrites.edit(everyoneRole, { SendMessages: null });
   await clearAdminOverwrites(channel, interaction.guild);
 
   const embed = new EmbedBuilder()
-    .setColor(Colors.WHITE)
-    .setTitle('🔓  تم فتح القناة')
-    .addFields(
-      { name: '📢  القناة',  value: `${channel}`,          inline: true },
-      { name: '🛡️  بواسطة', value: `${interaction.user}`, inline: true },
-    )
-    .setTimestamp()
-    .setFooter({ text: '⚔️ FX9-SYS  •  إدارة القنوات' });
+    .setColor(COLOR.white)
+    .setTitle('🔓  فتح القناة')
+    .setDescription([
+      '```ansi',
+      `\u001b[1;37m🔓  تم فتح القناة  │  ${channel.name}\u001b[0m`,
+      '```',
+      `${DIV}`,
+      '',
+      `**🛡️ بواسطة**  ─  ${interaction.user}`,
+      '',
+      `${DIV}`,
+      '',
+      '> جميع الأعضاء يستطيعون الإرسال الآن',
+    ].join('\n'))
+    .setFooter(footer('FX9 • إدارة القنوات'))
+    .setTimestamp();
 
-  // الرد على الأمر
   await interaction.reply({ embeds: [embed] });
 
-  // إرسال الإشعار داخل القناة المفتوحة (إذا لم تكن هي نفس قناة التفاعل)
   if (channel.id !== interaction.channel.id) {
-    await channel.send({ embeds: [embed] }).catch(() => {});
+    await channel.send({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(COLOR.white)
+          .setTitle('🔓  تم فتح هذه القناة')
+          .setDescription([
+            '```ansi',
+            `\u001b[1;37m🔓  القناة مفتوحة  │  يمكن للأعضاء الإرسال الآن\u001b[0m`,
+            '```',
+            `${DIV}`,
+            '',
+            `**🛡️ بواسطة**  ─  ${interaction.user}`,
+          ].join('\n'))
+          .setFooter(footer('FX9 • إدارة القنوات'))
+          .setTimestamp(),
+      ],
+    }).catch(() => {});
   }
 
-  // تسجيل العملية في السجلات (Logs)
   const modLogCh = await getLogChannel(interaction.guild, getConfig(interaction.guildId, 'modlog_channel'));
   if (modLogCh) {
     await modLogCh.send({
       embeds: [
         new EmbedBuilder()
-          .setColor(Colors.WHITE)
-          .setTitle('🔓  فتح قناة')
-          .addFields(
-            { name: '📢  القناة',  value: `${channel}`,          inline: true },
-            { name: '🛡️  المشرف', value: `${interaction.user}`, inline: true },
-          )
-          .setTimestamp()
-          .setFooter({ text: '⚔️ FX9-SYS  •  سجلات الإشراف' }),
+          .setColor(COLOR.white)
+          .setTitle('🔓  سجل — فتح قناة')
+          .setDescription([
+            '```ansi',
+            `\u001b[1;37m🔓  فتح  │  ${channel.name}\u001b[0m`,
+            '```',
+            `${DIV}`,
+            '',
+            `**📢 القناة**  ─  ${channel}`,
+            `**🛡️ المشرف**  ─  ${interaction.user}`,
+          ].join('\n'))
+          .setFooter(footer('FX9 • سجلات الإشراف'))
+          .setTimestamp(),
       ],
     }).catch(() => {});
   }
