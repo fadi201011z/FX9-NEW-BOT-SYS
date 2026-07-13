@@ -68,7 +68,7 @@ export async function execute(member) {
       try {
         const card = await generateWelcomeCard(member);
         const attachment = new AttachmentBuilder(card, { name: 'welcome.png' });
-        const text = `✦ — Welcome To ${member}  Surver . ✨`;
+        const text = `✦ — Welcome ${member} To FAdiX9 Surver . ✨`;
         await welcomeCh.send({ content: text, files: [attachment] }).catch(() => {});
       } catch (err) {
         console.error('[WelcomeCard] فشل إنشاء البطاقة:', err.message);
