@@ -99,14 +99,22 @@ export function sysLogEmbed(title, desc, color = Colors.CHARCOAL, section = 'ا�
 }
 
 export function modEmbed(action, target, moderator, reason, extra = {}) {
+  const desc = [
+    '```ansi',
+    `\u001b[1;31m🔨  ${action}  │  ${target?.user?.tag || target?.tag || target}\u001b[0m`,
+    '```',
+    '━━━━━━━━━━━━━━━━━━━━━━━━',
+    '',
+    `**👤 العضو**  ─  ${target} ${target?.id ? `\`${target.id}\`` : ''}`,
+    `**🛡️ المشرف**  ─  ${moderator}`,
+    '',
+    '━━━━━━━━━━━━━━━━━━━━━━━━',
+    '',
+    `**📋 السبب**  ─  \`\`\`${(reason || 'لم يُذكر').slice(0, 990)}\`\`\``,
+  ];
   const e = base(Colors.MOD, 'سجلات الإشراف')
     .setTitle(`🔨 ${action}`)
-    .addFields(
-      { name: '👤 العضو', value: `${target}\n\`${target?.id || ''}\``, inline: true },
-      { name: '🛡️ المشرف', value: `${moderator}`, inline: true },
-      { name: R, value: R, inline: true },
-      { name: '📋 السبب', value: `\`\`\`${(reason || 'لم يُذكر').slice(0, 990)}\`\`\``, inline: false },
-    );
+    .setDescription(desc.join('\n'));
   for (const [k, v] of Object.entries(extra)) e.addFields({ name: k, value: String(v).slice(0, 1024), inline: true });
   return e;
 }

@@ -1,7 +1,10 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
-import { requireRole } from '../../utils/permissions.js';
-import { successEmbed, errorEmbed, EPHEMERAL } from '../../utils/embeds.js';
+import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
+import { requireRole, getLogChannel } from '../../utils/permissions.js';
+import { COLOR, footer } from '../../utils/embeds.js';
+import { getConfig } from '../../database.js';
 import { COMMAND_ROLES } from '../../config/roles.js';
+
+const DIV = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
 
 export const data = new SlashCommandBuilder()
   .setName('clear')
@@ -16,7 +19,7 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction) {
   if (!await requireRole(interaction, COMMAND_ROLES.clear)) return;
 
-  await interaction.deferReply({ flags: EPHEMERAL });
+  await interaction.deferReply({ flags: 64 });
 
   const amount     = interaction.options.getInteger('amount');
   const filterUser = interaction.options.getUser('user');
@@ -34,15 +37,73 @@ export async function execute(interaction) {
 
   if (messages.length === 0) {
     return interaction.editReply({
-      embeds: [errorEmbed('لا توجد رسائل', 'لم يُعثر على رسائل مطابقة للفلتر (الرسائل الأقدم من 14 يوماً لا يمكن مسحها).')],
+      embeds: [
+        new EmbedBuilder()
+          .setColor(COLOR.red)
+          .setTitle('⚠️  فشل المسح')
+          .setDescription([
+            '```ansi',
+            '\u001b[1;31m✖  لا توجد رسائل مطابقة للفلتر\u001b[0m',
+            '```',
+            `${DIV}`,
+            '',
+            '> الرسائل الأقدم من 14 يوماً لا يمكن مسحها',
+          ].join('\n'))
+          .setFooter(footer('FX9 • إدارة القنوات'))
+          .setTimestamp(),
+      ],
     });
   }
 
   const deleted = await interaction.channel.bulkDelete(messages, true);
 
-  let desc = `تم مسح **${deleted.size}** رسالة بنجاح.`;
-  if (filterUser) desc += `\n📌 **الفلتر:** رسائل ${filterUser}`;
-  if (botsOnly)   desc += `\n📌 **الفلتر:** رسائل البوتات فقط`;
+  const filterLines = [];
+  if (filterUser) filterLines.push(`**👤 العضو**  ─  ${filterUser}`);
+  if (botsOnly)   filterLines.push(`**🤖 البوتات**  ─  تمت تصفية البوتات فقط`);
+  const filterText = filterLines.length ? `\n${filterLines.join('\n')}\n` : '';
 
-  await interaction.editReply({ embeds: [successEmbed('تم مسح الرسائل', desc)] });
+  await interaction.editReply({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(COLOR.green)
+        .setTitle('🧹  تم المسح')
+        .setDescription([
+          '```ansi',
+          `\u001b[1;32m✓  تم مسح ${deleted.size} رسالة  │  ${interaction.channel.name}\u001b[0m`,
+          '```',
+          `${DIV}`,
+          '',
+          `**🛡️ بواسطة**  ─  ${interaction.user}`,
+          `**📊 العدد**  ─  ${deleted.size}`,
+          filterText,
+          `${DIV}`,
+        ].join('\n'))
+        .setFooter(footer(`FX9 • ${interaction.channel.name}`))
+        .setTimestamp(),
+    ],
+  });
+
+  const modLogCh = await getLogChannel(interaction.guild, getConfig(interaction.guildId, 'modlog_channel'));
+  if (modLogCh) {
+    await modLogCh.send({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(COLOR.green)
+          .setTitle('🧹  سجل — مسح رسائل')
+          .setDescription([
+            '```ansi',
+            `\u001b[1;32m🧹  مسح  │  ${interaction.channel.name}\u001b[0m`,
+            '```',
+            `${DIV}`,
+            '',
+            `**📢 القناة**  ─  ${interaction.channel}`,
+            `**🛡️ المشرف**  ─  ${interaction.user}`,
+            `**📊 العدد**  ─  ${deleted.size}`,
+            filterText,
+          ].join('\n'))
+          .setFooter(footer('FX9 • سجلات الإشراف'))
+          .setTimestamp(),
+      ],
+    }).catch(() => {});
+  }
 }
