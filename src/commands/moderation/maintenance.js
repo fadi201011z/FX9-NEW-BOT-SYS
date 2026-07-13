@@ -4,6 +4,7 @@ import { setMaintenancePresence, clearMaintenancePresence } from '../../utils/pr
 import { sendMaintenanceStart, sendMaintenanceEnd } from '../../utils/maintenanceEmbed.js';
 import { ROLES } from '../../config/roles.js';
 
+const DIV = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
 const DEV_ID = process.env.BOT_DEVELOPER_ID || null;
 
 function canManage(interaction) {
@@ -81,14 +82,22 @@ async function handleStart(interaction) {
     }
 
     const embed = new EmbedBuilder()
-      .setColor(0xF57C00)
-      .setTitle('🛠️ تم تفعيل وضع الصيانة')
+      .setColor(0xE65100)
+      .setTitle('🛠️  تم تفعيل الصيانة')
       .setDescription([
-        '> تم تشغيل وضع الصيانة بنجاح.',
+        '```ansi',
+        '\u001b[1;31m🛠️  وضع الصيانة  │  مفعّل الآن\u001b[0m',
+        '```',
+        `${DIV}`,
         '',
+        `**🛡️ بواسطة**  ─  ${interaction.user}`,
         doc.durationMinutes > 0
-          ? `⏱ **المدة:** ${doc.durationMinutes} دقيقة`
-          : '⏱ **المدة:** غير محددة',
+          ? `**⏱ المدة**  ─  ${doc.durationMinutes} دقيقة`
+          : '**⏱ المدة**  ─  غير محددة',
+        '',
+        `${DIV}`,
+        '',
+        '> جميع الخدمات متوقفة مؤقتاً لحين انتهاء الصيانة',
       ].join('\n'))
       .setTimestamp();
 
@@ -126,9 +135,20 @@ async function handleStop(interaction) {
     }
 
     const embed = new EmbedBuilder()
-      .setColor(0x4CAF50)
-      .setTitle('✅ تم إيقاف وضع الصيانة')
-      .setDescription('> تم إيقاف وضع الصيانة. جميع الخدمات تعمل بشكل طبيعي.')
+      .setColor(0x1B5E20)
+      .setTitle('✅  تم إيقاف الصيانة')
+      .setDescription([
+        '```ansi',
+        '\u001b[1;32m✅  وضع الصيانة  │  متوقف — جميع الخدمات نشطة\u001b[0m',
+        '```',
+        `${DIV}`,
+        '',
+        `**🛡️ بواسطة**  ─  ${interaction.user}`,
+        '',
+        `${DIV}`,
+        '',
+        '> جميع الخدمات تعمل بكامل طاقتها الآن',
+      ].join('\n'))
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
@@ -144,9 +164,16 @@ async function handleStatus(interaction) {
 
     if (!doc || !doc.enabled) {
       const embed = new EmbedBuilder()
-        .setColor(0x4CAF50)
-        .setTitle('🟢 وضع الصيانة')
-        .setDescription('> الصيانة **غير مفعلة**. جميع الخدمات تعمل بشكل طبيعي.')
+        .setColor(0x2E7D32)
+        .setTitle('🔵  حالة الصيانة')
+        .setDescription([
+          '```ansi',
+          '\u001b[1;32m🟢  النظام  │  طبيعي — بدون صيانة\u001b[0m',
+          '```',
+          `${DIV}`,
+          '',
+          '> الصيانة **غير مفعلة**. جميع الخدمات تعمل بشكل طبيعي.',
+        ].join('\n'))
         .setTimestamp();
 
       return interaction.reply({ embeds: [embed], flags: 64 });
@@ -156,22 +183,27 @@ async function handleStatus(interaction) {
     if (doc.endTime) {
       const remain = Math.max(0, doc.endTime - Date.now());
       const mins = Math.floor(remain / 60000);
-      const hours = Math.floor(mins / 60);
       const parts = [];
-      if (hours > 0) parts.push(`${hours} س`);
+      if (mins >= 60) { parts.push(`${Math.floor(mins / 60)} س`); }
       if (mins % 60 > 0) parts.push(`${mins % 60} د`);
       timeInfo = parts.join(' و ') || 'أقل من دقيقة';
     }
 
     const embed = new EmbedBuilder()
-      .setColor(0xF57C00)
-      .setTitle('🔴 وضع الصيانة — مفعل')
+      .setColor(0xE65100)
+      .setTitle('🔴  حالة الصيانة')
       .setDescription([
-        `> ${doc.message || 'البوت تحت الصيانة'}`,
+        '```ansi',
+        '\u001b[1;31m🔴  الصيانة  │  مفعّلة حالياً\u001b[0m',
+        '```',
+        `${DIV}`,
         '',
-        `⏱ **المدة المتبقية:** ${timeInfo}`,
-        doc.channelId ? `📢 **روم الإشعار:** <#${doc.channelId}>` : '',
-      ].filter(Boolean).join('\n'))
+        `**📝 الرسالة**  ─  ${doc.message || 'البوت تحت الصيانة'}`,
+        `**⏱ المتبقي**  ─  ${timeInfo}`,
+        doc.channelId ? `**📢 الإشعار**  ─  <#${doc.channelId}>` : '',
+        '',
+        `${DIV}`,
+      ].join('\n'))
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed], flags: 64 });
