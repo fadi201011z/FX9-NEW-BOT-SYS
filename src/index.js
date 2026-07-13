@@ -577,6 +577,22 @@ client.once('ready', async () => {
     console.error('[UncaughtException]', err);
     sendErrorLog('استثناء غير محلول', err).catch(() => {});
   });
+  // ── Periodic maintenance expiry check (every 15 seconds) ─────────────
+  setInterval(async () => {
+    try {
+      const Maintenance = (await import('./models/Maintenance.js')).default;
+      const doc = await Maintenance.findOne().lean();
+      if (doc && doc.enabled && doc.endTime && Date.now() >= doc.endTime) {
+        await Maintenance.updateOne({ _id: doc._id }, { $set: { enabled: false, endTime: null, durationMinutes: 0 } });
+        clearMaintenancePresence(client);
+        const target = doc.channelId || '';
+        if (target) await sendMaintenanceEnd(client, target, doc.durationMinutes || 0);
+        console.log('[Maintenance] انتهت مدة الصيانة تلقائياً — تم إيقافها');
+      }
+    } catch (err) {
+      console.error('[Maintenance] خطأ في التحقق الدوري:', err.message);
+    }
+  }, 15_000);
 });
 
 // ─── Login ─────────────────────────────────────────────────────────────────
