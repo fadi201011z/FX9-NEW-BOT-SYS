@@ -219,27 +219,43 @@ export async function sendNotification(client, sub, embed) {
 //  Checks
 // ═══════════════════════════════════════════════════════════════════════════
 
+const ytNotified = new Set();
+
 async function checkYouTube(client) {
   const subs = getAllSubscriptions().filter(s => s.platform === 'youtube' && s.channelId);
+  const groups = {};
   for (const sub of subs) {
+    (groups[sub.channelId] ??= []).push(sub);
+  }
+  ytNotified.clear();
+
+  for (const [channelId, group] of Object.entries(groups)) {
     try {
-      const video = await fetchLatestYouTubeVideo(sub.channelId);
+      const video = await fetchLatestYouTubeVideo(channelId);
       if (!video) continue;
-      if (!sub.lastVideoId) {
-        await updateSubscription(sub._id.toString(), { lastVideoId: video.videoId, channelName: video.channelName || sub.channelName });
+
+      const allMatch = group.every(s => s.lastVideoId === video.videoId);
+      if (allMatch) continue;
+
+      if (ytNotified.has(video.videoId)) {
+        await Promise.all(group.map(s => updateSubscription(s._id.toString(), { lastVideoId: video.videoId })));
         continue;
       }
-      if (video.videoId !== sub.lastVideoId) {
-        const sent = await sendNotification(client, sub, youtubeEmbed(video));
-        if (sent) {
-          await updateSubscription(sub._id.toString(), {
-            lastVideoId: video.videoId,
-            channelName: video.channelName || sub.channelName,
-          });
-        }
+
+      const hasNewVideo = group.some(s => s.lastVideoId && s.lastVideoId !== video.videoId);
+
+      if (!hasNewVideo) {
+        await Promise.all(group.map(s => updateSubscription(s._id.toString(), { lastVideoId: video.videoId, channelName: video.channelName || s.channelName })));
+        continue;
+      }
+
+      const sent = await sendNotification(client, group[0], youtubeEmbed(video));
+      if (sent) {
+        ytNotified.add(video.videoId);
+        await Promise.all(group.map(s => updateSubscription(s._id.toString(), { lastVideoId: video.videoId, channelName: video.channelName || s.channelName })));
       }
     } catch (err) {
-      console.error(`[Notif] YouTube check error (${sub._id}):`, err.message);
+      console.error(`[Notif] YouTube check error (${channelId}):`, err.message);
     }
   }
 }
