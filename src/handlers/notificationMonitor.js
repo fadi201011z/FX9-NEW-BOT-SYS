@@ -219,43 +219,40 @@ export async function sendNotification(client, sub, embed) {
 //  Checks
 // ═══════════════════════════════════════════════════════════════════════════
 
-const ytNotified = new Set();
+const ytSent = new Set();
 
 async function checkYouTube(client) {
   const subs = getAllSubscriptions().filter(s => s.platform === 'youtube' && s.channelId);
-  const groups = {};
-  for (const sub of subs) {
-    (groups[sub.channelId] ??= []).push(sub);
-  }
-  ytNotified.clear();
+  ytSent.clear();
 
-  for (const [channelId, group] of Object.entries(groups)) {
+  for (const sub of subs) {
     try {
-      const video = await fetchLatestYouTubeVideo(channelId);
+      const video = await fetchLatestYouTubeVideo(sub.channelId);
       if (!video) continue;
 
-      const allMatch = group.every(s => s.lastVideoId === video.videoId);
-      if (allMatch) continue;
-
-      if (ytNotified.has(video.videoId)) {
-        await Promise.all(group.map(s => updateSubscription(s._id.toString(), { lastVideoId: video.videoId })));
+      if (!sub.lastVideoId) {
+        await updateSubscription(sub._id.toString(), { lastVideoId: video.videoId, channelName: video.channelName || sub.channelName });
         continue;
       }
 
-      const hasNewVideo = group.some(s => s.lastVideoId && s.lastVideoId !== video.videoId);
+      if (video.videoId === sub.lastVideoId) continue;
 
-      if (!hasNewVideo) {
-        await Promise.all(group.map(s => updateSubscription(s._id.toString(), { lastVideoId: video.videoId, channelName: video.channelName || s.channelName })));
+      const key = `${sub.channelId}:${sub.discordChannelId}:${video.videoId}`;
+      if (ytSent.has(key)) {
+        await updateSubscription(sub._id.toString(), { lastVideoId: video.videoId });
         continue;
       }
 
-      const sent = await sendNotification(client, group[0], youtubeEmbed(video));
+      const sent = await sendNotification(client, sub, youtubeEmbed(video));
       if (sent) {
-        ytNotified.add(video.videoId);
-        await Promise.all(group.map(s => updateSubscription(s._id.toString(), { lastVideoId: video.videoId, channelName: video.channelName || s.channelName })));
+        ytSent.add(key);
+        await updateSubscription(sub._id.toString(), {
+          lastVideoId: video.videoId,
+          channelName: video.channelName || sub.channelName,
+        });
       }
     } catch (err) {
-      console.error(`[Notif] YouTube check error (${channelId}):`, err.message);
+      console.error(`[Notif] YouTube check error (${sub._id}):`, err.message);
     }
   }
 }
