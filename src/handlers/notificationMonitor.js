@@ -85,17 +85,18 @@ export async function fetchLatestYouTubeVideo(channelId) {
   const title = entry.match(/<title>(.+?)<\/title>/)?.[1]?.trim();
   const publishedRaw = entry.match(/<published>(.+?)<\/published>/)?.[1];
   const channelName = entry.match(/<name>(.+?)<\/name>/)?.[1]?.trim();
+  const canonicalChannelId = entry.match(/yt:channelId:([\w-]+)/)?.[1];
 
   if (!videoId || !title) return null;
 
-  const channelAvatar = await fetchYouTubeChannelAvatar(channelId);
+  const channelAvatar = await fetchYouTubeChannelAvatar(canonicalChannelId || channelId);
 
   return {
     videoId,
     title: title.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"'),
     url: `https://www.youtube.com/watch?v=${videoId}`,
     thumbnail: `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
-    channelId,
+    channelId: canonicalChannelId || channelId,
     channelName: channelName?.replace(/&amp;/g, '&') || channelId,
     channelAvatar,
     publishedAt: publishedRaw ? new Date(publishedRaw).getTime() : Date.now(),
@@ -237,7 +238,7 @@ async function checkYouTube(client) {
 
       if (video.videoId === sub.lastVideoId) continue;
 
-      const key = `${sub.channelId}:${sub.discordChannelId}:${video.videoId}`;
+      const key = `${video.channelId}:${sub.discordChannelId}:${video.videoId}`;
       if (ytSent.has(key)) {
         await updateSubscription(sub._id.toString(), { lastVideoId: video.videoId });
         continue;
