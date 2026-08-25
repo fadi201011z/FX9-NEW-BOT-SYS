@@ -230,10 +230,7 @@ export async function execute(message, client) {
 
   // ══════════════════════════════════════════════════════════════════════════
   //  SYS: Anti-spam / Anti-link / Anti-mention protection
-  //  (skip for members with ManageMessages permission)
   // ══════════════════════════════════════════════════════════════════════════
-
-  if (member?.permissions.has(PermissionFlagsBits.ManageMessages)) return;
 
   const guildId  = guild.id;
   const userId   = message.author.id;
@@ -241,6 +238,17 @@ export async function execute(message, client) {
   const logCh    = await getLogChannel(guild, getConfig(guildId, 'log_channel'));
   const modLogCh = await getLogChannel(guild, getConfig(guildId, 'modlog_channel'));
   const alertCh  = modLogCh ?? logCh;
+
+  const hasModPerms = member?.permissions.hasAny(
+    PermissionFlagsBits.ManageMessages,
+    PermissionFlagsBits.ManageChannels,
+    PermissionFlagsBits.Administrator,
+    PermissionFlagsBits.BanMembers,
+    PermissionFlagsBits.KickMembers,
+    PermissionFlagsBits.ManageGuild,
+  );
+
+  if (hasModPerms) return;
 
   // ─── Anti-Mention-Spam ────────────────────────────────────────────────
   const mentionCount = message.mentions.users.size + message.mentions.roles.size;
