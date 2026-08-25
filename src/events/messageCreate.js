@@ -239,11 +239,8 @@ export async function execute(message, client) {
   const alertCh  = modLogCh ?? logCh;
 
   const hasModPerms = member?.permissions.any(
-    PermissionFlagsBits.ManageMessages,
-    PermissionFlagsBits.ManageChannels,
-    PermissionFlagsBits.Administrator,
     PermissionFlagsBits.BanMembers,
-    PermissionFlagsBits.KickMembers,
+    PermissionFlagsBits.Administrator,
     PermissionFlagsBits.ManageGuild,
   );
 
