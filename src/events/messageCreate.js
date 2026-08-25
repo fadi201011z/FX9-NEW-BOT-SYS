@@ -238,7 +238,7 @@ export async function execute(message, client) {
   const modLogCh = await getLogChannel(guild, getConfig(guildId, 'modlog_channel'));
   const alertCh  = modLogCh ?? logCh;
 
-  const hasModPerms = member?.permissions.hasAny(
+  const hasModPerms = member?.permissions.any(
     PermissionFlagsBits.ManageMessages,
     PermissionFlagsBits.ManageChannels,
     PermissionFlagsBits.Administrator,
