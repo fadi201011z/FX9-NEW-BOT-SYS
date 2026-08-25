@@ -319,7 +319,6 @@ export async function execute(message, client) {
         }).catch(() => {});
       }
       return;
-    }
   }
 
   // ─── Anti-Spam ────────────────────────────────────────────────────────
