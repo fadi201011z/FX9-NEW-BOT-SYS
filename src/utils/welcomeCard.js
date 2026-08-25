@@ -1,5 +1,11 @@
 import { createCanvas, loadImage } from '@napi-rs/canvas';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const DATA_DIR = join(__dirname, '..', '..', 'data');
+const BG_CACHE = join(DATA_DIR, 'welcome_bg.png');
 const BG_URL = 'https://j.top4top.io/p_3845prskm1.png';
 const WIDTH = 1920;
 const HEIGHT = 1080;
@@ -37,8 +43,24 @@ function withTimeout(promise, ms) {
 
 async function loadBg() {
   if (bgCache) return bgCache;
-  bgCache = await withTimeout(loadImage(BG_URL), 10000);
-  return bgCache;
+
+  if (existsSync(BG_CACHE)) {
+    try {
+      bgCache = await loadImage(readFileSync(BG_CACHE));
+      return bgCache;
+    } catch {}
+  }
+
+  try {
+    const buf = await withTimeout(fetch(BG_URL).then(r => r.arrayBuffer()), 10000);
+    const arr = new Uint8Array(buf);
+    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+    writeFileSync(BG_CACHE, arr);
+    bgCache = await loadImage(arr);
+    return bgCache;
+  } catch {}
+
+  return null;
 }
 
 export async function generateWelcomeCard(member) {
@@ -46,14 +68,16 @@ export async function generateWelcomeCard(member) {
   const ctx = canvas.getContext('2d');
 
   const [bgImg, avatarImg] = await Promise.all([
-    loadBg().catch(async () => {
-      bgCache = null;
-      return withTimeout(loadImage(BG_URL), 10000);
-    }),
+    loadBg(),
     withTimeout(loadImage(member.user.displayAvatarURL({ extension: 'png', size: 512 })), 10000),
   ]);
 
-  coverFit(ctx, bgImg, WIDTH, HEIGHT);
+  if (bgImg) {
+    coverFit(ctx, bgImg, WIDTH, HEIGHT);
+  } else {
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  }
 
   const grad = ctx.createLinearGradient(0, 0, 0, HEIGHT);
   grad.addColorStop(0, 'rgba(0,0,0,0.25)');
