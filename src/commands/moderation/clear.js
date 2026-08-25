@@ -25,17 +25,31 @@ export async function execute(interaction) {
   const filterUser = interaction.options.getUser('user');
   const botsOnly   = interaction.options.getBoolean('bots_only') ?? false;
 
-  let messages = await interaction.channel.messages.fetch({ limit: 100 });
-
   const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
-  messages = messages.filter(m => m.createdTimestamp > twoWeeksAgo);
+  const collected = [];
+  let lastId;
 
-  if (filterUser) messages = messages.filter(m => m.author.id === filterUser.id);
-  if (botsOnly)   messages = messages.filter(m => m.author.bot);
+  while (collected.length < amount) {
+    const opts = { limit: 100 };
+    if (lastId) opts.before = lastId;
 
-  messages = messages.first(amount);
+    let batch;
+    try { batch = await interaction.channel.messages.fetch(opts); } catch { break; }
+    if (batch.size === 0) break;
 
-  if (messages.length === 0) {
+    for (const [, msg] of batch) {
+      if (msg.createdTimestamp <= twoWeeksAgo) continue;
+      if (filterUser && msg.author.id !== filterUser.id) continue;
+      if (botsOnly && !msg.author.bot) continue;
+      collected.push(msg);
+      if (collected.length >= amount) break;
+    }
+
+    lastId = batch.last()?.id;
+    if (!lastId) break;
+  }
+
+  if (collected.length === 0) {
     return interaction.editReply({
       embeds: [
         new EmbedBuilder()
@@ -55,7 +69,7 @@ export async function execute(interaction) {
     });
   }
 
-  const deleted = await interaction.channel.bulkDelete(messages, true);
+  const deleted = await interaction.channel.bulkDelete(collected, true);
 
   const filterLines = [];
   if (filterUser) filterLines.push(`**👤 العضو**  ─  ${filterUser}`);
