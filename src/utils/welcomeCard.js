@@ -4,6 +4,8 @@ const BG_URL = 'https://j.top4top.io/p_3845prskm1.png';
 const WIDTH = 1920;
 const HEIGHT = 1080;
 
+let bgCache = null;
+
 function coverFit(ctx, img, dw, dh) {
   const sx = img.width / dw;
   const sy = img.height / dh;
@@ -26,13 +28,29 @@ function roundImage(ctx, img, cx, cy, r) {
   ctx.restore();
 }
 
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Image load timeout')), ms)),
+  ]);
+}
+
+async function loadBg() {
+  if (bgCache) return bgCache;
+  bgCache = await withTimeout(loadImage(BG_URL), 10000);
+  return bgCache;
+}
+
 export async function generateWelcomeCard(member) {
   const canvas = createCanvas(WIDTH, HEIGHT);
   const ctx = canvas.getContext('2d');
 
   const [bgImg, avatarImg] = await Promise.all([
-    loadImage(BG_URL),
-    loadImage(member.user.displayAvatarURL({ extension: 'png', size: 512 })),
+    loadBg().catch(async () => {
+      bgCache = null;
+      return withTimeout(loadImage(BG_URL), 10000);
+    }),
+    withTimeout(loadImage(member.user.displayAvatarURL({ extension: 'png', size: 512 })), 10000),
   ]);
 
   coverFit(ctx, bgImg, WIDTH, HEIGHT);
