@@ -25,7 +25,6 @@ export async function execute(interaction) {
   const filterUser = interaction.options.getUser('user');
   const botsOnly   = interaction.options.getBoolean('bots_only') ?? false;
 
-  const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
   const collected = [];
   let lastId;
 
@@ -38,7 +37,6 @@ export async function execute(interaction) {
     if (batch.size === 0) break;
 
     for (const [, msg] of batch) {
-      if (msg.createdTimestamp <= twoWeeksAgo) continue;
       if (filterUser && msg.author.id !== filterUser.id) continue;
       if (botsOnly && !msg.author.bot) continue;
       collected.push(msg);
@@ -59,9 +57,6 @@ export async function execute(interaction) {
             '```ansi',
             '\u001b[1;31m✖  لا توجد رسائل مطابقة للفلتر\u001b[0m',
             '```',
-            `${DIV}`,
-            '',
-            '> الرسائل الأقدم من 14 يوماً لا يمكن مسحها',
           ].join('\n'))
           .setFooter(footer('FX9 • إدارة القنوات'))
           .setTimestamp(),
@@ -69,7 +64,19 @@ export async function execute(interaction) {
     });
   }
 
-  const deleted = await interaction.channel.bulkDelete(collected, true);
+  const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+  const fresh = collected.filter(m => m.createdTimestamp > twoWeeksAgo);
+  const old   = collected.filter(m => m.createdTimestamp <= twoWeeksAgo);
+
+  let deletedCount = 0;
+  if (fresh.length > 0) {
+    const deleted = await interaction.channel.bulkDelete(fresh, true);
+    deletedCount += deleted.size;
+  }
+  for (const msg of old) {
+    await msg.delete().catch(() => {});
+    deletedCount++;
+  }
 
   const filterLines = [];
   if (filterUser) filterLines.push(`**👤 العضو**  ─  ${filterUser}`);
@@ -83,12 +90,12 @@ export async function execute(interaction) {
         .setTitle('🧹  تم المسح')
         .setDescription([
           '```ansi',
-          `\u001b[1;32m✓  تم مسح ${deleted.size} رسالة  │  ${interaction.channel.name}\u001b[0m`,
+          `\u001b[1;32m✓  تم مسح ${deletedCount} رسالة  │  ${interaction.channel.name}\u001b[0m`,
           '```',
           `${DIV}`,
           '',
           `**🛡️ بواسطة**  ─  ${interaction.user}`,
-          `**📊 العدد**  ─  ${deleted.size}`,
+          `**📊 العدد**  ─  ${deletedCount}`,
           filterText,
           `${DIV}`,
         ].join('\n'))
@@ -112,7 +119,7 @@ export async function execute(interaction) {
             '',
             `**📢 القناة**  ─  ${interaction.channel}`,
             `**🛡️ المشرف**  ─  ${interaction.user}`,
-            `**📊 العدد**  ─  ${deleted.size}`,
+            `**📊 العدد**  ─  ${deletedCount}`,
             filterText,
           ].join('\n'))
           .setFooter(footer('FX9 • سجلات الإشراف'))
