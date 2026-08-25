@@ -19,7 +19,6 @@ const SPAM_WINDOW_MS    = 5_000;
 const TIMEOUT_MS        = 60_000;
 const MENTION_THRESHOLD = 5;
 const LINK_REGEX        = /https?:\/\/[^\s]+/gi;
-const ALLOWED_DOMAINS   = ['discord.com', 'discord.gg'];
 
 export async function execute(message, client) {
   if (!message.guild || message.author.bot) return;
@@ -289,15 +288,7 @@ export async function execute(message, client) {
   // ─── Anti-Link ────────────────────────────────────────────────────────
   const links = message.content.match(LINK_REGEX) ?? [];
   if (links.length > 0) {
-    const hasDisallowed = links.some(link => {
-      try {
-        const host = new URL(link).hostname;
-        return !ALLOWED_DOMAINS.some(d => host === d || host.endsWith('.' + d));
-      } catch { return true; }
-    });
-
-    if (hasDisallowed) {
-      await message.delete().catch(() => {});
+    await message.delete().catch(() => {});
 
       const warn = await channel.send({
         embeds: [
