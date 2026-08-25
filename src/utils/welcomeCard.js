@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, '..', '..', 'data');
 const BG_CACHE = join(DATA_DIR, 'welcome_bg.png');
-const BG_URL = 'https://j.top4top.io/p_3845prskm1.png';
+const BG_URL = 'https://i.ibb.co/pvYMQfxt/Gemini-Generated-Image-gimcq9gimcq9gimc-clean.png';
 const WIDTH = 1920;
 const HEIGHT = 1080;
 
