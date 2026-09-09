@@ -572,19 +572,25 @@ export function createMusicManager(client) {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function searchTrack(query, requestedBy) {
   try {
-    const ytUrl = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be)/.test(query);
-    if (ytUrl) {
-      if (query.includes('list=') && !query.includes('watch?v=')) {
-        const pl = await YouTube.getPlaylist(query, { fetchAll: true });
-        if (!pl) return null;
-        return pl.videos.slice(0, 100).map(v => ({
-          title: v.title || 'Unknown',
-          url: `https://www.youtube.com/watch?v=${v.id}`,
-          author: v.channel?.name || 'Unknown',
-          durationSec: Math.floor((v.duration || 0) / 1000),
-          thumbnail: v.thumbnail?.url || null,
-          requestedBy,
-        }));
+    const isUrl = /^https?:\/\//.test(query);
+    if (isUrl) {
+      const ytPlaylist = /youtube\.com/.test(query) && query.includes('list=') && !query.includes('watch?v=');
+      if (ytPlaylist) {
+        try {
+          const pl = await YouTube.getPlaylist(query, { fetchAll: true });
+          if (!pl) return null;
+          return pl.videos.slice(0, 100).map(v => ({
+            title: v.title || 'Unknown',
+            url: `https://www.youtube.com/watch?v=${v.id}`,
+            author: v.channel?.name || 'Unknown',
+            durationSec: Math.floor((v.duration || 0) / 1000),
+            thumbnail: v.thumbnail?.url || null,
+            requestedBy,
+          }));
+        } catch (err) {
+          console.error('[Music] getPlaylist failed:', err.message);
+          return null;
+        }
       }
       try {
         const info = await getVideoInfo(query);
@@ -595,18 +601,33 @@ export async function searchTrack(query, requestedBy) {
       }
     }
 
-    // بحث نصي: youtube-sr أولاً ثم yt-dlp كاحتياط (أكثر موثوقية من خوادم السحابة)
-    const results = await YouTube.search(query, { limit: 5, type: 'video' }).catch(() => []);
-    const fallback = (results && results.length) ? results : await searchYtDlp(query, 5);
+    // بحث نصي: yt-dlp أولاً (يعمل على السيرفر)، ثم youtube-sr احتياطياً
+    try {
+      const dl = await searchYtDlp(query, 5);
+      if (dl?.length) {
+        console.log(`[Music] yt-dlp search OK (${dl.length}): ${dl[0].title}`);
+        return [{ ...dl[0], requestedBy }];
+      }
+      console.warn(`[Music] yt-dlp search EMPTY for: ${query}`);
+    } catch (err) {
+      console.error('[Music] yt-dlp search threw:', err.message);
+    }
 
-    if (!fallback?.length) return null;
-    const v = fallback[0];
+    const sr = await Promise.race([
+      YouTube.search(query, { limit: 5, type: 'video' }).catch(() => []),
+      new Promise(r => setTimeout(() => r([]), 8000)),
+    ]);
+    if (!sr?.length) {
+      console.error('[Music] all search backends EMPTY for:', query);
+      return null;
+    }
+    const v = sr[0];
     return [{
       title: v.title || 'Unknown',
-      url: v.url || `https://www.youtube.com/watch?v=${v.id}`,
-      author: v.author || v.channel?.name || 'Unknown',
-      durationSec: Math.floor((v.durationSec ?? (v.duration || 0) / 1000) || 0),
-      thumbnail: v.thumbnail || null,
+      url: `https://www.youtube.com/watch?v=${v.id}`,
+      author: v.channel?.name || 'Unknown',
+      durationSec: Math.floor((v.duration || 0) / 1000),
+      thumbnail: v.thumbnail?.url || null,
       requestedBy,
     }];
   } catch (err) {
@@ -617,17 +638,19 @@ export async function searchTrack(query, requestedBy) {
 
 export async function searchMultiple(query, limit = 5) {
   try {
-    const primary = await YouTube.search(query, { limit, type: 'video' }).catch(() => []);
-    const results = (primary && primary.length)
-      ? primary.map(v => ({
-        title: v.title || 'Unknown',
-        url: `https://www.youtube.com/watch?v=${v.id}`,
-        author: v.channel?.name || 'Unknown',
-        durationSec: Math.floor((v.duration || 0) / 1000),
-        thumbnail: v.thumbnail?.url || null,
-      }))
-      : await searchYtDlp(query, limit);
-    return (results || []).filter(Boolean);
+    const dl = await searchYtDlp(query, limit);
+    if (dl?.length) return dl;
+    const sr = await Promise.race([
+      YouTube.search(query, { limit, type: 'video' }).catch(() => []),
+      new Promise(r => setTimeout(() => r([]), 8000)),
+    ]);
+    return (sr || []).map(v => ({
+      title: v.title || 'Unknown',
+      url: `https://www.youtube.com/watch?v=${v.id}`,
+      author: v.channel?.name || 'Unknown',
+      durationSec: Math.floor((v.duration || 0) / 1000),
+      thumbnail: v.thumbnail?.url || null,
+    }));
   } catch { return []; }
 }
 
