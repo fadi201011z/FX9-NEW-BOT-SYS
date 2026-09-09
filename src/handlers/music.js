@@ -234,7 +234,10 @@ class MusicSession {
         conn.on('debug', m => {
           if (/state transition|connection|retry|signall|ready/i.test(m)) console.log(`[Voice-debug ${attempt}]`, m);
         });
+        conn.on(VoiceConnectionStatus.Signalling, () => console.log('[Voice] re-signalling...'));
+        conn.on(VoiceConnectionStatus.Reconnecting, () => console.warn('[Voice] connection broke — reconnecting...'));
         conn.on(VoiceConnectionStatus.Destroyed, () => {
+          console.warn('[Voice] ❌ connection destroyed unexpectedly');
           if (!this.ended) { this.ended = true; this.manager.remove(this.key); }
         });
         conn.on('error', err => console.error('[Voice]', err.message));
