@@ -108,7 +108,12 @@ export async function getVideoInfo(videoUrl) {
 }
 
 export async function searchYtDlp(query, limit = 5) {
-  const bin = await ensureYtDlp();
+  let bin;
+  try { bin = await ensureYtDlp(); }
+  catch (err) {
+    console.error('[yt-dlp] search failed to load binary:', err.message);
+    return [];
+  }
   return new Promise(resolve => {
     execFile(bin, [
       '--no-check-certificate',
@@ -116,8 +121,11 @@ export async function searchYtDlp(query, limit = 5) {
       '--flat-playlist',
       '--print', '%(id)s|||%(title)s|||%(channel)s|||%(duration)s|||%(thumbnail)s',
       `ytsearch${Math.max(1, Math.min(limit, 10))}:${query}`,
-    ], { timeout: 30_000 }, (err, stdout) => {
-      if (err || !stdout?.trim()) return resolve([]);
+    ], { timeout: 30_000 }, (err, stdout, stderr) => {
+      if (err || !stdout?.trim()) {
+        console.error('[yt-dlp] search error:', err?.message || 'no output', '| stderr:', (stderr || '').split('\n').find(l => l.includes('ERROR')) || '');
+        return resolve([]);
+      }
       const results = stdout.trim().split('\n').filter(Boolean).map(line => {
         const [id, title, channel, duration, thumb] = line.split('|||');
         return {
@@ -129,6 +137,16 @@ export async function searchYtDlp(query, limit = 5) {
         };
       });
       resolve(results);
+    });
+  });
+}
+
+export async function verifyYtDlp() {
+  const bin = await ensureYtDlp();
+  return new Promise((resolve, reject) => {
+    execFile(bin, ['--version'], { timeout: 15_000 }, (err, stdout) => {
+      if (err) return reject(new Error(`yt-dlp failed to run: ${err.message}`));
+      resolve(stdout.trim());
     });
   });
 }

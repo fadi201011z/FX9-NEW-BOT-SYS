@@ -140,6 +140,17 @@ client.once('ready', async () => {
   initBotLogger(client);
   console.log(`[SYSTEM] Authorized: ${client.user.tag}`);
 
+  // Music: warm-up + فحص أداة yt-dlp (يظهر سبب أي مشكلة في السجل فوراً)
+  (async () => {
+    try {
+      const { verifyYtDlp } = await import('./utils/ytdlp.js');
+      const v = await verifyYtDlp();
+      console.log(`[yt-dlp] ✅ ready — version ${v}`);
+    } catch (err) {
+      console.error(`[yt-dlp] ❌ ${err.message}`);
+    }
+  })();
+
   // Clean stale temp voice channels
   await cleanStaleChannels(client);
 
