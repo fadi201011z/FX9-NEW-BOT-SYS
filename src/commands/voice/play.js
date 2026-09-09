@@ -22,7 +22,7 @@ export async function execute(interaction, client) {
   if (rem > 0) return interaction.editReply({ content: `⏳ انتظر **${(rem / 1000).toFixed(1)}ث**.` });
 
   const tracks = await searchTrack(query, interaction.user.tag);
-  if (!tracks?.length) return interaction.editReply({ content: '❌ لم يُعثر على نتائج.' });
+  if (!tracks?.length) return interaction.editReply({ content: '❌ لم يُعثر على نتائج.\n> جرّب اسم الأغنية أو رابط يوتيوب آخر، أو أعد المحاولة بعد ثوانٍ.' });
 
   const session = await client.music.ensure(interaction, voiceChannel);
   if (session.error) return interaction.editReply({ content: `❌ ${session.error}` });

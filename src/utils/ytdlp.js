@@ -107,4 +107,30 @@ export async function getVideoInfo(videoUrl) {
   });
 }
 
+export async function searchYtDlp(query, limit = 5) {
+  const bin = await ensureYtDlp();
+  return new Promise(resolve => {
+    execFile(bin, [
+      '--no-check-certificate',
+      '--no-warnings',
+      '--flat-playlist',
+      '--print', '%(id)s|||%(title)s|||%(channel)s|||%(duration)s|||%(thumbnail)s',
+      `ytsearch${Math.max(1, Math.min(limit, 10))}:${query}`,
+    ], { timeout: 30_000 }, (err, stdout) => {
+      if (err || !stdout?.trim()) return resolve([]);
+      const results = stdout.trim().split('\n').filter(Boolean).map(line => {
+        const [id, title, channel, duration, thumb] = line.split('|||');
+        return {
+          title: title || 'Unknown',
+          url: `https://www.youtube.com/watch?v=${id || ''}`,
+          author: channel || 'Unknown',
+          durationSec: parseInt(duration, 10) || 0,
+          thumbnail: thumb && thumb.startsWith('http') ? thumb : null,
+        };
+      });
+      resolve(results);
+    });
+  });
+}
+
 export { EXE_PATH };

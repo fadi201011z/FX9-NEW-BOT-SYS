@@ -21,7 +21,7 @@ import {
   TextInputStyle,
 } from 'discord.js';
 import YouTube from 'youtube-sr';
-import { getVideoInfo, getAudioUrl } from '../utils/ytdlp.js';
+import { getVideoInfo, getAudioUrl, searchYtDlp } from '../utils/ytdlp.js';
 
 const PROGRESS_MS    = 6_000;   // تحديث لوحة التحكم في الشات الصوتي
 const IDLE_LEAVE_MS  = 60_000;  // مغادرة القناة عند خلوّها من الأشخاص
@@ -586,18 +586,27 @@ export async function searchTrack(query, requestedBy) {
           requestedBy,
         }));
       }
-      const info = await getVideoInfo(query);
-      return [{ ...info, requestedBy }];
+      try {
+        const info = await getVideoInfo(query);
+        return [{ ...info, requestedBy }];
+      } catch (err) {
+        console.error('[Music] getVideoInfo failed:', err.message);
+        return null;
+      }
     }
-    const results = await YouTube.search(query, { limit: 5, type: 'video' });
-    if (!results?.length) return null;
-    const v = results[0];
+
+    // بحث نصي: youtube-sr أولاً ثم yt-dlp كاحتياط (أكثر موثوقية من خوادم السحابة)
+    const results = await YouTube.search(query, { limit: 5, type: 'video' }).catch(() => []);
+    const fallback = (results && results.length) ? results : await searchYtDlp(query, 5);
+
+    if (!fallback?.length) return null;
+    const v = fallback[0];
     return [{
       title: v.title || 'Unknown',
-      url: `https://www.youtube.com/watch?v=${v.id}`,
-      author: v.channel?.name || 'Unknown',
-      durationSec: Math.floor((v.duration || 0) / 1000),
-      thumbnail: v.thumbnail?.url || null,
+      url: v.url || `https://www.youtube.com/watch?v=${v.id}`,
+      author: v.author || v.channel?.name || 'Unknown',
+      durationSec: Math.floor((v.durationSec ?? (v.duration || 0) / 1000) || 0),
+      thumbnail: v.thumbnail || null,
       requestedBy,
     }];
   } catch (err) {
@@ -608,13 +617,17 @@ export async function searchTrack(query, requestedBy) {
 
 export async function searchMultiple(query, limit = 5) {
   try {
-    return (await YouTube.search(query, { limit, type: 'video' }) || []).map(v => ({
-      title: v.title || 'Unknown',
-      url: `https://www.youtube.com/watch?v=${v.id}`,
-      author: v.channel?.name || 'Unknown',
-      durationSec: Math.floor((v.duration || 0) / 1000),
-      thumbnail: v.thumbnail?.url || null,
-    }));
+    const primary = await YouTube.search(query, { limit, type: 'video' }).catch(() => []);
+    const results = (primary && primary.length)
+      ? primary.map(v => ({
+        title: v.title || 'Unknown',
+        url: `https://www.youtube.com/watch?v=${v.id}`,
+        author: v.channel?.name || 'Unknown',
+        durationSec: Math.floor((v.duration || 0) / 1000),
+        thumbnail: v.thumbnail?.url || null,
+      }))
+      : await searchYtDlp(query, limit);
+    return (results || []).filter(Boolean);
   } catch { return []; }
 }
 
