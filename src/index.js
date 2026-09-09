@@ -159,9 +159,10 @@ client.once('ready', async () => {
   });
 
   // Guild roles with member counts for dashboard
-  app.get('/api/guilds/:guildId/roles', (req, res) => {
+  app.get('/api/guilds/:guildId/roles', async (req, res) => {
     const guild = client.guilds.cache.get(req.params.guildId);
     if (!guild) return res.status(404).json({ error: 'Guild not found' });
+    try { await guild.members.fetch(); } catch {}
     const roles = guild.roles.cache.map(r => ({
       id: r.id,
       name: r.name,
@@ -474,9 +475,15 @@ client.once('ready', async () => {
   });
 
   // Single user info from bot cache
-  app.get('/api/users/:userId', (req, res) => {
-    const user = client.users.cache.get(req.params.userId);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+  app.get('/api/users/:userId', async (req, res) => {
+    let user = client.users.cache.get(req.params.userId);
+    if (!user) {
+      try {
+        user = await client.users.fetch(req.params.userId, { force: true });
+      } catch {
+        return res.status(404).json({ error: 'User not found' });
+      }
+    }
     res.json({ id: user.id, username: user.username, globalName: user.globalName, avatar: user.avatar });
   });
 
