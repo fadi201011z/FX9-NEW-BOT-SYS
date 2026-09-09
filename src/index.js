@@ -51,6 +51,17 @@ app.post('/api/sync-all-configs', async (req, res) => {
   }
 });
 
+app.post('/api/sync-config', async (_req, res) => {
+  try {
+    const { loadConfigsFromDB } = await import('./database.js');
+    await loadConfigsFromDB();
+    console.log('[API] Guild config cache reloaded from DB (dashboard sync)');
+    res.json({ synced: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log('------------------------------------------');
   console.log(`📡 Keep-alive Server: Active on Port ${PORT}`);
