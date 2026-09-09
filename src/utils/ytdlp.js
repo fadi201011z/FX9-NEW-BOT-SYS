@@ -13,20 +13,25 @@ const EXE_PATH = path.join(BIN_DIR, EXE_NAME);
 const DOWNLOAD_URL =
   `https://github.com/yt-dlp/yt-dlp/releases/latest/download/${EXE_NAME}`;
 
+const TMP_PATH = EXE_PATH + '.part';
+
 function download(url, dest, redirectCount = 0) {
   return new Promise((resolve, reject) => {
     if (redirectCount > 10) return reject(new Error('Too many redirects'));
     const protocol = url.startsWith('https') ? https : http;
     const file = fs.createWriteStream(dest);
+    file.on('error', reject);
     protocol.get(url, { headers: { 'User-Agent': 'FX9-VOICE-Bot/3.0' } }, res => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        file.close(() => { try { fs.unlinkSync(dest); } catch (_) {} });
-        return download(res.headers.location, dest, redirectCount + 1).then(resolve).catch(reject);
+        res.resume();
+        file.close(() => download(res.headers.location, dest, redirectCount + 1).then(resolve).catch(reject));
+        return;
       }
       if (res.statusCode !== 200) {
-        file.close(() => { try { fs.unlinkSync(dest); } catch (_) {} });
-        return reject(new Error(`HTTP ${res.statusCode}`));
+        file.close(() => reject(new Error(`HTTP ${res.statusCode}`)));
+        return;
       }
+      res.on('error', reject);
       const total = parseInt(res.headers['content-length'] || '0', 10);
       let received = 0, lastPct = -1;
       res.on('data', chunk => {
@@ -40,19 +45,42 @@ function download(url, dest, redirectCount = 0) {
         }
       });
       res.pipe(file);
-      file.on('finish', () => { file.close(); process.stdout.write('\r[yt-dlp] ✅ اكتمل التحميل!        \n'); resolve(); });
-    }).on('error', err => { file.close(() => { try { fs.unlinkSync(dest); } catch (_) {} }); reject(err); });
+      file.on('finish', () => {
+        file.close();
+        process.stdout.write('\r[yt-dlp] ✅ اكتمل التحميل!        \n');
+        resolve();
+      });
+    }).on('error', err => { file.close(() => reject(err)); });
   });
 }
 
 let _ready = false;
 export async function ensureYtDlp() {
   if (_ready) return EXE_PATH;
-  if (!fs.existsSync(BIN_DIR)) fs.mkdirSync(BIN_DIR, { recursive: true });
-  if (!fs.existsSync(EXE_PATH)) {
-    console.log(`\n[yt-dlp] جاري التحميل من GitHub...`);
-    await download(DOWNLOAD_URL, EXE_PATH);
-    if (!IS_WIN) fs.chmodSync(EXE_PATH, 0o755);
+  fs.mkdirSync(BIN_DIR, { recursive: true });
+  let attempts = 0;
+  while (!fs.existsSync(EXE_PATH)) {
+    attempts++;
+    if (attempts > 3) {
+      let listing = 'ن/م';
+      try { listing = fs.readdirSync(BIN_DIR).join(', '); } catch (_) {}
+      console.error(`[yt-dlp] فشل التحميل بعد ${attempts} محاولات — bin/ يحتوي: ${listing}`);
+      throw new Error(`Failed to download yt-dlp after ${attempts} attempts`);
+    }
+    try {
+      console.log(`\n[yt-dlp] جاري التحميل من GitHub... (محاولة ${attempts})`);
+      await download(DOWNLOAD_URL, TMP_PATH);
+      const st = fs.statSync(TMP_PATH);
+      if (!st.size) throw new Error('downloaded file is empty');
+      fs.renameSync(TMP_PATH, EXE_PATH);
+      if (!IS_WIN) fs.chmodSync(EXE_PATH, 0o755);
+      console.log(`[yt-dlp] ✅ binary ready: ${EXE_PATH} (${(st.size / 1048576).toFixed(1)} MB)`);
+    } catch (err) {
+      console.error(`[yt-dlp] محاولة ${attempts} فشلت:`, err.message);
+      try { fs.rmSync(TMP_PATH, { force: true }); } catch (_) {}
+      try { fs.rmSync(EXE_PATH, { force: true }); } catch (_) {}
+      await new Promise(r => setTimeout(r, 1000));
+    }
   }
   _ready = true;
   return EXE_PATH;
