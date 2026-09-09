@@ -507,7 +507,7 @@ class MusicSession {
 // ─────────────────────────────────────────────────────────────────────────────
 //  MusicManager — يدير عدة جلسات في نفس الوقت + حلقة تحديث اللوحة
 // ─────────────────────────────────────────────────────────────────────────────
-function createMusicManager(client) {
+export function createMusicManager(client) {
   const sessions = new Map();
 
   const api = {
