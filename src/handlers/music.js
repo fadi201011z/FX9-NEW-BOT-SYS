@@ -220,36 +220,49 @@ class MusicSession {
 
   // ── الاتصال بالقناة + إعداد المشغّل ────────────────────────────────────
   async connect(voiceChannel) {
-    try {
-      this.connection = joinVoiceChannel({
-        channelId:     voiceChannel.id,
-        guildId:       this.guildId,
-        adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-        selfDeaf:      true,
-      });
-      await entersState(this.connection, VoiceConnectionStatus.Ready, 20_000);
+    let lastErr = 'unknown';
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      if (this.ended) return null;
+      let conn = null;
+      try {
+        this.connection = conn = joinVoiceChannel({
+          channelId:     voiceChannel.id,
+          guildId:       this.guildId,
+          adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+          selfDeaf:      true,
+        });
+        conn.on('debug', m => {
+          if (/state transition|connection|retry|signall|ready/i.test(m)) console.log(`[Voice-debug ${attempt}]`, m);
+        });
+        conn.on(VoiceConnectionStatus.Destroyed, () => {
+          if (!this.ended) { this.ended = true; this.manager.remove(this.key); }
+        });
+        conn.on('error', err => console.error('[Voice]', err.message));
+        await entersState(conn, VoiceConnectionStatus.Ready, 30_000);
+        console.log(`[Voice] ✅ connected to #${voiceChannel.name} (attempt ${attempt})`);
 
-      this.player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Pause } });
-      this.player.on(AudioPlayerStatus.Idle, () => {
-        if (this.ended || this._paused) return;
-        this._elapsedBefore = 0;
-        this.next();
-      });
-      this.player.on('error', err => {
-        console.error(`[Player] ${err.message}`);
-        setTimeout(() => this.next(), 1000);
-      });
-      this.connection.on(VoiceConnectionStatus.Destroyed, () => {
-        if (!this.ended) { this.ended = true; this.manager.remove(this.key); }
-      });
-      this.connection.on('error', err => console.error('[Voice]', err.message));
-      this.connection.subscribe(this.player);
-      return null;
-    } catch (err) {
-      try { this.connection?.destroy(); } catch (_) {}
-      this.connection = null;
-      return `تعذر الاتصال بالقناة الصوتية — ${err.message}`;
+        this.player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Pause } });
+        this.player.on(AudioPlayerStatus.Idle, () => {
+          if (this.ended || this._paused) return;
+          this._elapsedBefore = 0;
+          this.next();
+        });
+        this.player.on('error', err => {
+          console.error(`[Player] ${err.message}`);
+          setTimeout(() => this.next(), 1000);
+        });
+        conn.subscribe(this.player);
+        return null;
+      } catch (err) {
+        lastErr = err.message;
+        console.error(`[Voice] connection attempt ${attempt} failed: ${lastErr}`);
+        try { conn?.destroy(); } catch (_) {}
+        this.connection = null;
+        this.player = null;
+        if (attempt < 3) await new Promise(r => setTimeout(r, 2000));
+      }
     }
+    return `تعذر الاتصال بالقناة الصوتية — ${lastErr} (بعد 3 محاولات)`;
   }
 
   // ── لوحة التحكم (تُرسل إلى شات القناة الصوتية، مع بديل النصية) ─────────
