@@ -37,13 +37,6 @@ export async function execute(oldState, newState) {
 
   const setup = getGuildSetup(guild.id);
 
-  // Auto-idle leave for music sessions (مغادرة عند خلوّ القناة / إلغاء عند عودة أحدهم)
-  const music = newState.client?.music;
-  if (music && oldState.channelId) {
-    const session = music.getByChannel(oldState.channelId) || music.getByChannel(newState.channelId);
-    if (session) session.maybeLeave();
-  }
-
   if (setup) {
     // Member joined Join-to-Create channel
     if (newState.channelId === setup.joinChannelId) {

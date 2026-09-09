@@ -81,10 +81,6 @@ const client = new Client({
 
 client.commands = new Collection();
 
-// ─── Music Manager (يدعم عدة جلسات صوتية في نفس الوقت) ────────────────────
-const { createMusicManager } = await import('./handlers/music.js');
-client.music = createMusicManager(client);
-
 // ─── Load Commands from ALL directories ───────────────────────────────────
 const commandDirs = [
   path.join(__dirname, 'commands', 'setup'),
@@ -139,17 +135,6 @@ setInterval(() => loadAllSubscriptions(), 15000);
 client.once('ready', async () => {
   initBotLogger(client);
   console.log(`[SYSTEM] Authorized: ${client.user.tag}`);
-
-  // Music: warm-up + فحص أداة yt-dlp (يظهر سبب أي مشكلة في السجل فوراً)
-  (async () => {
-    try {
-      const { verifyYtDlp } = await import('./utils/ytdlp.js');
-      const v = await verifyYtDlp();
-      console.log(`[yt-dlp] ✅ ready — version ${v}`);
-    } catch (err) {
-      console.error(`[yt-dlp] ❌ ${err.message}`);
-    }
-  })();
 
   // Clean stale temp voice channels
   await cleanStaleChannels(client);
@@ -540,8 +525,6 @@ client.once('ready', async () => {
   for (const [guildId] of getAllSetups()) {
     await refreshPanel(client, guildId);
   }
-
-  // Music: لوحة التحكم تُحدَّث تلقائياً عبر MusicManager (داخل handlers/music.js)
 
   // Temp Voice: panel refresh every 30 minutes
   setInterval(async () => {

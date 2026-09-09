@@ -131,8 +131,6 @@ export async function execute(client) {
     }
   }
 
-  // ── VOICE: Music now-playing updater (يُدار داخل MusicManager — تحديث كل 6 ثوانٍ) ──
-
   // ── VOICE: Refresh temp voice panels every 30 minutes ───────────────
   setInterval(async () => {
     console.log('[TempVC] 🔄 Running 30-min panel refresh...');
@@ -199,5 +197,5 @@ export async function execute(client) {
     } catch {}
   });
 
-  console.log('📊 الإحصائيات: كل دقيقة | 📋 تقرير الحالة: كل 10 دقائق | 🎵 Music: كل 12ث | 🔄 TempVC: كل 30د');
+  console.log('📊 الإحصائيات: كل دقيقة | 📋 تقرير الحالة: كل 10 دقائق | 🔄 TempVC: كل 30د');
 }

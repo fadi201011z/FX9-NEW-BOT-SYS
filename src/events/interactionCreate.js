@@ -209,30 +209,14 @@ export async function execute(interaction) {
             break;
           case 'help_voice':
             emb
-              .setTitle('🎵 الصوت والموسيقى — دليل الأوامر')
-              .setDescription('القنوات الصوتية المؤقتة + مشغل الموسيقى')
+              .setTitle('🔊 القنوات الصوتية المؤقتة — دليل الأوامر')
+              .setDescription('نظام القنوات الصوتية المؤقتة (Join-to-Create)')
               .addFields(
                 { name: 'القنوات المؤقتة', value: [
                   '`/setup-voice`             ← إعداد النظام',
-                  '`/vchelp`                  ← دليل التحكم بالقناة',
                   '> أزرار التحكم (في لوحة القناة المؤقتة):',
                   '> 🔒/🔓 قفل/فتح   🙈/👁️ إخفاء/إظهار',
                   '> 👥 تحديد العدد  ✏️ إعادة تسمية  👢 طرد  👑 نقل ملكية',
-                ].join('\n'), inline: false },
-                { name: 'مشغل الموسيقى', value: [
-                  '`/play اسم/رابط`           ← تشغيل أغنية',
-                  '`/search كلمة`             ← بحث واختيار',
-                  '`/queue`                    ← عرض القائمة',
-                  '`/nowplaying`               ← الأغنية الحالية',
-                  '`/skip`                     ← تخطي',
-                  '`/stop`                     ← إيقاف',
-                  '`/pause`                    ← إيقاف مؤقت',
-                  '`/loop`                     ← تكرار (أغنية/قائمة)',
-                  '`/shuffle`                  ← خلط القائمة',
-                  '`/remove رقم`              ← إزالة من القائمة',
-                  '`/clearqueue`               ← مسح القائمة',
-                  '`/volume 0-100`            ← مستوى الصوت',
-                  '`/vping`                    ← سرعة الاستجابة',
                 ].join('\n'), inline: false },
               );
             break;
@@ -453,12 +437,6 @@ export async function execute(interaction) {
         });
       }
 
-      // Music add modal (لوحة التحكم - إضافة مقطع)
-      if (id.startsWith('music_modal:')) {
-        const { handleMusicModal } = await import('../handlers/music.js');
-        return handleMusicModal(interaction);
-      }
-
       return;
     }
 
@@ -601,12 +579,6 @@ export async function execute(interaction) {
           console.error('[TempVC Button]', err.message);
           return interaction.reply({ content: '❌ حدث خطأ — تأكد من صلاحيات البوت.', ephemeral: true });
         }
-      }
-
-      // ── Music player buttons (لوحة التحكم في القناة الصوتية) ──────────
-      if (id.startsWith('music:')) {
-        const { handleMusicButton } = await import('../handlers/music.js');
-        return handleMusicButton(interaction);
       }
 
       return;

@@ -24,8 +24,8 @@ export async function execute(interaction) {
           .setDescription('نظام تكتات الدعم الفني')
           .setValue('help_ticket'),
         new StringSelectMenuOptionBuilder()
-          .setLabel('🎵 الصوت والموسيقى')
-          .setDescription('القنوات المؤقتة، تشغيل الموسيقى')
+          .setLabel('🔊 القنوات الصوتية')
+          .setDescription('القنوات الصوتية المؤقتة (Join-to-Create)')
           .setValue('help_voice'),
         new StringSelectMenuOptionBuilder()
           .setLabel('📊 المعلومات')
@@ -46,9 +46,9 @@ export async function execute(interaction) {
     .setColor(0x5865f2)
     .setTitle('⚔️ FX9 — دليل الأوامر الكامل')
     .setDescription(
-      '> البوت الموحّد يجمع أنظمة الإدارة، التكتات، والصوت معاً\n' +
+      '> البوت الموحّد يجمع أنظمة الإدارة والتكتات والقنوات الصوتية معاً\n' +
       '> اختر القسم من القائمة بالأسفل لاستعراض الأوامر 👇\n\n' +
-      '**عدد الأوامر الكلي:** 52 أمر\n' +
+      '**عدد الأوامر الكلي:** 41 أمر\n' +
       '**عدد الأقسام:** 6 أقسام رئيسية'
     )
     .setThumbnail(interaction.client.user.displayAvatarURL({ dynamic: true }))
@@ -59,7 +59,7 @@ export async function execute(interaction) {
           '`⚙️ الإعدادات`   — الإعدادات الموحّدة /setup',
           '`🔨 الإشراف`     — الحظر، الطرد، التحذيرات، مسح، إدارة القنوات',
           '`🎫 التكتات`     — إرسال التكتات، التقييم، بنل التحكم',
-          '`🎵 الصوت`       — القنوات المؤقتة، تشغيل الموسيقى',
+          '`🔊 القنوات الصوتية` — القنوات المؤقتة (Join-to-Create)',
           '`📊 المعلومات`   — معلومات السيرفر، البوت، الأعضاء',
           '`👥 الأعضاء`     — بروفايل، آفاتار، ترتيب، قوانين',
           '`🛡️ الحماية`    — أنظمة مكافحة السبام، النيوك، الرايد',
