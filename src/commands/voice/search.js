@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } from 'discord.js';
-import { searchMultiple, createQueue, connectToChannel, initPlayer, playNext } from '../../handlers/music.js';
+import { searchMultiple } from '../../handlers/music.js';
 import { checkCooldown } from '../../utils/cooldown.js';
 
 export const data = new SlashCommandBuilder()
@@ -66,31 +66,27 @@ export async function execute(interaction, client) {
     const idx = parseInt(btn.customId.replace('search_pick_', ''), 10);
     const track = { ...results[idx], requestedBy: interaction.user.tag };
 
-    let queue = client.musicQueues.get(interaction.guildId);
-    if (!queue) {
-      queue = createQueue(interaction.guildId, voiceCh, interaction.channelId);
-      client.musicQueues.set(interaction.guildId, queue);
-      queue.connection = connectToChannel(voiceCh, interaction.guild.voiceAdapterCreator);
-      initPlayer(client, interaction.guildId);
-    }
-    queue.tracks.push(track);
-
-    if (!queue.isPlaying) {
-      await interaction.editReply({ embeds: [new EmbedBuilder().setDescription('▶️ جاري التشغيل...').setColor(0x1db954)], components: [] });
-      await playNext(client, interaction.guildId);
-    } else {
-      await interaction.editReply({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle('✅ تمت الإضافة')
-            .setDescription(`**[${track.title}](${track.url})**\n👤 ${track.author}`)
-            .setThumbnail(track.thumbnail)
-            .setColor(0x1db954)
-            .setFooter({ text: `الموضع: #${queue.tracks.length}` }),
-        ],
+    const session = await client.music.ensure(interaction, voiceCh);
+    if (session.error) {
+      return interaction.editReply({
+        embeds: [new EmbedBuilder().setDescription(`❌ ${session.error}`).setColor(0xed4245)],
         components: [],
       });
     }
+
+    await session.addTracks(track);
+
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle('✅ تمت الإضافة')
+          .setDescription(`**[${track.title}](${track.url})**\n👤 ${track.author}\n🎛️ لوحة التحكم في شات القناة الصوتية.`)
+          .setThumbnail(track.thumbnail)
+          .setColor(0x1db954)
+          .setFooter({ text: `الموضع: #${session.tracks.length}` }),
+      ],
+      components: [],
+    });
   });
 
   collector.on('end', (_, reason) => {

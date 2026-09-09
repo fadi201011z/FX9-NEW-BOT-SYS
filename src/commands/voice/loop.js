@@ -1,4 +1,5 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+import { sessionFromInteraction } from '../../handlers/music.js';
 
 export const data = new SlashCommandBuilder()
   .setName('loop')
@@ -12,16 +13,18 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction, client) {
-  const queue = client.musicQueues.get(interaction.guildId);
-  if (!queue || !queue.isPlaying) {
+  const session = sessionFromInteraction(interaction);
+  if (!session?.isPlaying) {
     return interaction.reply({ content: '❌ لا يوجد تشغيل نشط.', ephemeral: true });
   }
 
   const mode = interaction.options.getString('mode', true);
-  queue.loopMode = mode;
+  session.loopMode = mode;
 
   const labels = { none: '🚫 بدون تكرار', track: '🔂 تكرار المقطع', queue: '🔁 تكرار القائمة' };
   await interaction.reply({
     embeds: [new EmbedBuilder().setDescription(`✅ تم تفعيل: **${labels[mode]}**`).setColor(0x57f287)],
   });
+
+  session.refresh().catch(() => {});
 }

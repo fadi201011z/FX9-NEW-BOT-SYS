@@ -131,13 +131,7 @@ export async function execute(client) {
     }
   }
 
-  // ── VOICE: Music now-playing updater every 12s ──────────────────────
-  const { updateNowPlayingEmbed } = await import('../handlers/music.js');
-  setInterval(async () => {
-    for (const [guildId] of client.musicQueues) {
-      await updateNowPlayingEmbed(client, guildId);
-    }
-  }, 12_000);
+  // ── VOICE: Music now-playing updater (يُدار داخل MusicManager — تحديث كل 6 ثوانٍ) ──
 
   // ── VOICE: Refresh temp voice panels every 30 minutes ───────────────
   setInterval(async () => {

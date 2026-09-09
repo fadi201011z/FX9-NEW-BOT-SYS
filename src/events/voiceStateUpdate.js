@@ -34,18 +34,14 @@ export async function execute(oldState, newState) {
   // ══════════════════════════════════════════════════════════════════════════
 
   const { getGuildSetup, registerChannel, getChannel, deleteChannel, refreshPanel } = await import('../handlers/tempVoice.js');
-  const { resetIdleTimer } = await import('../handlers/music.js');
 
   const setup = getGuildSetup(guild.id);
 
-  // Auto-idle disconnect for music
-  if (oldState.channelId) {
-    const queue = newState.client?.musicQueues?.get?.(guild.id);
-    if (queue && oldState.channelId === queue.voiceChannelId) {
-      const vc     = guild.channels.cache.get(queue.voiceChannelId);
-      const humans = vc?.members.filter(m => !m.user.bot).size ?? 0;
-      if (humans === 0) resetIdleTimer(newState.client, guild.id);
-    }
+  // Auto-idle leave for music sessions (مغادرة عند خلوّ القناة / إلغاء عند عودة أحدهم)
+  const music = newState.client?.music;
+  if (music && oldState.channelId) {
+    const session = music.getByChannel(oldState.channelId) || music.getByChannel(newState.channelId);
+    if (session) session.maybeLeave();
   }
 
   if (setup) {

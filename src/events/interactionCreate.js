@@ -453,18 +453,10 @@ export async function execute(interaction) {
         });
       }
 
-      // Music add modal
-      if (id === 'modal_music_add') {
-        const { searchTrack } = await import('../handlers/music.js');
-        await interaction.deferReply({ ephemeral: true });
-        const queue = interaction.client.musicQueues.get(interaction.guildId);
-        if (!queue) return interaction.editReply({ content: '❌ لا يوجد مشغّل نشط.' });
-        const tracks = await searchTrack(interaction.fields.getTextInputValue('track_query'), interaction.user.tag);
-        if (!tracks?.length) return interaction.editReply({ content: '❌ لم يُعثر على نتائج.' });
-        queue.tracks.push(...tracks);
-        return interaction.editReply({
-          content: `✅ تمت إضافة **${tracks.length === 1 ? tracks[0].title : `${tracks.length} مقاطع`}** للقائمة.`,
-        });
+      // Music add modal (لوحة التحكم - إضافة مقطع)
+      if (id.startsWith('music_modal:')) {
+        const { handleMusicModal } = await import('../handlers/music.js');
+        return handleMusicModal(interaction);
       }
 
       return;
@@ -611,74 +603,10 @@ export async function execute(interaction) {
         }
       }
 
-      // ── Music player buttons ────────────────────────────────────────
-      if (id.startsWith('music_')) {
-        const { checkCooldown } = await import('../utils/cooldown.js');
-
-        // music_add must show modal before any defer/reply
-        if (id === 'music_add') {
-          const modal = new ModalBuilder().setCustomId('modal_music_add').setTitle('إضافة مقطع للقائمة');
-          modal.addComponents(new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId('track_query').setLabel('اسم الأغنية أو الرابط')
-              .setStyle(TextInputStyle.Short).setRequired(true)
-          ));
-          return interaction.showModal(modal);
-        }
-
-        const { buildNowPlayingEmbed, buildPlayerButtons, getElapsed } = await import('../handlers/music.js');
-        const queue = interaction.client.musicQueues.get(interaction.guildId);
-
-        if (!queue) return interaction.reply({ content: '❌ لا يوجد مشغّل نشط.', ephemeral: true });
-        if (!interaction.member.voice.channel || interaction.member.voice.channelId !== queue.voiceChannelId) {
-          return interaction.reply({ content: '❌ يجب أن تكون في نفس القناة الصوتية.', ephemeral: true });
-        }
-
-        const rem = checkCooldown(interaction.user.id, id);
-        if (rem > 0) return interaction.reply({ content: `⏳ انتظر **${(rem / 1000).toFixed(1)}ث**.`, ephemeral: true });
-
-        await interaction.deferUpdate();
-
-        if (id === 'music_pause') {
-          if (queue._paused) {
-            queue.player.unpause(); queue._startTime = Date.now(); queue._paused = false;
-          } else {
-            queue._elapsedBefore = getElapsed(queue); queue.player.pause(); queue._paused = true;
-          }
-          if (queue.current) {
-            await interaction.editReply({
-              embeds:     [buildNowPlayingEmbed(queue, getElapsed(queue))],
-              components: buildPlayerButtons(queue._paused, queue.loopMode),
-            }).catch(() => {});
-          }
-          return;
-        }
-
-        if (id === 'music_skip') {
-          queue.player.stop();
-          return;
-        }
-
-        if (id === 'music_stop') {
-          queue.tracks = []; queue.current = null; queue.loopMode = 'none';
-          queue.player?.stop(true); queue.connection?.destroy();
-          interaction.client.musicQueues.delete(interaction.guildId);
-          return interaction.editReply({
-            embeds: [new EmbedBuilder().setDescription('⏹️ تم إيقاف الموسيقى وتفريغ القائمة.').setColor(0xed4245)],
-            components: [],
-          }).catch(() => {});
-        }
-
-        if (id === 'music_loop') {
-          const modes = ['none', 'track', 'queue'];
-          queue.loopMode = modes[(modes.indexOf(queue.loopMode) + 1) % modes.length];
-          if (queue.current) {
-            await interaction.editReply({
-              embeds:     [buildNowPlayingEmbed(queue, getElapsed(queue))],
-              components: buildPlayerButtons(queue._paused, queue.loopMode),
-            }).catch(() => {});
-          }
-          return;
-        }
+      // ── Music player buttons (لوحة التحكم في القناة الصوتية) ──────────
+      if (id.startsWith('music:')) {
+        const { handleMusicButton } = await import('../handlers/music.js');
+        return handleMusicButton(interaction);
       }
 
       return;

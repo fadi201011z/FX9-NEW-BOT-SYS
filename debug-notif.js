@@ -1,7 +1,8 @@
 import mongoose from 'mongoose';
 import Notification from './src/models/Notification.js';
+import 'dotenv/config';
 
-const MONGODB_URI = 'mongodb+srv://fadidiscord12_db_user:fadi20101144@fadix01.tu6fvtq.mongodb.net/?appName=Fadix01';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/fx9_dashboard';
 
 async function debug() {
   await mongoose.connect(MONGODB_URI);

@@ -80,7 +80,10 @@ const client = new Client({
 });
 
 client.commands = new Collection();
-client.musicQueues = new Map();
+
+// ─── Music Manager (يدعم عدة جلسات صوتية في نفس الوقت) ────────────────────
+const { createMusicManager } = await import('./handlers/music.js');
+client.music = createMusicManager(client);
 
 // ─── Load Commands from ALL directories ───────────────────────────────────
 const commandDirs = [
@@ -527,13 +530,7 @@ client.once('ready', async () => {
     await refreshPanel(client, guildId);
   }
 
-  // Music: auto-update now playing embed
-  const { updateNowPlayingEmbed } = await import('./handlers/music.js');
-  setInterval(async () => {
-    for (const [guildId] of client.musicQueues) {
-      await updateNowPlayingEmbed(client, guildId);
-    }
-  }, 12_000);
+  // Music: لوحة التحكم تُحدَّث تلقائياً عبر MusicManager (داخل handlers/music.js)
 
   // Temp Voice: panel refresh every 30 minutes
   setInterval(async () => {

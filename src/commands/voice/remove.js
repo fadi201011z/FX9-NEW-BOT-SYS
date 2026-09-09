@@ -1,4 +1,5 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+import { sessionFromInteraction } from '../../handlers/music.js';
 
 export const data = new SlashCommandBuilder()
   .setName('remove')
@@ -8,20 +9,22 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction, client) {
-  const queue = client.musicQueues.get(interaction.guildId);
+  const session = sessionFromInteraction(interaction);
   const position = interaction.options.getInteger('position', true);
 
-  if (!queue || !queue.tracks.length) {
+  if (!session || !session.tracks.length) {
     return interaction.reply({ content: '❌ القائمة فارغة.', ephemeral: true });
   }
-  if (position > queue.tracks.length) {
-    return interaction.reply({ content: `❌ القائمة تحتوي فقط على ${queue.tracks.length} مقاطع.`, ephemeral: true });
+  if (position > session.tracks.length) {
+    return interaction.reply({ content: `❌ القائمة تحتوي فقط على ${session.tracks.length} مقاطع.`, ephemeral: true });
   }
 
-  const removed = queue.tracks.splice(position - 1, 1)[0];
+  const removed = session.removeAt(position);
   await interaction.reply({
     embeds: [new EmbedBuilder()
-      .setDescription(`🗑️ تم حذف **${removed.title}** من القائمة.`)
+      .setDescription(`🗑️ تم حذف **${removed?.title || 'المقطع'}** من القائمة.`)
       .setColor(0xed4245)],
   });
+
+  session.refresh().catch(() => {});
 }

@@ -1,18 +1,17 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+import { sessionFromInteraction } from '../../handlers/music.js';
 
 export const data = new SlashCommandBuilder()
   .setName('stop')
-  .setDescription('إيقاف الموسيقى وتفريغ القائمة');
+  .setDescription('إيقاف الموسيقى وإخراج البوت من القناة');
 
 export async function execute(interaction, client) {
-  const queue = client.musicQueues.get(interaction.guildId);
-  if (!queue?.connection) {
+  const session = sessionFromInteraction(interaction);
+  if (!session?.connection) {
     return interaction.reply({ content: '❌ البوت ليس في قناة صوتية.', ephemeral: true });
   }
 
-  if (queue._idleTimer) clearTimeout(queue._idleTimer);
-  queue.connection.destroy();
-  client.musicQueues.delete(interaction.guildId);
+  await session.stop(true);
 
-  await interaction.reply({ embeds: [new EmbedBuilder().setDescription('⏹️ تم إيقاف الموسيقى وتفريغ القائمة.').setColor(0xed4245)] });
+  await interaction.reply({ embeds: [new EmbedBuilder().setDescription('⏹️ تم إيقاف الموسيقى وخروج البوت من القناة.').setColor(0xed4245)] });
 }
