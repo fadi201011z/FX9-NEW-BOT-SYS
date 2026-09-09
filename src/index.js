@@ -20,6 +20,69 @@ const PORT = Number(process.env.PORT) || 10000;
 app.get('/', (req, res) => res.send('FX9 Merged Bot is Online! ✅'));
 app.use(express.json());
 
+// ─── Member Resolution (gateway cache first, REST pagination guarantee) ───
+function formatApiMember(m) {
+  return {
+    id: m.user.id,
+    username: m.user.username,
+    globalName: m.user.globalName,
+    displayName: m.user.globalName || m.user.username,
+    avatar: m.user.avatar,
+    roles: m.roles || [],
+  };
+}
+
+async function resolveGuildMembers(guild) {
+  let cacheMembers = [];
+  try { await guild.members.fetch(); } catch {}
+  cacheMembers = [...guild.members.cache.values()];
+  if (cacheMembers.length >= guild.memberCount) {
+    return cacheMembers.map(m => ({
+      id: m.user.id,
+      username: m.user.username,
+      globalName: m.user.globalName,
+      displayName: m.displayName,
+      avatar: m.user.avatar,
+      roles: m.roles.cache.map(r => r.id),
+    }));
+  }
+  // REST pagination — complete list regardless of gateway cache/intent state
+  const restMembers = [];
+  let after;
+  for (let i = 0; i < 10; i++) {
+    const url = new URL(`https://discord.com/api/guilds/${guild.id}/members`);
+    url.searchParams.set('limit', '1000');
+    if (after) url.searchParams.set('after', after);
+    const res = await fetch(url, { headers: { Authorization: `Bot ${process.env.TOKEN}` } });
+    if (!res.ok) throw new Error(`Discord members REST failed: ${res.status}`);
+    const batch = await res.json();
+    if (!Array.isArray(batch) || batch.length === 0) break;
+    restMembers.push(...batch);
+    if (batch.length < 1000) break;
+    after = batch[batch.length - 1].user.id;
+  }
+  return restMembers.map(formatApiMember);
+}
+
+// Accurate per-role member counts, cached 30s
+const roleCountCache = new Map();
+async function getRoleCounts(guild) {
+  const now = Date.now();
+  const hit = roleCountCache.get(guild.id);
+  if (hit && now - hit.at < 30000) return hit.counts;
+  const counts = {};
+  try {
+    const members = await resolveGuildMembers(guild);
+    for (const m of members) for (const rid of m.roles) counts[rid] = (counts[rid] || 0) + 1;
+  } catch {
+    for (const m of guild.members.cache.values()) {
+      for (const rid of m.roles.cache) counts[rid.id] = (counts[rid.id] || 0) + 1;
+    }
+  }
+  roleCountCache.set(guild.id, { at: now, counts });
+  return counts;
+}
+
 app.post('/api/sync-command', async (req, res) => {
   const { guildId, commandName, enabled, allowedRoles, blockedRoles } = req.body;
   if (!guildId || !commandName) return res.status(400).json({ error: 'Missing guildId or commandName' });
@@ -162,7 +225,7 @@ client.once('ready', async () => {
   app.get('/api/guilds/:guildId/roles', async (req, res) => {
     const guild = client.guilds.cache.get(req.params.guildId);
     if (!guild) return res.status(404).json({ error: 'Guild not found' });
-    try { await guild.members.fetch(); } catch {}
+    const counts = await getRoleCounts(guild);
     const roles = guild.roles.cache.map(r => ({
       id: r.id,
       name: r.name,
@@ -173,44 +236,51 @@ client.once('ready', async () => {
       managed: r.managed,
       mentionable: r.mentionable,
       tags: r.tags,
-      members_count: r.members.size,
+      members_count: counts[r.id] || 0,
     }));
     res.json(roles);
   });
 
-  // Guild members (fetches all via Gateway to populate cache)
+  // Guild members (gateway cache with REST guarantee)
   app.get('/api/guilds/:guildId/members', async (req, res) => {
     const guild = client.guilds.cache.get(req.params.guildId);
     if (!guild) return res.status(404).json({ error: 'Guild not found' });
-    try { await guild.members.fetch(); } catch {}
-    const members = guild.members.cache.map(m => ({
-      id: m.user.id,
-      username: m.user.username,
-      globalName: m.user.globalName,
-      displayName: m.displayName,
-      avatar: m.user.avatar,
-      roles: m.roles.cache.map(r => r.id),
-    }));
-    res.json(members);
-  });
-
-  // Guild members filtered by role IDs (fetches all via Gateway)
-  app.get('/api/guilds/:guildId/members-by-roles', async (req, res) => {
-    const guild = client.guilds.cache.get(req.params.guildId);
-    if (!guild) return res.status(404).json({ error: 'Guild not found' });
-    const roleIds = req.query.roleIds ? req.query.roleIds.split(',') : [];
-    try { await guild.members.fetch(); } catch {}
-    const members = guild.members.cache
-      .filter(m => m.roles.cache.some(r => roleIds.includes(r.id)))
-      .map(m => ({
+    try {
+      res.json(await resolveGuildMembers(guild));
+    } catch {
+      res.json([...guild.members.cache.values()].map(m => ({
         id: m.user.id,
         username: m.user.username,
         globalName: m.user.globalName,
         displayName: m.displayName,
         avatar: m.user.avatar,
         roles: m.roles.cache.map(r => r.id),
-      }));
-    res.json(members);
+      })));
+    }
+  });
+
+  // Guild members filtered by role IDs (gateway cache with REST guarantee)
+  app.get('/api/guilds/:guildId/members-by-roles', async (req, res) => {
+    const guild = client.guilds.cache.get(req.params.guildId);
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+    const roleIds = req.query.roleIds ? req.query.roleIds.split(',') : [];
+    try {
+      const members = await resolveGuildMembers(guild);
+      const filtered = members.filter(m => m.roles.some(r => roleIds.includes(r)));
+      res.json(filtered);
+    } catch {
+      const filtered = [...guild.members.cache.values()]
+        .filter(m => m.roles.cache.some(r => roleIds.includes(r.id)))
+        .map(m => ({
+          id: m.user.id,
+          username: m.user.username,
+          globalName: m.user.globalName,
+          displayName: m.displayName,
+          avatar: m.user.avatar,
+          roles: m.roles.cache.map(r => r.id),
+        }));
+      res.json(filtered);
+    }
   });
 
   // Notification API for dashboard
