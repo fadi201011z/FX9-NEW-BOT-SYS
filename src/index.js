@@ -1,6 +1,6 @@
 import { Client, Collection, GatewayIntentBits, Partials, EmbedBuilder } from 'discord.js';
 import { readdir } from 'fs/promises';
-import { readFileSync, statSync } from 'fs';
+import { readFileSync, statSync, readdirSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 import path from 'path';
 import 'dotenv/config';
@@ -244,6 +244,35 @@ client.once('ready', async () => {
       }
     } catch {}
     res.json({ total, categories: Object.keys(perCategory), perCategory });
+  });
+
+  // Full command list for dashboard (live source of truth)
+  app.get('/api/commands', async (req, res) => {
+    const commandsDir = path.join(__dirname, 'commands');
+    const list = [];
+    try {
+      const cats = readdirSync(commandsDir);
+      for (const cat of cats) {
+        const catPath = path.join(commandsDir, cat);
+        if (!statSync(catPath).isDirectory()) continue;
+        const files = readdirSync(catPath).filter(f => f.endsWith('.js'));
+        for (const file of files) {
+          try {
+            const mod = await import(pathToFileURL(path.join(catPath, file)).href);
+            if (mod.data && mod.data.name) {
+              list.push({
+                name: mod.data.name,
+                description: mod.data.description || '',
+                category: cat,
+                file,
+                options: mod.data.options || [],
+              });
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+    res.json(list);
   });
 
   // Guilds list for dashboard (hasBot detection without Discord token)
