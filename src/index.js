@@ -1,5 +1,6 @@
 import { Client, Collection, GatewayIntentBits, Partials, EmbedBuilder } from 'discord.js';
 import { readdir } from 'fs/promises';
+import { readFileSync, statSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 import path from 'path';
 import 'dotenv/config';
@@ -219,6 +220,42 @@ client.once('ready', async () => {
     const members = client.guilds.cache.reduce((sum, g) => sum + g.memberCount, 0);
     const ping = client.ws.ping;
     res.json({ guilds, members, ping });
+  });
+
+  // Command statistics for dashboard (real count from source folders)
+  app.get('/api/commands/stats', (req, res) => {
+    const commandsDir = path.join(__dirname, 'commands');
+    const perCategory = {};
+    let total = 0;
+    try {
+      const cats = readdirSync(commandsDir);
+      for (const cat of cats) {
+        const catPath = path.join(commandsDir, cat);
+        if (!statSync(catPath).isDirectory()) continue;
+        const files = readdirSync(catPath).filter(f => f.endsWith('.js'));
+        let count = 0;
+        for (const file of files) {
+          try {
+            const content = readFileSync(path.join(catPath, file), 'utf-8');
+            if (/\.setName\(['"`]/.test(content)) count++;
+          } catch {}
+        }
+        if (count > 0) { perCategory[cat] = count; total += count; }
+      }
+    } catch {}
+    res.json({ total, categories: Object.keys(perCategory), perCategory });
+  });
+
+  // Guilds list for dashboard (hasBot detection without Discord token)
+  app.get('/api/guilds', (req, res) => {
+    res.json(client.guilds.cache.map(g => ({ id: g.id, name: g.name, memberCount: g.memberCount })));
+  });
+
+  // Guild info for dashboard (member count without listing members)
+  app.get('/api/guilds/:guildId/info', (req, res) => {
+    const guild = client.guilds.cache.get(req.params.guildId);
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+    res.json({ id: guild.id, name: guild.name, icon: guild.icon, memberCount: guild.memberCount });
   });
 
   // Guild roles with member counts for dashboard
