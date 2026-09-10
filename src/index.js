@@ -241,6 +241,17 @@ client.once('ready', async () => {
     res.json(roles);
   });
 
+  // Guild channels for dashboard
+  app.get('/api/guilds/:guildId/channels', async (req, res) => {
+    const guild = client.guilds.cache.get(req.params.guildId);
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+    res.json(guild.channels.cache.map(c => ({
+      id: c.id,
+      name: c.name,
+      type: c.type,
+    })));
+  });
+
   // Guild members (gateway cache with REST guarantee)
   app.get('/api/guilds/:guildId/members', async (req, res) => {
     const guild = client.guilds.cache.get(req.params.guildId);
