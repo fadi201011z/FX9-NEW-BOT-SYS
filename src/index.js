@@ -419,8 +419,10 @@ client.once('ready', async () => {
     }
 
     if (sub.platform === 'kick') {
-      const stream = await fetchKickStream(sub.channelId);
-      if (!stream) return res.json({ found: false, error: 'تعذر جلب البث من Kick' });
+      const result = await fetchKickStream(sub.channelId);
+      if (result.status === 'error') return res.json({ found: false, error: 'تعذر جلب البث من Kick: ' + result.message });
+      if (result.status === 'offline') return res.json({ found: false, offline: true, message: 'القناة غير متصلة حالياً — لا يوجد بث مباشر. سيرسل إشعار تلقائياً عند دخولها للبث' });
+      const stream = result.stream;
       if (sub.lastStreamId === stream.id) return res.json({ found: false, message: 'لا يوجد بث جديد' });
       const sent = await sendNotification(client, sub, kickEmbed(stream));
       if (sent) await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id });
@@ -455,8 +457,10 @@ client.once('ready', async () => {
     }
 
     if (sub.platform === 'kick') {
-      const stream = await fetchKickStream(sub.channelId);
-      if (!stream) return res.json({ sent: false, error: 'تعذر جلب البث من Kick' });
+      const result = await fetchKickStream(sub.channelId);
+      if (result.status === 'error') return res.json({ sent: false, error: 'تعذر جلب البث من Kick: ' + result.message });
+      if (result.status === 'offline') return res.json({ sent: false, offline: true, message: 'القناة غير متصلة حالياً — سيرسل إشعار تلقائياً عند دخولها للبث' });
+      const stream = result.stream;
       const sent = await sendNotification(client, sub, kickEmbed(stream));
       if (sent) await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id });
       return res.json({ sent, platform: 'kick', title: stream.title, url: stream.url });

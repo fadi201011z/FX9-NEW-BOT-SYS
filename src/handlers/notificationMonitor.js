@@ -104,51 +104,84 @@ export async function fetchLatestYouTubeVideo(channelId) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  Kick — via public API (no auth needed)
+//  Kick — via public API — robust fetch w/ retry + clear status (live/offline/error)
 // ═══════════════════════════════════════════════════════════════════════════
 
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+const KICK_UA = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Referer': 'https://kick.com/',
+  'Origin': 'https://kick.com',
+  'X-Requested-With': 'XMLHttpRequest',
+  'Cache-Control': 'no-cache',
+};
+
+async function kickFetch(url, retries = 2) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const res = await fetch(url, { headers: KICK_UA, signal: AbortSignal.timeout(8000) });
+      if (res.status === 429) { await sleep(1200 * (i + 1)); continue; }
+      if (res.status >= 500) { await sleep(1000 * (i + 1)); continue; }
+      if (!res.ok) return { status: 'http', code: res.status };
+      return { status: 'json', data: await res.json() };
+    } catch (err) {
+      if (err.name === 'TimeoutError' || err.name === 'AbortError') { await sleep(800 * (i + 1)); continue; }
+      if (i === retries) return { status: 'error', message: err.message };
+    }
+  }
+  return { status: 'error', message: 'timeout' };
+}
+
 export async function fetchKickStream(slug) {
-  try {
-    const res = await fetch(`https://kick.com/api/v2/channels/${slug}`, {
-      headers: {
-        'Accept': 'application/json',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36',
-        'Referer': 'https://kick.com/',
-      },
-    });
-    if (!res.ok) {
-      console.error(`[Kick] API returned ${res.status} for slug "${slug}"`);
-      return null;
+  const cleaned = String(slug || '').trim().replace(/^@/, '').toLowerCase();
+  if (!cleaned) return { status: 'error', message: 'معرف القناة فارغ' };
+
+  const res = await kickFetch(`https://kick.com/api/v2/channels/${encodeURIComponent(cleaned)}`);
+  if (res.status === 'http') {
+    if (res.code === 403 || res.code === 401) {
+      return { status: 'error', message: 'Kick يحجب طلبات هذا الخادم (403) — استخدم البوت على خادم مختلف أو أعد المحاولة لاحقاً' };
     }
-    const data = await res.json();
-    if (!data?.livestream) {
-      console.log(`[Kick] "${slug}" — no livestream`);
-      return null;
+    if (res.code === 404) {
+      return { status: 'error', message: 'القناة غير موجودة على Kick — تحقق من الرابط' };
     }
-    const channelAvatar = data.user?.profile_pic || data.user?.avatar || null;
-    let streamId = '';
-    if (data.livestream.id !== undefined && data.livestream.id !== null) streamId = String(data.livestream.id);
-    else if (data.livestream._id !== undefined && data.livestream._id !== null) streamId = String(data.livestream._id);
-    else streamId = data.livestream.session_title + '|' + (data.livestream.created_at || '') + '|' + slug;
-    const thumbnail = streamId ? `https://images.kick.com/${streamId}/thumbnails/1280x720.jpg` : null;
-    const category = (data.livestream.categories && data.livestream.categories[0]?.name) || null;
-    return {
+    return { status: 'offline' };
+  }
+  if (res.status === 'error') {
+    return { status: 'error', message: 'فشل الاتصال بخوادم Kick' };
+  }
+
+  const data = res.data;
+  if (!data || !data.livestream) {
+    // Channel is known but not streaming right now — normal offline state
+    return { status: 'offline' };
+  }
+
+  const channelName = data.user?.username || data.slug || cleaned;
+  let streamId = '';
+  if (data.livestream.id !== undefined && data.livestream.id !== null) streamId = String(data.livestream.id);
+  else if (data.livestream._id !== undefined && data.livestream._id !== null) streamId = String(data.livestream._id);
+  else streamId = data.livestream.session_title + '|' + (data.livestream.created_at || '') + '|' + cleaned;
+  const thumbnail = streamId ? `https://images.kick.com/${streamId}/thumbnails/1280x720.jpg` : null;
+  const category = (data.livestream.categories && data.livestream.categories[0]?.name) || null;
+
+  return {
+    status: 'live',
+    stream: {
       id: streamId,
       isLive: true,
       title: data.livestream.session_title || 'Untitled Stream',
-      slug: data.slug || slug,
-      channelName: data.user?.username || slug,
-      channelAvatar,
+      slug: data.slug || cleaned,
+      channelName,
+      channelAvatar: data.user?.profile_pic || data.user?.avatar || null,
       viewerCount: data.livestream.viewer_count || 0,
       thumbnail,
       category,
-      url: `https://kick.com/${data.slug || slug}`,
-    };
-  } catch (err) {
-    console.error(`[Kick] fetchKickStream("${slug}") error:`, err.message);
-    return null;
-  }
+      url: `https://kick.com/${data.slug || cleaned}`,
+    },
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -259,14 +292,27 @@ async function checkYouTube(client) {
 }
 
 const recentlyNotified = new Set();
+// After a hard Kick error, skip that channel for a while to avoid log/API spam
+const kickCooldown = new Map();
+const KICK_COOLDOWN_MS = 5 * 60 * 1000;
 
 async function checkKick(client) {
   const subs = getAllSubscriptions().filter(s => s.platform === 'kick' && s.channelId);
   recentlyNotified.clear();
   for (const sub of subs) {
+    const slug = String(sub.channelId || '').trim().replace(/^@/, '');
+    if (kickCooldown.get(slug) > Date.now()) continue;
     try {
-      const stream = await fetchKickStream(sub.channelId);
-      const isLive = !!stream;
+      const result = await fetchKickStream(sub.channelId);
+      if (result.status === 'error') {
+        kickCooldown.set(slug, Date.now() + KICK_COOLDOWN_MS);
+        console.error(`[Notif] Kick "${slug}" muted 5m — ${result.message}`);
+        continue;
+      }
+      kickCooldown.delete(slug);
+
+      const isLive = result.status === 'live';
+      const stream = isLive ? result.stream : null;
 
       if (sub.lastStreamStatus === undefined) {
         await updateSubscription(sub._id.toString(), { lastStreamStatus: isLive, lastStreamId: stream?.id || '' });
@@ -274,12 +320,12 @@ async function checkKick(client) {
       }
 
       if (isLive) {
-        if (recentlyNotified.has(sub.channelId)) continue;
+        if (recentlyNotified.has(slug)) continue;
         if (stream.id !== sub.lastStreamId) {
           const sent = await sendNotification(client, sub, kickEmbed(stream));
           if (sent) {
             await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id });
-            recentlyNotified.add(sub.channelId);
+            recentlyNotified.add(slug);
           }
         }
       } else {
@@ -332,17 +378,19 @@ export async function checkSubscriptionNow(client, sub) {
       }
       return sent ? `فيديو: ${video.title}` : '❌ فشل الإرسال';
     }
+    return '❌ تعذر جلب الفيديو من RSS يوتيوب';
   }
 
   if (sub.platform === 'kick' && sub.channelId) {
-    const stream = await fetchKickStream(sub.channelId);
-    if (stream) {
-      const sent = await sendNotification(client, sub, kickEmbed(stream));
-      if (sent) {
-        await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id || '' });
-      }
-      return sent ? `بث: ${stream.title}` : '❌ فشل الإرسال';
+    const result = await fetchKickStream(sub.channelId);
+    if (result.status === 'error') return `❌ ${result.message}`;
+    if (result.status === 'offline') return 'غير متصل حالياً — لا يوجد بث مباشر';
+    const stream = result.stream;
+    const sent = await sendNotification(client, sub, kickEmbed(stream));
+    if (sent) {
+      await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id || '' });
     }
+    return sent ? `بث: ${stream.title}` : '❌ فشل الإرسال';
   }
 
   if (sub.platform === 'twitter' && sub.channelId) {
@@ -357,6 +405,7 @@ export async function checkSubscriptionNow(client, sub) {
       }
       return sent ? `تغريدة: ${tweet.text?.slice(0, 50)}` : '❌ فشل الإرسال';
     }
+    return '❌ تعذر جلب التغريدة';
   }
 
   return null;
