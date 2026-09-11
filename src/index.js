@@ -403,7 +403,7 @@ client.once('ready', async () => {
   });
 
   app.post('/api/notifications/checknow/:id', async (req, res) => {
-    const { getSubscription, updateSubscription } = await import('./data/notificationDB.js');
+    const { getSubscription, updateSubscription, claimYouTubeVideo } = await import('./data/notificationDB.js');
     const { fetchLatestYouTubeVideo, fetchKickStream, fetchLatestTweet, youtubeEmbed, kickEmbed, twitterEmbed } = await import('./handlers/notificationMonitor.js');
     const { sendNotification } = await import('./handlers/notificationMonitor.js');
     const sub = getSubscription(req.params.id);
@@ -412,9 +412,18 @@ client.once('ready', async () => {
     if (sub.platform === 'youtube') {
       const video = await fetchLatestYouTubeVideo(sub.channelId);
       if (!video) return res.json({ found: false, error: 'تعذر جلب الفيديو من RSS' });
-      if (sub.lastVideoId === video.videoId) return res.json({ found: false, message: 'لا يوجد فيديو جديد' });
+      const lastAt = Number(sub.lastVideoAt) || 0;
+      if (lastAt > 0 && Number(video.publishedAt) <= lastAt) {
+        return res.json({ found: false, message: 'لا يوجد فيديو جديد أحدث من الفيديو المُرسل مسبقاً' });
+      }
+      const prevId = sub.lastVideoId;
+      const claimed = await claimYouTubeVideo(sub._id.toString(), video);
+      if (!claimed) return res.json({ found: false, message: 'هذا الفيديو تم إرساله مسبقاً (بدون تكرار)' });
       const sent = await sendNotification(client, sub, youtubeEmbed(video));
-      if (sent) await updateSubscription(sub._id.toString(), { lastVideoId: video.videoId, channelName: video.channelName || sub.channelName });
+      if (!sent) {
+        await updateSubscription(sub._id.toString(), { lastVideoId: prevId || '', lastVideoAt: lastAt }).catch(() => {});
+        return res.json({ found: false, error: 'فشل الإرسال إلى ديسكورد' });
+      }
       return res.json({ found: true, sent, platform: 'youtube', title: video.title, url: video.url });
     }
 

@@ -56,6 +56,32 @@ export async function updateSubscription(id, updates) {
   }
 }
 
+// Atomic claim: advances a subscription to a new video ONLY if that video has
+// not been claimed yet. Returns true exactly once per video per subscription,
+// even when the monitor, /add and "check now" run at the same time.
+export async function claimYouTubeVideo(id, video) {
+  try {
+    const doc = await Notification.findOneAndUpdate(
+      { _id: id, lastVideoId: { $ne: video.videoId } },
+      {
+        $set: {
+          lastVideoId: video.videoId,
+          lastVideoAt: video.publishedAt || Date.now(),
+          channelName: video.channelName || '',
+        },
+      },
+      { new: true },
+    ).lean();
+    if (doc) {
+      const cached = subscriptions.get(id);
+      if (cached) Object.assign(cached, { lastVideoId: doc.lastVideoId, lastVideoAt: doc.lastVideoAt, channelName: doc.channelName });
+    }
+    return doc != null;
+  } catch {
+    return false;
+  }
+}
+
 export async function loadAllSubscriptions() {
   await migrateLegacyCollection();
   const rows = await Notification.find({}).lean();

@@ -1,4 +1,4 @@
-import { getAllSubscriptions, updateSubscription } from '../data/notificationDB.js';
+import { getAllSubscriptions, updateSubscription, claimYouTubeVideo } from '../data/notificationDB.js';
 import { youtubeEmbed, kickEmbed, twitterEmbed } from '../utils/notificationEmbeds.js';
 
 const CHECK_INTERVAL_MS = 1 * 60 * 1000;
@@ -299,26 +299,48 @@ async function checkYouTube(client) {
       const video = await fetchLatestYouTubeVideo(sub.channelId);
       if (!video) continue;
 
+      // Time guard: never notify about a video OLDER than the last one sent.
+      const lastAt = Number(sub.lastVideoAt) || 0;
+      if (lastAt > 0 && Number(video.publishedAt) <= lastAt) continue;
+
+      // First sighting for this subscription: only record the baseline (no spam).
       if (!sub.lastVideoId) {
-        await updateSubscription(sub._id.toString(), { lastVideoId: video.videoId, channelName: video.channelName || sub.channelName });
+        await updateSubscription(sub._id.toString(), {
+          lastVideoId: video.videoId,
+          lastVideoAt: Number(video.publishedAt) || Date.now(),
+          channelName: video.channelName || sub.channelName,
+        });
         continue;
       }
 
       if (video.videoId === sub.lastVideoId) continue;
+      const prevId = sub.lastVideoId;
 
+      // Same channel sent to another server this cycle: record silently.
       const key = `${video.channelId}:${sub.discordChannelId}:${video.videoId}`;
       if (ytSent.has(key)) {
-        await updateSubscription(sub._id.toString(), { lastVideoId: video.videoId });
+        await updateSubscription(sub._id.toString(), {
+          lastVideoId: video.videoId,
+          lastVideoAt: Number(video.publishedAt) || Date.now(),
+          channelName: video.channelName || sub.channelName,
+        });
         continue;
       }
+
+      // Atomic DB claim: exactly one writer sends this video for this sub,
+      // even if "check now" / /add run while the monitor is iterating.
+      const claimed = await claimYouTubeVideo(sub._id.toString(), video);
+      if (!claimed) continue;
 
       const sent = await sendNotification(client, sub, youtubeEmbed(video));
       if (sent) {
         ytSent.add(key);
+      } else {
+        // Rollback the claim so the notification is retried on the next cycle.
         await updateSubscription(sub._id.toString(), {
-          lastVideoId: video.videoId,
-          channelName: video.channelName || sub.channelName,
-        });
+          lastVideoId: prevId || '',
+          lastVideoAt: lastAt,
+        }).catch(() => {});
       }
     } catch (err) {
       console.error(`[Notif] YouTube check error (${sub._id}):`, err.message);
@@ -403,17 +425,23 @@ async function checkTwitter(client) {
 export async function checkSubscriptionNow(client, sub) {
   if (sub.platform === 'youtube' && sub.channelId) {
     const video = await fetchLatestYouTubeVideo(sub.channelId);
-    if (video) {
-      const sent = await sendNotification(client, sub, youtubeEmbed(video));
-      if (sent) {
-        await updateSubscription(sub._id.toString(), {
-          lastVideoId: video.videoId,
-          channelName: video.channelName || sub.channelName,
-        });
-      }
-      return sent ? `فيديو: ${video.title}` : '❌ فشل الإرسال';
+    if (!video) return '❌ تعذر جلب الفيديو من RSS يوتيوب';
+
+    const lastAt = Number(sub.lastVideoAt) || 0;
+    if (lastAt > 0 && Number(video.publishedAt) <= lastAt) {
+      return 'لا يوجد فيديو جديد أحدث من الفيديو المُرسل مسبقاً';
     }
-    return '❌ تعذر جلب الفيديو من RSS يوتيوب';
+    const prevId = sub.lastVideoId;
+
+    const claimed = await claimYouTubeVideo(sub._id.toString(), video);
+    if (!claimed) return 'ℹ️ هذا الفيديو تم إرساله مسبقاً (سجل مكرر)';
+
+    const sent = await sendNotification(client, sub, youtubeEmbed(video));
+    if (!sent) {
+      await updateSubscription(sub._id.toString(), { lastVideoId: prevId || '', lastVideoAt: lastAt }).catch(() => {});
+      return '❌ فشل الإرسال إلى ديسكورد';
+    }
+    return `فيديو: ${video.title}`;
   }
 
   if (sub.platform === 'kick' && sub.channelId) {
