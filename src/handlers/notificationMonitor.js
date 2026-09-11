@@ -109,30 +109,62 @@ export async function fetchLatestYouTubeVideo(channelId) {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-const KICK_UA = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-  'Accept': 'application/json, text/plain, */*',
-  'Accept-Language': 'en-US,en;q=0.9',
-  'Referer': 'https://kick.com/',
-  'Origin': 'https://kick.com',
-  'X-Requested-With': 'XMLHttpRequest',
-  'Cache-Control': 'no-cache',
-};
+// Several request identities: profile #1 (compat, minimal headers) is the one
+// that used to work before the 403s; #2 is browser-like; #3 is bare. When every
+// identity returns 403 the datacenter IP itself is blocked -> public proxy fallback.
+const KICK_GEN = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+const KICK_PROFILES = [
+  { name: 'compat', headers: { 'User-Agent': KICK_GEN, 'Accept': 'application/json, text/plain, */*', 'Accept-Language': 'en-US,en;q=0.9', 'Referer': 'https://kick.com/' } },
+  { name: 'modern', headers: { 'User-Agent': KICK_GEN, 'Accept': 'application/json, text/plain, */*', 'Accept-Language': 'en-US,en;q=0.9', 'Referer': 'https://kick.com/', 'Origin': 'https://kick.com', 'X-Requested-With': 'XMLHttpRequest', 'Cache-Control': 'no-cache' } },
+  { name: 'plain',  headers: { 'User-Agent': 'Mozilla/5.0' } },
+];
 
-async function kickFetch(url, retries = 2) {
-  for (let i = 0; i <= retries; i++) {
-    try {
-      const res = await fetch(url, { headers: KICK_UA, signal: AbortSignal.timeout(8000) });
-      if (res.status === 429) { await sleep(1200 * (i + 1)); continue; }
-      if (res.status >= 500) { await sleep(1000 * (i + 1)); continue; }
-      if (!res.ok) return { status: 'http', code: res.status };
-      return { status: 'json', data: await res.json() };
-    } catch (err) {
-      if (err.name === 'TimeoutError' || err.name === 'AbortError') { await sleep(800 * (i + 1)); continue; }
-      if (i === retries) return { status: 'error', message: err.message };
+async function kickFetchDirect(url) {
+  let sawTooManyRequests = false;
+  for (const profile of KICK_PROFILES) {
+    for (let i = 0; i < 2; i++) {
+      try {
+        const res = await fetch(url, { headers: profile.headers, signal: AbortSignal.timeout(8000) });
+        if (res.status === 429) { sawTooManyRequests = true; await sleep(1500 * (i + 1)); continue; }
+        if (res.status >= 500) { await sleep(1000 * (i + 1)); continue; }
+        if (res.ok) return { status: 'json', data: await res.json(), via: profile.name };
+        if (res.status === 403 || res.status === 401) break;
+        return { status: 'http', code: res.status };
+      } catch (err) {
+        if (err.name === 'TimeoutError' || err.name === 'AbortError') { await sleep(800 * (i + 1)); continue; }
+        return { status: 'error', message: err.message };
+      }
     }
   }
-  return { status: 'error', message: 'timeout' };
+  return sawTooManyRequests ? { status: 'http', code: 429 } : { status: 'blocked' };
+}
+
+// Last-resort fetch through public CORS proxies (Kick sometimes serves these).
+const KICK_PROXIES = [
+  (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+  (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+];
+
+async function kickFetchViaProxy(url) {
+  for (let pi = 0; pi < KICK_PROXIES.length; pi++) {
+    try {
+      const res = await fetch(KICK_PROXIES[pi](url), { signal: AbortSignal.timeout(12000) });
+      if (!res.ok) continue;
+      const text = await res.text();
+      try {
+        const data = JSON.parse(text);
+        if (data && typeof data === 'object') return { status: 'json', data, via: 'proxy#' + (pi + 1) };
+      } catch {}
+    } catch {}
+  }
+  return { status: 'error', message: 'proxies blocked' };
+}
+
+async function kickFetch(url) {
+  const direct = await kickFetchDirect(url);
+  if (direct.status === 'blocked') return await kickFetchViaProxy(url);
+  return direct;
 }
 
 export async function fetchKickStream(slug) {
@@ -142,7 +174,10 @@ export async function fetchKickStream(slug) {
   const res = await kickFetch(`https://kick.com/api/v2/channels/${encodeURIComponent(cleaned)}`);
   if (res.status === 'http') {
     if (res.code === 403 || res.code === 401) {
-      return { status: 'error', message: 'Kick يحجب طلبات هذا الخادم (403) — استخدم البوت على خادم مختلف أو أعد المحاولة لاحقاً' };
+      return { status: 'error', message: 'Kick يحجب طلبات هذا الخادم (403) حتى عبر عدة هويات — الحل: تشغيل البوت على VPS أو إعادة المحاولة لاحقاً' };
+    }
+    if (res.code === 429) {
+      return { status: 'error', message: 'Kick يحدّ من الطلبات مؤقتاً (429) — سيعود تلقائياً بعد دقائق' };
     }
     if (res.code === 404) {
       return { status: 'error', message: 'القناة غير موجودة على Kick — تحقق من الرابط' };
@@ -150,7 +185,7 @@ export async function fetchKickStream(slug) {
     return { status: 'offline' };
   }
   if (res.status === 'error') {
-    return { status: 'error', message: 'فشل الاتصال بخوادم Kick' };
+    return { status: 'error', message: 'Kick يرفض طلبات هذا الخادم حالياً حتى عبر الوسيط — جرب تشغيل البوت على VPS أو أعد المحاولة لاحقاً' };
   }
 
   const data = res.data;
