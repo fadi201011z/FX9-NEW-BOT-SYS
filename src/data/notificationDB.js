@@ -1,6 +1,7 @@
 import Notification from '../models/Notification.js';
 
 const subscriptions = new Map();
+let legacyMigrated = false;
 
 export function getSubscriptions(guildId) {
   const all = [];
@@ -56,6 +57,7 @@ export async function updateSubscription(id, updates) {
 }
 
 export async function loadAllSubscriptions() {
+  await migrateLegacyCollection();
   const rows = await Notification.find({}).lean();
   const seen = new Map();
   for (const row of rows) {
@@ -82,4 +84,32 @@ export async function loadAllSubscriptions() {
   if (removed > 0) console.log(`[NotifDB] Removed ${removed} duplicates, loaded ${seen.size} subscriptions`);
   else console.log(`[NotifDB] Loaded ${rows.length} subscriptions`);
   return seen.size;
+}
+
+// One-time migration: older dashboard model wrote to the 'Notifications' collection.
+// Copy any legacy docs into the unified 'notifications' collection (skip existing).
+async function migrateLegacyCollection() {
+  if (legacyMigrated) return;
+  legacyMigrated = true;
+  try {
+    const db = Notification.db.connection?.db;
+    if (!db) return;
+    const has = await db.listCollections({ name: 'Notifications' }, { nameOnly: true }).hasNext();
+    if (!has) return;
+    const oldDocs = await db.collection('Notifications').find({}).toArray();
+    let migrated = 0;
+    for (const d of oldDocs) {
+      const { _id, ...rest } = d;
+      if (!rest.guildId || !rest.platform || !rest.channelUrl) continue;
+      const res = await db.collection('notifications').updateOne(
+        { guildId: rest.guildId, platform: rest.platform, channelUrl: rest.channelUrl },
+        { $setOnInsert: { ...rest } },
+        { upsert: true },
+      );
+      if (res.upsertedCount > 0) migrated++;
+    }
+    if (migrated > 0) console.log(`[NotifDB] Migrated ${migrated} subscriptions from legacy 'Notifications' collection`);
+  } catch (e) {
+    console.error('[NotifDB] Legacy migration error:', e.message);
+  }
 }
