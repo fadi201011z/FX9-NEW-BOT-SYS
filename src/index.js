@@ -204,7 +204,7 @@ await Promise.all([loadCommandConfigsFromDB(), loadConfigsFromDB()]);
 // Periodic reload of command configs + guild configs (picks up dashboard changes)
 setInterval(() => loadCommandConfigsFromDB(), 5000);
 setInterval(() => loadConfigsFromDB(), 10000);
-setInterval(() => loadAllSubscriptions(), 15000);
+setInterval(() => loadAllSubscriptions().catch(e => console.error('[NotifDB] reload error:', e.message)), 15000);
 
 // ─── Ready Handler ─────────────────────────────────────────────────────────
 client.once('ready', async () => {
@@ -384,6 +384,10 @@ client.once('ready', async () => {
       channelId = m ? m[1] : url.trim().replace(/^@/, '');
     }
     if (!channelId) return res.status(400).json({ error: 'Could not resolve channel ID from URL' });
+    // Never store a raw URL as a usable channelId (would silently break the monitor)
+    if (platform === 'youtube' && /^https?:\/\//i.test(channelId)) {
+      return res.status(400).json({ error: 'تعذر التعرف على قناة يوتيوب من هذا الرابط — تأكد من صحة الرابط (مثال: https://youtube.com/@username)' });
+    }
     try {
       const doc = await addSubscription({ guildId, platform, channelUrl: url, channelId, discordChannelId, customMessage });
       res.json({ success: true, id: doc._id });

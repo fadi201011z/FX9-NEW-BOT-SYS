@@ -16,4 +16,4 @@ const notificationSchema = new mongoose.Schema({
 
 notificationSchema.index({ guildId: 1, platform: 1 });
 
-export default mongoose.model('Notification', notificationSchema);
+export default mongoose.model('Notification', notificationSchema, 'notifications');
