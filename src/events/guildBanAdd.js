@@ -1,6 +1,7 @@
 import { Events, AuditLogEvent } from 'discord.js';
 import { getNukeData, upsertNukeData, getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
+import { getAuditEntry } from '../utils/audit.js';
 import { alertEmbed, userTag } from '../utils/embeds.js';
 
 export const name = Events.GuildBanAdd;
@@ -14,10 +15,9 @@ export async function execute(ban) {
 
   let executor = null;
   try {
-    const logs = await guild.fetchAuditLogs({ type: AuditLogEvent.MemberBanAdd, limit: 1 });
-    const entry = logs.entries.first();
+    const entry = await getAuditEntry(guild, AuditLogEvent.MemberBanAdd);
     if (entry && Date.now() - entry.createdTimestamp < 5000) executor = entry.executor;
-  } catch { return; }
+  } catch {}
 
   if (!executor || executor.bot || executor.id === guild.ownerId) return;
 

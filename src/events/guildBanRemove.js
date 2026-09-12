@@ -1,6 +1,7 @@
 import { Events, AuditLogEvent, EmbedBuilder } from 'discord.js';
 import { getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
+import { getAuditEntry } from '../utils/audit.js';
 import { Colors, userTag } from '../utils/embeds.js';
 import { getGuildInvite } from '../utils/invite.js';
 
@@ -17,8 +18,7 @@ export async function execute(ban, client) {
   // ─── سجل فك الحظر في قناة الإشراف ──────────────────────────────────────
   let executor = 'غير معروف';
   try {
-    const logs = await guild.fetchAuditLogs({ type: AuditLogEvent.MemberBanRemove, limit: 1 });
-    const entry = logs.entries.first();
+    const entry = await getAuditEntry(guild, AuditLogEvent.MemberBanRemove);
     if (entry && entry.target?.id === user.id && Date.now() - entry.createdTimestamp < 5000) {
       executor = `<@${entry.executor.id}> (${userTag(entry.executor)})`;
     }

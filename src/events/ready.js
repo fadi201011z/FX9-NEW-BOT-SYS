@@ -85,13 +85,13 @@ export async function execute(client) {
 
   // ── SYS: Update status channels immediately ─────────────────────────
   for (const [, guild] of client.guilds.cache) {
-    try { await updateStatusChannels(guild); } catch { /* not configured yet */ }
+    updateStatusChannels(guild).catch(() => { /* not configured yet */ });
   }
 
   // ── SYS: Status channel refresh every 60s ───────────────────────────
-  setInterval(async () => {
+  setInterval(() => {
     for (const [, guild] of client.guilds.cache) {
-      try { await updateStatusChannels(guild); } catch {}
+      updateStatusChannels(guild).catch(() => {});
     }
   }, STATS_INTERVAL);
 

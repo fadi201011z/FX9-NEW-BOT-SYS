@@ -163,7 +163,7 @@ export async function execute(oldState, newState) {
 
   if (logCh) {
     const safeClient = newState.client || oldState.client;
-    await logCh.send({
+    void logCh.send({
       embeds: [
         new EmbedBuilder()
           .setColor(color)
@@ -177,5 +177,5 @@ export async function execute(oldState, newState) {
     }).catch(() => {});
   }
 
-  await updateStatusChannels(guild).catch(() => {});
+  updateStatusChannels(guild, { fetchMembers: false }).catch(() => {});
 }

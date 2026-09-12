@@ -36,5 +36,5 @@ export async function execute(member) {
     .setFooter({ text: '⚔️ FX9-SYS  •  السجلات العامة' });
 
   await logCh.send({ embeds: [embed] }).catch(() => {});
-  await updateStatusChannels(guild).catch(() => {});
+  updateStatusChannels(guild, { fetchMembers: false }).catch(() => {});
 }

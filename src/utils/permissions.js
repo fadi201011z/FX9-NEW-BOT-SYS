@@ -79,11 +79,23 @@ export function canModerate(guild, target) {
 
 /**
  * جلب قناة بمعرّفها من السيرفر — يعيد null إذا لم تُوجد
+ * مع كاش داخلي قصير المدى لتجنّب استعلامات القنوات المتكررة
  */
+const channelCache = new Map();
+const CHANNEL_CACHE_TTL_MS = 15_000;
+
 export async function getLogChannel(guild, channelId) {
   if (!channelId) return null;
-  try { return await guild.channels.fetch(channelId); }
-  catch { return null; }
+
+  const key = `${guild.id}:${channelId}`;
+  const cached = channelCache.get(key);
+  if (cached?.ch && Date.now() - cached.at < CHANNEL_CACHE_TTL_MS) return cached.ch;
+
+  try {
+    const ch = guild.channels.cache.get(channelId) ?? await guild.channels.fetch(channelId);
+    if (ch) channelCache.set(key, { ch, at: Date.now() });
+    return ch;
+  } catch { return null; }
 }
 
 /**

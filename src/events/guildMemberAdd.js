@@ -67,26 +67,28 @@ export async function execute(member) {
   const isNewAccount   = accountAgeDays < 7;
   const avatarURL      = member.user.displayAvatarURL({ dynamic: true, size: 512 });
 
-  // ─── بطاقة الترحيب (تحقق صارم لمنع التكرار) ──────────────────────────────
+  // ─── بطاقة الترحيب (تُنشأ في الخلفية حتى لا تُبطئ بقية السجلات) ──────────
   if (welcomeChId) {
     const welcomeCh = await getLogChannel(guild, welcomeChId);
     // التأكد أن القناة الموجودة في الكاش هي نفسها المطلوبة حالياً في الداتا بيز
     if (welcomeCh && welcomeCh.id === welcomeChId) {
-      try {
-        const card = await generateWelcomeCard(member);
-        const attachment = new AttachmentBuilder(card, { name: 'welcome.png' });
-        const text = `✦ — Welcome ${member} To FAdiX9 Surver . ✨`;
-        await welcomeCh.send({ content: text, files: [attachment] }).catch(() => {});
-      } catch (err) {
-        console.error('[WelcomeCard] فشل إنشاء البطاقة:', err.message);
-        const fallback = new EmbedBuilder()
-          .setColor(isNewAccount ? Colors.CRIMSON : Colors.WHITE)
-          .setDescription(`## 👋 أهلاً بك ${member}\n` + `مرحباً في **${guild.name}**!\n` + `أنت العضو رقم **#${guild.memberCount}**`)
-          .setThumbnail(avatarURL)
-          .setTimestamp()
-          .setFooter({ text: `⚔️ FX9-SYS  •  ${guild.name}` });
-        await welcomeCh.send({ embeds: [fallback] }).catch(() => {});
-      }
+      const text = `✦ — Welcome ${member} To FAdiX9 Surver . ✨`;
+      void (async () => {
+        try {
+          const card = await generateWelcomeCard(member);
+          const attachment = new AttachmentBuilder(card, { name: 'welcome.png' });
+          await welcomeCh.send({ content: text, files: [attachment] }).catch(() => {});
+        } catch (err) {
+          console.error('[WelcomeCard] فشل إنشاء البطاقة:', err.message);
+          const fallback = new EmbedBuilder()
+            .setColor(isNewAccount ? Colors.CRIMSON : Colors.WHITE)
+            .setDescription(`## 👋 أهلاً بك ${member}\n` + `مرحباً في **${guild.name}**!\n` + `أنت العضو رقم **#${guild.memberCount}**`)
+            .setThumbnail(avatarURL)
+            .setTimestamp()
+            .setFooter({ text: `⚔️ FX9-SYS  •  ${guild.name}` });
+          await welcomeCh.send({ embeds: [fallback] }).catch(() => {});
+        }
+      })();
     }
   }
 
@@ -114,5 +116,5 @@ export async function execute(member) {
     }
   }
 
-  await updateStatusChannels(guild).catch(() => {});
+  updateStatusChannels(guild, { fetchMembers: false }).catch(() => {});
 }

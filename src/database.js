@@ -44,16 +44,26 @@ export async function clearWarnings(guildId, userId) {
   await Warning.deleteMany({ guildId, userId });
 }
 
+const spamCache = new Map();
+const SPAM_CACHE_TTL_MS = 10_000;
+
 export function getSpamData(guildId, userId) {
-  return AntiSpam.findOne({ guildId, userId }).lean();
+  const key = `${guildId}:${userId}`;
+  const hit = spamCache.get(key);
+  if (hit && Date.now() - hit.at < SPAM_CACHE_TTL_MS) return hit.doc;
+  return null;
 }
 
 export function upsertSpamData(guildId, userId, count, lastReset) {
-  return AntiSpam.findOneAndUpdate(
+  const key = `${guildId}:${userId}`;
+  const doc = { guildId, userId, messageCount: count, lastReset };
+  spamCache.set(key, { at: Date.now(), doc });
+  AntiSpam.findOneAndUpdate(
     { guildId, userId },
     { guildId, userId, messageCount: count, lastReset },
     { upsert: true, new: true }
-  );
+  ).catch(() => {});
+  return Promise.resolve(doc);
 }
 
 export function getNukeData(guildId, userId, action) {

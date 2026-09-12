@@ -20,6 +20,24 @@ const TIMEOUT_MS        = 60_000;
 const MENTION_THRESHOLD = 5;
 const LINK_REGEX        = /https?:\/\/[^\s]+/gi;
 
+// كاش الرومات المحضورة — يتجنّب استعلام MongoDB مع كل رسالة
+const restrictedCache = new Map();
+const RESTRICTED_TTL_MS = 15_000;
+
+async function getRestrictedChannelIds(guildId) {
+  const cached = restrictedCache.get(guildId);
+  if (cached && Date.now() - cached.at < RESTRICTED_TTL_MS) return cached.ids;
+
+  let ids = [];
+  try {
+    const doc = await GuildConfig.findOne({ guildId, key: 'restricted_channels' }).lean();
+    if (doc?.value) ids = JSON.parse(doc.value).map(c => c.id);
+  } catch {}
+
+  restrictedCache.set(guildId, { at: Date.now(), ids });
+  return ids;
+}
+
 export async function execute(message, client) {
   if (!message.guild || message.author.bot) return;
 
@@ -31,13 +49,9 @@ export async function execute(message, client) {
   //  الاستثناءات: المالك, البوت, والمبرمج (role: admin في لوحة التحكم)
   // ══════════════════════════════════════════════════════════════════════════
 
-  let restrictedRaw;
-  try { restrictedRaw = await GuildConfig.findOne({ guildId: guild.id, key: 'restricted_channels' }).lean(); } catch {}
-  if (restrictedRaw?.value) {
-    let restrictedIds = [];
-    try { restrictedIds = JSON.parse(restrictedRaw.value).map(c => c.id); } catch {}
+  let restrictedIds = await getRestrictedChannelIds(guild.id);
 
-    if (restrictedIds.includes(channel.id)) {
+  if (restrictedIds.includes(channel.id)) {
       // Exemptions check
       let exempt = false;
       if (OWNER_ID && message.author.id === OWNER_ID) exempt = true;

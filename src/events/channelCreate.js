@@ -1,6 +1,7 @@
 import { Events, EmbedBuilder, AuditLogEvent, ChannelType } from 'discord.js';
 import { getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
+import { getAuditEntry } from '../utils/audit.js';
 import { Colors, userTag } from '../utils/embeds.js';
 
 export const name = Events.ChannelCreate;
@@ -24,8 +25,7 @@ export async function execute(channel) {
 
   let creator = 'غير معروف';
   try {
-    const logs = await guild.fetchAuditLogs({ type: AuditLogEvent.ChannelCreate, limit: 1 });
-    const entry = logs.entries.first();
+    const entry = await getAuditEntry(guild, AuditLogEvent.ChannelCreate);
     if (entry && Date.now() - entry.createdTimestamp < 5000) {
       creator = `<@${entry.executor.id}> (${userTag(entry.executor)})`;
     }

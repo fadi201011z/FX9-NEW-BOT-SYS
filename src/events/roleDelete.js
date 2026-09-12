@@ -1,24 +1,17 @@
-import { Events, EmbedBuilder, AuditLogEvent, ChannelType } from 'discord.js';
+import { Events, AuditLogEvent, EmbedBuilder } from 'discord.js';
 import { getNukeData, upsertNukeData, getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
 import { getAuditEntry } from '../utils/audit.js';
 import { Colors, alertEmbed, userTag } from '../utils/embeds.js';
 
-export const name = Events.ChannelDelete;
+export const name = Events.RoleDelete;
 export const once = false;
 
 const NUKE_THRESHOLD = 3;
 const NUKE_WINDOW_MS = 10_000;
 
-const CHANNEL_TYPE_AR = {
-  [ChannelType.GuildText]:        '💬 نصي',
-  [ChannelType.GuildVoice]:       '🔊 صوتي',
-  [ChannelType.GuildCategory]:    '📁 تصنيف',
-  [ChannelType.GuildAnnouncement]:'📢 إعلانات',
-};
-
-export async function execute(channel) {
-  const { guild } = channel;
+export async function execute(role) {
+  const guild = role.guild;
   if (!guild) return;
 
   const modLogCh = await getLogChannel(guild, getConfig(guild.id, 'modlog_channel'));
@@ -26,7 +19,7 @@ export async function execute(channel) {
 
   let executor = null;
   try {
-    const entry = await getAuditEntry(guild, AuditLogEvent.ChannelDelete);
+    const entry = await getAuditEntry(guild, AuditLogEvent.RoleDelete);
     if (entry && Date.now() - entry.createdTimestamp < 5000) {
       executor = entry.executor;
     }
@@ -35,15 +28,14 @@ export async function execute(channel) {
   // ─── سجل الحذف في قناة الإشراف ────────────────────────────────────────
   const targetCh = modLogCh ?? logCh;
   if (targetCh && executor) {
-    const typeLabel = CHANNEL_TYPE_AR[channel.type] ?? 'غير معروف';
     const embed = new EmbedBuilder()
       .setColor(Colors.ERROR)
-      .setTitle('🗑️  حذف قناة')
+      .setTitle('🗑️  حذف رتبة')
       .addFields(
-        { name: '📋  اسم القناة', value: `\`${channel.name}\``,                       inline: true },
-        { name: '🗂️  النوع',      value: typeLabel,                                    inline: true },
-        { name: '🆔  معرّف القناة', value: `\`${channel.id}\``,                       inline: true },
-        { name: '👤  المنفّذ',     value: `<@${executor.id}> (${userTag(executor)})`,       inline: false },
+        { name: '🏷️  الرتبة',    value: `\`${role.name}\``,                  inline: true },
+        { name: '🆔  المعرّف',    value: `\`${role.id}\``,                    inline: true },
+        { name: '🎨  اللون',      value: `\`#${role.color.toString(16).padStart(6, '0')}\``, inline: true },
+        { name: '👤  المنفّذ',    value: `<@${executor.id}> (${userTag(executor)})`, inline: false },
       )
       .setTimestamp()
       .setFooter({ text: '⚔️ FX9-SYS  •  سجلات الإشراف' });
@@ -54,7 +46,7 @@ export async function execute(channel) {
   if (!executor || executor.bot || executor.id === guild.ownerId) return;
 
   const now    = Date.now();
-  const action = 'channel_delete';
+  const action = 'role_delete';
   const data   = await getNukeData(guild.id, executor.id, action);
 
   let count     = 1;
@@ -68,11 +60,10 @@ export async function execute(channel) {
   if (count >= NUKE_THRESHOLD) {
     await upsertNukeData(guild.id, executor.id, action, 0, now);
 
-    // سحب الأدوار من المنفّذ
     try {
       const member = await guild.members.fetch(executor.id);
       if (member && !member.permissions.has('Administrator')) {
-        await member.roles.set([], 'Anti-Nuke: حذف جماعي للقنوات');
+        await member.roles.set([], 'Anti-Nuke: حذف جماعي للرتب');
       }
     } catch { /* لا يمكن التعديل */ }
 
@@ -80,15 +71,15 @@ export async function execute(channel) {
     if (alertCh) {
       await alertCh.send({
         embeds: [
-          alertEmbed('تحذير Anti-Nuke — حذف جماعي للقنوات!')
+          alertEmbed('تحذير Anti-Nuke — حذف جماعي للرتب!')
             .setDescription(
-              `> ⚠️ **${userTag(executor)}** قام بحذف **${count}** قنوات في أقل من 10 ثوانٍ!\n` +
+              `> ⚠️ **${userTag(executor)}** قام بحذف **${count}** رتب في أقل من 10 ثوانٍ!\n` +
               `> تم **سحب جميع أدواره** تلقائياً. راجع الأمر وتصرف فوراً.`
             )
             .addFields(
               { name: '👤  المنفّذ',      value: `<@${executor.id}> (${userTag(executor)})`, inline: true },
-              { name: '🆔  المعرّف',      value: `\`${executor.id}\``,                 inline: true },
-              { name: '🗑️  آخر قناة محذوفة', value: `\`${channel.name}\``,           inline: true },
+              { name: '🆔  المعرّف',      value: `\`${executor.id}\``,                    inline: true },
+              { name: '🗑️  آخر رتبة محذوفة', value: `\`${role.name}\``,                  inline: true },
             )
         ],
       }).catch(() => {});
