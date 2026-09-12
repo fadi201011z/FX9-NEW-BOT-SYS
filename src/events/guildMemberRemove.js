@@ -1,7 +1,7 @@
 import { Events, EmbedBuilder } from 'discord.js';
 import { getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
-import { Colors } from '../utils/embeds.js';
+import { Colors, userTag } from '../utils/embeds.js';
 import { updateStatusChannels } from '../utils/statusUpdater.js';
 
 export const name = Events.GuildMemberRemove;
@@ -26,7 +26,7 @@ export async function execute(member) {
     .setColor(Colors.LEAVE)
     .setTitle('📤  مغادرة عضو')
     .addFields(
-      { name: '👤  العضو',        value: `${member.user.tag}`,        inline: true },
+      { name: '👤  العضو',        value: `${userTag(member.user)}`,   inline: true },
       { name: '🆔  المعرّف',      value: `\`${member.user.id}\``,     inline: true },
       { name: '📅  انضم منذ',     value: joinedAgo,                    inline: true },
       { name: '🏷️  الأدوار',      value: roles.slice(0, 1024),        inline: false },

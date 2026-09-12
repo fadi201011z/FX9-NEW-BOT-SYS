@@ -1,7 +1,7 @@
 import { Events, EmbedBuilder, AuditLogEvent, ChannelType } from 'discord.js';
 import { getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
-import { Colors } from '../utils/embeds.js';
+import { Colors, userTag } from '../utils/embeds.js';
 
 export const name = Events.ChannelCreate;
 export const once = false;
@@ -27,7 +27,7 @@ export async function execute(channel) {
     const logs = await guild.fetchAuditLogs({ type: AuditLogEvent.ChannelCreate, limit: 1 });
     const entry = logs.entries.first();
     if (entry && Date.now() - entry.createdTimestamp < 5000) {
-      creator = `<@${entry.executor.id}> (${entry.executor.tag})`;
+      creator = `<@${entry.executor.id}> (${userTag(entry.executor)})`;
     }
   } catch { /* audit log غير متاح */ }
 

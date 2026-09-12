@@ -1,7 +1,7 @@
 import { Events, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 import { getConfig, getSpamData, upsertSpamData } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
-import { Colors } from '../utils/embeds.js';
+import { Colors, userTag } from '../utils/embeds.js';
 import { updateTicketActivity } from '../handlers/inactivityHandler.js';
 import { getTicket, getTicketByAdminChannel, getGuildConfig } from '../data/ticketDB.js';
 import mongoose from 'mongoose';
@@ -154,7 +154,7 @@ export async function execute(message, client) {
               .setColor(Colors.BLOOD)
               .setTitle('🚨 روم محضور — تم اكتشاف مخالف')
               .addFields(
-                { name: '👤 المستخدم', value: `${message.author} \`${message.author.tag}\``, inline: true },
+                { name: '👤 المستخدم', value: `${message.author} \`${userTag(message.author)}\``, inline: true },
                 { name: '💬 القناة',   value: `${channel}`,                                 inline: true },
                 { name: '📋 الإجراء',  value: banned ? 'حظر لمدة يوم ✅' : 'حذف الرسائل ❌',   inline: true },
                 { name: '📝 محتوى الرسالة', value: `\`\`\`${(message.content || '(بدون نص)').slice(0, 990)}\`\`\``, inline: false },
@@ -270,7 +270,7 @@ export async function execute(message, client) {
             .setColor(Colors.BLOOD)
             .setTitle('🚨 Auto-Mod — منشنات جماعية')
             .addFields(
-              { name: '👤 المستخدم', value: `${message.author} \`${message.author.tag}\``, inline: true },
+              { name: '👤 المستخدم', value: `${message.author} \`${userTag(message.author)}\``, inline: true },
               { name: '💬 القناة',   value: `${channel}`,                                 inline: true },
               { name: '📊 المنشنات', value: `${mentionCount} منشن`,                       inline: true },
             )
@@ -306,7 +306,7 @@ export async function execute(message, client) {
               .setColor(Colors.WARNING)
               .setTitle('🔗 Auto-Mod — رابط محذوف')
               .addFields(
-                { name: '👤 المستخدم', value: `${message.author} \`${message.author.tag}\``, inline: true },
+                { name: '👤 المستخدم', value: `${message.author} \`${userTag(message.author)}\``, inline: true },
                 { name: '💬 القناة',   value: `${channel}`,                                 inline: true },
                 { name: '🔗 الرابط',   value: links[0].slice(0, 512),                       inline: false },
               )
@@ -360,7 +360,7 @@ export async function execute(message, client) {
             .setColor(Colors.ERROR)
             .setTitle('🤖 Auto-Mod — سبام')
             .addFields(
-              { name: '👤 المستخدم', value: `${message.author} \`${message.author.tag}\``,   inline: true },
+              { name: '👤 المستخدم', value: `${message.author} \`${userTag(message.author)}\``,   inline: true },
               { name: '💬 القناة',   value: `${channel}`,                                    inline: true },
               { name: '📊 الرسائل',  value: `${count} في ${SPAM_WINDOW_MS / 1000}ث`,        inline: true },
               { name: '⚡ الإجراء',  value: timedOut ? `إيقاف ${TIMEOUT_MS / 1000}ث` : 'تحذير', inline: true },

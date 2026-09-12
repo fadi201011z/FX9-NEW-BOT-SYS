@@ -1,7 +1,7 @@
 import { Events, AuditLogEvent } from 'discord.js';
 import { getNukeData, upsertNukeData, getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
-import { alertEmbed } from '../utils/embeds.js';
+import { alertEmbed, userTag } from '../utils/embeds.js';
 
 export const name = Events.GuildBanAdd;
 export const once = false;
@@ -50,13 +50,13 @@ export async function execute(ban) {
         embeds: [
           alertEmbed('تحذير Anti-Nuke — حظر جماعي مُكتشَف!')
             .setDescription(
-              `> ⚠️ **${executor.tag}** نفّذ **${count}** حظر في أقل من 10 ثوانٍ!\n` +
+              `> ⚠️ **${userTag(executor)}** نفّذ **${count}** حظر في أقل من 10 ثوانٍ!\n` +
               `> تم **سحب جميع أدواره** تلقائياً. راجع الأمر وتصرف فوراً.`
             )
             .addFields(
-              { name: '👤  المنفّذ',           value: `<@${executor.id}> (${executor.tag})`, inline: true },
+              { name: '👤  المنفّذ',           value: `<@${executor.id}> (${userTag(executor)})`, inline: true },
               { name: '🆔  المعرّف',           value: `\`${executor.id}\``,                 inline: true },
-              { name: '🚫  آخر محظور',         value: `${ban.user.tag} \`${ban.user.id}\``, inline: true },
+              { name: '🚫  آخر محظور',         value: `${userTag(ban.user)} \`${ban.user.id}\``, inline: true },
             )
         ],
       }).catch(() => {});

@@ -1,7 +1,7 @@
 import { Events, AuditLogEvent, EmbedBuilder } from 'discord.js';
 import { getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
-import { Colors } from '../utils/embeds.js';
+import { Colors, userTag } from '../utils/embeds.js';
 
 export const name = Events.MessageDelete;
 export const once = false;
@@ -22,7 +22,7 @@ export async function execute(message) {
     const logs = await message.guild.fetchAuditLogs({ type: AuditLogEvent.MessageDelete, limit: 1 });
     const entry = logs.entries.first();
     if (entry && entry.target?.id === message.author?.id && Date.now() - entry.createdTimestamp < 5000) {
-      deletedBy = `<@${entry.executor.id}> (${entry.executor.tag})`;
+      deletedBy = `<@${entry.executor.id}> (${userTag(entry.executor)})`;
     }
   } catch { /* audit log غير متاح */ }
 
@@ -34,7 +34,7 @@ export async function execute(message) {
     .setColor(Colors.ERROR)
     .setTitle('🗑️  رسالة محذوفة')
     .addFields(
-      { name: '👤  المرسل',     value: `${message.author} (${message.author?.tag ?? 'غير معروف'})`, inline: true },
+      { name: '👤  المرسل',     value: `${message.author} (${userTag(message.author)})`, inline: true },
       { name: '💬  القناة',     value: `${message.channel}`,                                         inline: true },
       { name: '🗑️  حُذفت بواسطة', value: deletedBy,                                                 inline: true },
       { name: '📝  المحتوى',    value: contentValue,                                                  inline: false },

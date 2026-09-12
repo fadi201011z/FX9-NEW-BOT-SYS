@@ -1,7 +1,7 @@
 import { Events, EmbedBuilder, ChannelType, PermissionFlagsBits } from 'discord.js';
 import { getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
-import { Colors } from '../utils/embeds.js';
+import { Colors, userTag } from '../utils/embeds.js';
 import { updateStatusChannels } from '../utils/statusUpdater.js';
 import Maintenance from '../models/Maintenance.js';
 
@@ -82,7 +82,7 @@ export async function execute(oldState, newState) {
         });
 
         await refreshPanel(newState.client, guild.id);
-        console.log(`[TempVC] ✅ Created "${vc.name}" for ${member.user.tag}`);
+        console.log(`[TempVC] ✅ Created "${vc.name}" for ${userTag(member.user)}`);
       } catch (err) {
         console.error('[TempVC] ❌ Create error:', err.message);
       }
@@ -126,7 +126,7 @@ export async function execute(oldState, newState) {
               const { default: autoDelete } = await import('../utils/autoDelete.js');
               if (msg && autoDelete) autoDelete(msg, 20);
             }
-            console.log(`[TempVC] 👑 Ownership → ${newOwner.user.tag}`);
+            console.log(`[TempVC] 👑 Ownership → ${userTag(newOwner.user)}`);
           }
         }
       }

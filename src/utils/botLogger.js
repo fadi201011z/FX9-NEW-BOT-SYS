@@ -17,7 +17,7 @@ import {
   StringSelectMenuOptionBuilder,
 } from 'discord.js';
 import { getConfig, setConfig } from '../database.js';
-import { Colors } from './embeds.js';
+import { Colors, userTag } from './embeds.js';
 import { formatDuration } from './parseDuration.js';
 import process from 'node:process';
 
@@ -51,7 +51,7 @@ export async function sendOnlineLog() {
       .setColor(Colors.WHITE)
       .setTitle('🟢 FX9-SYS — متصل الآن')
       .addFields(
-        { name: '🤖  البوت',          value: `\`${_client.user.tag}\``,             inline: true },
+        { name: '🤖  البوت',          value: `\`${userTag(_client.user)}\``,       inline: true },
         { name: '🌐  السيرفرات',      value: `\`${_client.guilds.cache.size}\``,     inline: true },
         { name: '⚙️  الأوامر',        value: `\`${_client.commands?.size ?? 0}\``,   inline: true },
         { name: '💾  الذاكرة',        value: `\`${mem} MB\``,                         inline: true },
@@ -140,7 +140,7 @@ async function buildHbEmbed(guildId) {
 
   if (cat === 'general') {
     embed.setTitle('📊 تقرير حالة البوت');
-    embed.setDescription(`\`\`\`${client.user.tag}\`\`\``);
+    embed.setDescription(`\`\`\`${userTag(client.user)}\`\`\``);
     embed.addFields(
       { name: '🟢 الحالة', value: '**متصل** ✅', inline: true },
       { name: `${pingIcon} سرعة الإستجابة`, value: `\`${ping}ms\``, inline: true },
@@ -171,7 +171,7 @@ async function buildHbEmbed(guildId) {
       { name: '⏱ وقت التشغيل', value: `\`${uptime}\``, inline: true },
       { name: '💾 Heap المستخدم', value: `\`${mem} MB\``, inline: true },
       { name: '📦 RSS', value: `\`${rss} MB\``, inline: true },
-      { name: '👤 البوت', value: `\`${client.user.tag}\``, inline: true },
+      { name: '👤 البوت', value: `\`${userTag(client.user)}\``, inline: true },
       { name: '🆔 البوت', value: `\`${client.user.id}\``, inline: true },
     );
   } else if (cat === 'commands') {

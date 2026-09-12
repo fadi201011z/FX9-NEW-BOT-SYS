@@ -1,7 +1,7 @@
 import { Events, EmbedBuilder, AttachmentBuilder } from 'discord.js';
 import { getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
-import { Colors, alertEmbed } from '../utils/embeds.js';
+import { Colors, alertEmbed, userTag } from '../utils/embeds.js';
 import { updateStatusChannels } from '../utils/statusUpdater.js';
 import { generateWelcomeCard } from '../utils/welcomeCard.js';
 
@@ -10,17 +10,20 @@ export const once = false;
 
 const RAID_WINDOW_MS = 10_000;
 const RAID_THRESHOLD = 10;
+const RAID_ALERT_COOLDOWN_MS = 60_000;
 const recentJoins    = new Map();
+const lastRaidAlert  = new Map();
 
-// أيدي الرتبة التي سيتم منحها تلقائياً
-const AUTO_ROLE_ID = '1499393262476329020';
+// أيدي الرتبة التي سيتم منحها تلقائياً (يمكن تغييرها من الداشبورد عبر autorole_id)
+const FALLBACK_ROLE_ID = '1499393262476329020';
 
 export async function execute(member) {
   const { guild } = member;
   const now = Date.now();
 
   // ─── منح الرتبة تلقائياً فور الدخول ─────────────────────────────────────
-  const role = guild.roles.cache.get(AUTO_ROLE_ID);
+  const autoRoleId = getConfig(guild.id, 'autorole_id') || FALLBACK_ROLE_ID;
+  const role = guild.roles.cache.get(autoRoleId);
   if (role) {
     member.roles.add(role).catch(() => {
       console.log(`[FX9-SYS] فشل إضافة الرتبة - تأكد أن رتبة البوت أعلى من الرتبة المراد منحها.`);
@@ -38,21 +41,25 @@ export async function execute(member) {
   recentJoins.set(guild.id, joins);
 
   if (joins.length >= RAID_THRESHOLD) {
-    const alertCh = await getLogChannel(guild, modLogChId ?? logChId);
-    if (alertCh) {
-      await alertCh.send({
-        embeds: [
-          alertEmbed('Raid — موجة انضمام مشبوهة!')
-            .setDescription(
-              `انضم **${joins.length} عضو** في أقل من 10 ثوانٍ!\n` +
-              'يُنصح بتفعيل التحقق أو تقييد الدخول مؤقتاً.'
-            )
-            .addFields(
-              { name: '📊 الموجة',     value: `${joins.length} / 10ث`, inline: true },
-              { name: '👥 الإجمالي',    value: `${guild.memberCount}`,   inline: true },
-            )
-        ],
-      }).catch(() => {});
+    const lastAlert = lastRaidAlert.get(guild.id) || 0;
+    if (now - lastAlert >= RAID_ALERT_COOLDOWN_MS) {
+      lastRaidAlert.set(guild.id, now);
+      const alertCh = await getLogChannel(guild, modLogChId ?? logChId);
+      if (alertCh) {
+        await alertCh.send({
+          embeds: [
+            alertEmbed('Raid — موجة انضمام مشبوهة!')
+              .setDescription(
+                `انضم **${joins.length} عضو** في أقل من 10 ثوانٍ!\n` +
+                'يُنصح بتفعيل التحقق أو تقييد الدخول مؤقتاً.'
+              )
+              .addFields(
+                { name: '📊 الموجة',     value: `${joins.length} / 10ث`, inline: true },
+                { name: '👥 الإجمالي',    value: `${guild.memberCount}`,   inline: true },
+              )
+          ],
+        }).catch(() => {});
+      }
     }
   }
 
@@ -93,7 +100,7 @@ export async function execute(member) {
             .setColor(isNewAccount ? Colors.CRIMSON : Colors.JOIN)
             .setTitle('📥  انضمام عضو')
             .addFields(
-              { name: '👤 العضو',      value: `${member} — \`${member.user.tag}\``, inline: false },
+              { name: '👤 العضو',      value: `${member} — \`${userTag(member.user)}\``, inline: false },
               { name: '🆔 المعرّف',    value: `\`${member.user.id}\``,               inline: true  },
               { name: '🕐 عمر الحساب', value: `${accountAgeDays} يوم`,              inline: true  },
               { name: '👥 الأعضاء',    value: `${guild.memberCount}`,               inline: true  },

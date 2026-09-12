@@ -1,7 +1,7 @@
 import { Events, EmbedBuilder } from 'discord.js';
 import { getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
-import { Colors } from '../utils/embeds.js';
+import { Colors, userTag } from '../utils/embeds.js';
 
 export const name = Events.MessageUpdate;
 export const once = false;
@@ -18,7 +18,7 @@ export async function execute(oldMessage, newMessage) {
     .setColor(Colors.EDIT)
     .setTitle('✏️  رسالة مُعدَّلة')
     .addFields(
-      { name: '👤  المرسل',       value: `${newMessage.author} (${newMessage.author?.tag})`, inline: true },
+      { name: '👤  المرسل',       value: `${newMessage.author} (${userTag(newMessage.author)})`, inline: true },
       { name: '💬  القناة',        value: `${newMessage.channel}`,                            inline: true },
       { name: '🔗  الرابط المباشر', value: `[انتقل للرسالة](${newMessage.url})`,              inline: true },
       { name: '📝  قبل التعديل',    value: (oldMessage.content || '*[فارغ]*').slice(0, 1024), inline: false },

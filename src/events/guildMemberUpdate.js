@@ -1,7 +1,7 @@
 import { Events, EmbedBuilder } from 'discord.js';
 import { getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
-import { Colors } from '../utils/embeds.js';
+import { Colors, userTag } from '../utils/embeds.js';
 
 const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:10001';
 
@@ -40,7 +40,7 @@ export async function execute(oldMember, newMember) {
       .setColor(Colors.ROLE)
       .setTitle('🏷️  تغيير الأدوار')
       .addFields(
-        { name: '👤  العضو',  value: `${newMember} (${newMember.user.tag})`, inline: true },
+        { name: '👤  العضو',  value: `${newMember} (${userTag(newMember.user)})`, inline: true },
         { name: '🆔  المعرّف', value: `\`${newMember.user.id}\``,             inline: true },
       )
       .setThumbnail(newMember.user.displayAvatarURL({ dynamic: true }))
@@ -71,7 +71,7 @@ export async function execute(oldMember, newMember) {
       .setColor(Colors.EDIT)
       .setTitle('✏️  تغيير اللقب')
       .addFields(
-        { name: '👤  العضو',   value: `${newMember} (${newMember.user.tag})`, inline: false },
+        { name: '👤  العضو',   value: `${newMember} (${userTag(newMember.user)})`, inline: false },
         { name: '📝  قبل',     value: oldMember.nickname ?? oldMember.user.username, inline: true },
         { name: '📝  بعد',     value: newMember.nickname ?? newMember.user.username, inline: true },
       )

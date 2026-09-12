@@ -1,7 +1,7 @@
 import { Events, EmbedBuilder, AuditLogEvent, ChannelType } from 'discord.js';
 import { getNukeData, upsertNukeData, getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
-import { Colors, alertEmbed } from '../utils/embeds.js';
+import { Colors, alertEmbed, userTag } from '../utils/embeds.js';
 
 export const name = Events.ChannelDelete;
 export const once = false;
@@ -43,7 +43,7 @@ export async function execute(channel) {
         { name: '📋  اسم القناة', value: `\`${channel.name}\``,                       inline: true },
         { name: '🗂️  النوع',      value: typeLabel,                                    inline: true },
         { name: '🆔  معرّف القناة', value: `\`${channel.id}\``,                       inline: true },
-        { name: '👤  المنفّذ',     value: `<@${executor.id}> (${executor.tag})`,       inline: false },
+        { name: '👤  المنفّذ',     value: `<@${executor.id}> (${userTag(executor)})`,       inline: false },
       )
       .setTimestamp()
       .setFooter({ text: '⚔️ FX9-SYS  •  سجلات الإشراف' });
@@ -82,11 +82,11 @@ export async function execute(channel) {
         embeds: [
           alertEmbed('تحذير Anti-Nuke — حذف جماعي للقنوات!')
             .setDescription(
-              `> ⚠️ **${executor.tag}** قام بحذف **${count}** قنوات في أقل من 10 ثوانٍ!\n` +
+              `> ⚠️ **${userTag(executor)}** قام بحذف **${count}** قنوات في أقل من 10 ثوانٍ!\n` +
               `> تم **سحب جميع أدواره** تلقائياً. راجع الأمر وتصرف فوراً.`
             )
             .addFields(
-              { name: '👤  المنفّذ',      value: `<@${executor.id}> (${executor.tag})`, inline: true },
+              { name: '👤  المنفّذ',      value: `<@${executor.id}> (${userTag(executor)})`, inline: true },
               { name: '🆔  المعرّف',      value: `\`${executor.id}\``,                 inline: true },
               { name: '🗑️  آخر قناة محذوفة', value: `\`${channel.name}\``,           inline: true },
             )

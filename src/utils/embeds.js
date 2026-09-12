@@ -51,6 +51,12 @@ export const COLOR = {
 
 export const EPHEMERAL = 64;
 
+// يعرض اسم المستخدم بأمان — متوافق مع `user.tag` القديم والجديد (بدون discriminator)
+export function userTag(user) {
+  if (!user) return 'غير معروف';
+  try { return user.tag || user.username; } catch { return user.username || user.id || 'غير معروف'; }
+}
+
 const R = '\u200b';
 
 export function footer(text = 'FX9-SYS') {
@@ -101,7 +107,7 @@ export function sysLogEmbed(title, desc, color = Colors.CHARCOAL, section = 'ا�
 export function modEmbed(action, target, moderator, reason, extra = {}) {
   const desc = [
     '```ansi',
-    `\u001b[1;31m🔨  ${action}  │  ${target?.user?.tag || target?.tag || target}\u001b[0m`,
+    `\u001b[1;31m🔨  ${action}  │  ${userTag(target?.user || target)}\u001b[0m`,
     '```',
     '━━━━━━━━━━━━━━━━━━━━━━━━',
     '',
