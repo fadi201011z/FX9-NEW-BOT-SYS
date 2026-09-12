@@ -406,18 +406,11 @@ async function formatAdminRelay(msg, guild, client) {
   try {
     const member = await guild.members.fetch(msg.author.id).catch(() => null);
     if (member) {
-      const config = getGuildConfig(guild.id);
-      const supportRoleId = config.supportRoleIds.find((id) => member.roles.cache.has(id));
-      if (supportRoleId) {
-        const roleName = member.roles.cache.get(supportRoleId)?.name;
-        roleDisplay = `[${roleName}] `;
+      const highestRole = member.roles.highest;
+      if (highestRole && highestRole.name !== '@everyone') {
+        roleDisplay = `[${highestRole.name}] `;
       } else {
-        const highestRole = member.roles.highest;
-        if (highestRole && highestRole.name !== '@everyone') {
-          roleDisplay = `[${highestRole.name}] `;
-        } else {
-          roleDisplay = '[STAFF] ';
-        }
+        roleDisplay = '[STAFF] ';
       }
     }
   } catch {}
