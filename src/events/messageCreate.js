@@ -189,7 +189,6 @@ export async function execute(message, client) {
 
       return;
     }
-  }
 
   // ══════════════════════════════════════════════════════════════════════════
   //  TICKET: Relay system (forward between user/admin channels)
