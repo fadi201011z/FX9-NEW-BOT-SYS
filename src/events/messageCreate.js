@@ -252,13 +252,9 @@ export async function execute(message, client) {
   const modLogCh = await getLogChannel(guild, getConfig(guildId, 'modlog_channel'));
   const alertCh  = modLogCh ?? logCh;
 
-  const hasModPerms = member?.permissions.any(
-    PermissionFlagsBits.BanMembers,
-    PermissionFlagsBits.Administrator,
-    PermissionFlagsBits.ManageGuild,
-  );
-
-  if (hasModPerms) return;
+  // ═══ الإعفاء الوحيد: مالك السيرفر (باختيار المالك: الإدارة تُعاقب أيضاً) ═══
+  // ملاحظة: كانت سابقاً تُعفي أي رتبة إشراف (BanMembers/Administrator/ManageGuild)
+  if (member && member.id === guild.ownerId) return;
 
   // ─── Anti-Mention-Spam ────────────────────────────────────────────────
   const mentionCount = message.mentions.users.size + message.mentions.roles.size;
