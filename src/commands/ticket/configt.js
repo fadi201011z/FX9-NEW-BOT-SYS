@@ -100,7 +100,7 @@ export async function execute(interaction) {
 
     if (sendNow) {
       const tc = interaction.guild.channels.cache.get(ch.id);
-      await tc?.send(panelPayload());
+      await tc?.send(panelPayload(interaction.guildId));
     }
     await interaction.reply({ embeds: [successEmbed(`قناة البنل: <#${ch.id}>${sendNow ? "\n✅ تم إرسال البنل فيها." : ""}`)], ephemeral: true });
 

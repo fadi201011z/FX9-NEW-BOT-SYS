@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import * as db from './db.js';
+import { resolveGuildImage } from '../utils/guildImage.js';
 
 const VOICE_PANEL_IMAGE = fileURLToPath(new URL('../../assets/voice-panel.png', import.meta.url));
 
@@ -60,7 +61,7 @@ export function getActiveCount(guildId) {
   return count;
 }
 
-export function buildStatusPanel(setup, activeCount = 0) {
+export function buildStatusPanel(guildId, setup, activeCount = 0) {
   const row1 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('vc_lock').setLabel('قفل').setEmoji('🔒').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId('vc_unlock').setLabel('فتح').setEmoji('🔓').setStyle(ButtonStyle.Success),
@@ -74,8 +75,12 @@ export function buildStatusPanel(setup, activeCount = 0) {
     new ButtonBuilder().setCustomId('vc_transfer').setLabel('نقل الملكية').setEmoji('👑').setStyle(ButtonStyle.Secondary),
   );
 
+  // صورة بنل صوتيات مخصصة لكل سيرفر (من الداشبورد) — تُعطى الأولوية
+  const custom = guildId && resolveGuildImage(guildId, 'voice_panel_image');
+  const attachment = custom ? (custom.buffer || custom.url) : VOICE_PANEL_IMAGE;
+
   return {
-    files: [{ attachment: VOICE_PANEL_IMAGE, name: 'voice-panel.png' }],
+    files: [{ attachment, name: 'voice-panel.png' }],
     components: [row1, row2],
   };
 }
@@ -89,7 +94,7 @@ export async function refreshPanel(client, guildId) {
     if (!textCh) return;
 
     const count = getActiveCount(guildId);
-    const panel = buildStatusPanel(setup, count);
+    const panel = buildStatusPanel(guildId, setup, count);
 
     if (setup.panelMessageId) {
       const msg = await textCh.messages.fetch(setup.panelMessageId).catch(() => null);

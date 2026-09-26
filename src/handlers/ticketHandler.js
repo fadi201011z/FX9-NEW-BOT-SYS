@@ -436,25 +436,35 @@ export async function handleTicketActions(client, interaction) {
   }
 }
 
+// ── Refresh a single guild's panel (used by dashboard image change) ────────
+export async function refreshGuildPanel(client, guildId) {
+  const { getGuildConfig } = await import("../data/ticketDB.js");
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) return false;
+  const config = getGuildConfig(guildId);
+  if (!config || !config.panelChannelId) return false;
+  try {
+    const ch = guild.channels.cache.get(config.panelChannelId);
+    if (!ch) return false;
+    const messages = await ch.messages.fetch({ limit: 10 });
+    const existing = messages.find((m) => m.author.id === client.user.id && m.attachments.size > 0 && m.attachments.first()?.name === 'panel.png');
+    if (existing) {
+      await existing.edit(panelPayload(guildId));
+    } else {
+      await ch.send(panelPayload(guildId));
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ── Restore All Panels (called on startup) ──────────────────────────────────
 export async function restoreAllPanels(client) {
-  const { getGuildConfig } = await import("../data/ticketDB.js");
   let restored = 0;
   for (const [, guild] of client.guilds.cache) {
-    const config = getGuildConfig(guild.id);
-    if (!config.panelChannelId) continue;
-    try {
-      const ch = guild.channels.cache.get(config.panelChannelId);
-      if (!ch) continue;
-      const messages = await ch.messages.fetch({ limit: 10 });
-      const existing = messages.find((m) => m.author.id === client.user.id && m.attachments.size > 0 && m.attachments.first()?.name === 'panel.png');
-      if (existing) {
-        await existing.edit(panelPayload());
-      } else {
-        await ch.send(panelPayload());
-      }
-      restored++;
-    } catch {}
+    const ok = await refreshGuildPanel(client, guild.id);
+    if (ok) restored++;
   }
   if (restored > 0) console.log(`  🎫  تم ترميم ${restored} بنل تكتات`);
 }

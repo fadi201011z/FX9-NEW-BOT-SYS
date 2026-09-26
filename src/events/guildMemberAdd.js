@@ -75,7 +75,7 @@ export async function execute(member) {
       const text = `✦ — Welcome ${member} To FAdiX9 Surver . ✨`;
       void (async () => {
         try {
-          const card = await generateWelcomeCard(member);
+          const card = await generateWelcomeCard(member, guild.id);
           const attachment = new AttachmentBuilder(card, { name: 'welcome.png' });
           await welcomeCh.send({ content: text, files: [attachment] }).catch(() => {});
         } catch (err) {

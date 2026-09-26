@@ -701,6 +701,21 @@ client.once('ready', async () => {
   const { restoreAllPanels } = await import('./handlers/ticketHandler.js');
   await restoreAllPanels(client);
 
+  // Refresh a single guild's panels (tickets + voice) — used when dashboard changes panel images
+  app.post('/api/panels/refresh', async (req, res) => {
+    const { guildId } = req.body || {};
+    if (!guildId) return res.status(400).json({ error: 'Missing guildId' });
+    try {
+      const { refreshGuildPanel } = await import('./handlers/ticketHandler.js');
+      const { refreshPanel } = await import('./handlers/tempVoice.js');
+      const ticket = await refreshGuildPanel(client, guildId);
+      const voice = await refreshPanel(client, guildId).catch(() => false);
+      res.json({ success: true, ticket, voice });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Restore temp voice panels
   const { refreshPanel } = await import('./handlers/tempVoice.js');
   const { getAllSetups } = await import('./handlers/tempVoice.js');

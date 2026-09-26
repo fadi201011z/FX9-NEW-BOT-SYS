@@ -112,7 +112,7 @@ export async function execute(client) {
       if (!textCh) continue;
 
       const count = getActiveCount(guildId);
-      const panel = buildStatusPanel(setup, count);
+      const panel = buildStatusPanel(guildId, setup, count);
 
       if (setup.panelMessageId) {
         const existing = await textCh.messages.fetch(setup.panelMessageId).catch(() => null);
@@ -142,7 +142,7 @@ export async function execute(client) {
         if (!textCh) continue;
 
         const count = getActiveCount(guildId);
-        const panel = buildStatusPanel(setup, count);
+        const panel = buildStatusPanel(guildId, setup, count);
 
         if (setup.panelMessageId) {
           const existing = await textCh.messages.fetch(setup.panelMessageId).catch(() => null);

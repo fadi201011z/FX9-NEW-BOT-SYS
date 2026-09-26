@@ -47,7 +47,7 @@ export async function execute(interaction) {
     }
   } catch (_) {}
 
-  const panel = buildStatusPanel(config, 0);
+  const panel = buildStatusPanel(interaction.guildId, config, 0);
   const msg = await textCh.send(panel);
   await updatePanelMessageId(interaction.guildId, msg.id);
 

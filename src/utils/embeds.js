@@ -9,6 +9,7 @@ import {
 } from 'discord.js';
 import { CATEGORY_LABEL } from '../data/ticketTypes.js';
 import { formatDuration } from './parseDuration.js';
+import { resolveGuildImage } from './guildImage.js';
 
 // ════════════════════════════════════════════════════════════════════════════
 //  PREMIUM Color Palette 2025
@@ -177,9 +178,12 @@ const DIV2 = '━━━━━━━━━━━━━━━━━━━━━━
 
 const PANEL_IMAGE = fileURLToPath(new URL('../../assets/panel.png', import.meta.url));
 
-export function panelPayload() {
+export function panelPayload(guildId) {
+  // صورة بنل تكتات مخصصة لكل سيرفر (من الداشبورد) — تُعطى الأولوية
+  const custom = guildId && resolveGuildImage(guildId, 'ticket_panel_image');
+  const attachment = custom ? (custom.buffer || custom.url) : PANEL_IMAGE;
   return {
-    files: [{ attachment: PANEL_IMAGE, name: 'panel.png' }],
+    files: [{ attachment, name: 'panel.png' }],
     components: [panelMenu()],
   };
 }

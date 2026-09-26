@@ -2,6 +2,7 @@ import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { resolveGuildImage, fetchImageBuffer } from './guildImage.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, '..', '..', 'data');
@@ -41,7 +42,19 @@ function withTimeout(promise, ms) {
   ]);
 }
 
-async function loadBg() {
+async function loadBg(guildId) {
+  // صورة ترحيب مخصصة لكل سيرفر (من الداشبورد) — تُعطى الأولوية
+  if (guildId) {
+    const custom = resolveGuildImage(guildId, 'welcome_image');
+    if (custom) {
+      try {
+        if (custom.buffer) return await loadImage(custom.buffer);
+        const buf = await fetchImageBuffer(custom.url);
+        return await loadImage(buf);
+      } catch {}
+    }
+  }
+
   if (bgCache) return bgCache;
 
   if (existsSync(BG_CACHE)) {
@@ -63,12 +76,12 @@ async function loadBg() {
   return null;
 }
 
-export async function generateWelcomeCard(member) {
+export async function generateWelcomeCard(member, guildId) {
   const canvas = createCanvas(WIDTH, HEIGHT);
   const ctx = canvas.getContext('2d');
 
   const [bgImg, avatarImg] = await Promise.all([
-    loadBg(),
+    loadBg(guildId),
     withTimeout(loadImage(member.user.displayAvatarURL({ extension: 'png', size: 512 })), 10000),
   ]);
 

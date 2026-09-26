@@ -8,6 +8,6 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   await interaction.deferReply({ ephemeral: true });
-  await interaction.channel.send(panelPayload());
+  await interaction.channel.send(panelPayload(interaction.guildId));
   await interaction.editReply({ content: "✅ تم إرسال البنل بنجاح!" });
 }
