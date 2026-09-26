@@ -1,6 +1,6 @@
 import { Client, Collection, GatewayIntentBits, Partials, EmbedBuilder } from 'discord.js';
 import { readdir } from 'fs/promises';
-import { readFileSync, statSync, readdirSync } from 'fs';
+import { readFileSync, statSync, readdirSync, existsSync, writeFileSync, createReadStream } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 import path from 'path';
 import 'dotenv/config';
@@ -121,6 +121,38 @@ app.post('/api/sync-config', async (_req, res) => {
     await loadConfigsFromDB();
     console.log('[API] Guild config cache reloaded from DB (dashboard sync)');
     res.json({ synced: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// يعيد الصور الافتراضية الثلاث (ترحيب / بنل تذاكر / بنل صوتيات) ليستعرضها الداشبورد
+// عبر زر «عرض الصورة الحالية» عندما لا تكون هناك صورة مخصصة للسيرفر.
+app.get('/api/default-images/:type', async (req, res) => {
+  try {
+    const { type } = req.params;
+    const root = path.join(__dirname, '..');
+    let filePath = null;
+    if (type === 'ticket') {
+      filePath = path.join(root, 'assets', 'panel.png');
+    } else if (type === 'voice') {
+      filePath = path.join(root, 'assets', 'voice-panel.png');
+    } else if (type === 'welcome') {
+      filePath = path.join(root, 'data', 'welcome_bg.png');
+      if (!existsSync(filePath)) {
+        // جلب صورة الترحيب الافتراضية من الرابط الأصل وتخزينها مؤقتاً
+        const bgURL = 'https://i.ibb.co/pvYMQfxt/Gemini-Generated-Image-gimcq9gimcq9gimc-clean.png';
+        const resp = await fetch(bgURL);
+        if (!resp.ok) return res.status(502).json({ error: 'Failed to fetch welcome bg' });
+        writeFileSync(filePath, Buffer.from(await resp.arrayBuffer()));
+      }
+    } else {
+      return res.status(400).json({ error: 'Invalid type' });
+    }
+    if (!existsSync(filePath)) return res.status(404).json({ error: 'Default image not found' });
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    createReadStream(filePath).pipe(res);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
