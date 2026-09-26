@@ -1,5 +1,8 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
+import { fileURLToPath } from 'node:url';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import * as db from './db.js';
+
+const VOICE_PANEL_IMAGE = fileURLToPath(new URL('../../assets/voice-panel.png', import.meta.url));
 
 const guildSetups = new Map();
 const activeChannels = new Map();
@@ -58,24 +61,6 @@ export function getActiveCount(guildId) {
 }
 
 export function buildStatusPanel(setup, activeCount = 0) {
-  const embed = new EmbedBuilder()
-    .setTitle('🎙️ نظام القنوات الصوتية المؤقتة')
-    .setDescription(
-      '**انضم إلى قناة ➕ لإنشاء قناتك الصوتية الخاصة!**\n\n' +
-      '🔊 ستحصل على قناة باسمك فوراً\n' +
-      '🎛️ استخدم الأزرار أدناه للتحكم **بقناتك**\n' +
-      '👑 كل شخص يتحكم بقناته الخاصة فقط\n\n' +
-      `> 📊 القنوات النشطة الآن: **${activeCount}**`
-    )
-    .addFields(
-      { name: '📁 الفئة', value: `<#${setup.categoryId}>`, inline: true },
-      { name: '🔊 قناة الانضمام', value: `<#${setup.joinChannelId}>`, inline: true },
-      { name: '📊 الحالة', value: '✅ نشط', inline: true },
-    )
-    .setColor(0x5865f2)
-    .setFooter({ text: 'FX9-VOICE • كل زر يتحكم بقناتك أنت فقط' })
-    .setTimestamp();
-
   const row1 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('vc_lock').setLabel('🔒 قفل').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId('vc_unlock').setLabel('🔓 فتح').setStyle(ButtonStyle.Success),
@@ -89,7 +74,10 @@ export function buildStatusPanel(setup, activeCount = 0) {
     new ButtonBuilder().setCustomId('vc_transfer').setLabel('👑 نقل الملكية').setStyle(ButtonStyle.Secondary),
   );
 
-  return { embeds: [embed], components: [row1, row2] };
+  return {
+    files: [{ attachment: VOICE_PANEL_IMAGE, name: 'voice-panel.png' }],
+    components: [row1, row2],
+  };
 }
 
 export async function refreshPanel(client, guildId) {
