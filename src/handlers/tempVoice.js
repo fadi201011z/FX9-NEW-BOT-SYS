@@ -62,16 +62,16 @@ export function getActiveCount(guildId) {
 
 export function buildStatusPanel(setup, activeCount = 0) {
   const row1 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('vc_lock').setLabel('🔒 قفل').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('vc_unlock').setLabel('🔓 فتح').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId('vc_hide').setLabel('🙈 إخفاء').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('vc_show').setLabel('👁️ إظهار').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('vc_limit').setLabel('👥 حد الأعضاء').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('vc_lock').setLabel('قفل').setEmoji('🔒').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('vc_unlock').setLabel('فتح').setEmoji('🔓').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('vc_hide').setLabel('إخفاء').setEmoji('🙈').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('vc_show').setLabel('إظهار').setEmoji('👁️').setStyle(ButtonStyle.Secondary),
   );
   const row2 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('vc_rename').setLabel('✏️ تسمية').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('vc_kick').setLabel('👢 طرد عضو').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('vc_transfer').setLabel('👑 نقل الملكية').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('vc_limit').setLabel('حد الأعضاء').setEmoji('👥').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('vc_rename').setLabel('تسمية').setEmoji('✏️').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('vc_kick').setLabel('طرد').setEmoji('🚪').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('vc_transfer').setLabel('نقل الملكية').setEmoji('👑').setStyle(ButtonStyle.Secondary),
   );
 
   return {
