@@ -1,13 +1,12 @@
 import { Events, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
-import { getConfig, getSpamData, upsertSpamData, addWarning, getWarnings } from '../database.js';
+import { getConfig, getSpamData, upsertSpamData } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
-import { Colors, userTag, warnEmbed } from '../utils/embeds.js';
+import { Colors, userTag } from '../utils/embeds.js';
 import { updateTicketActivity } from '../handlers/inactivityHandler.js';
 import { getTicket, getTicketByAdminChannel, getGuildConfig } from '../data/ticketDB.js';
 import mongoose from 'mongoose';
 import GuildConfig from '../models/GuildConfig.js';
 import { getGuildInvite } from '../utils/invite.js';
-import { findBadWord, DEFAULT_BAD_WORDS } from '../utils/badWords.js';
 
 export const name = Events.MessageCreate;
 export const once = false;
@@ -326,109 +325,6 @@ export async function execute(message, client) {
         }).catch(() => {});
       }
       return;
-  }
-
-  // ─── Bad-Words (كلمات ممنوعة) ──────────────────────────────────────────
-  if (getConfig(guildId, 'bad_words_enabled') !== 'false') {
-    const rawWords = getConfig(guildId, 'bad_words') || null;
-    let words = [];
-    try { words = rawWords ? JSON.parse(rawWords) : []; } catch { words = []; }
-    if (!Array.isArray(words) || words.length === 0) words = DEFAULT_BAD_WORDS;
-
-    const hit = findBadWord(message.content, words);
-    if (hit) {
-      // ── هل نحذف رسالة المخالفة؟ (خيار عام + خاصية خاصة بالكلمة) ──
-      const globalDeleteMsg = getConfig(guildId, 'bad_words_delete_message') !== 'false';
-      const deleteMessage = hit.deleteMsg === null ? globalDeleteMsg : hit.deleteMsg;
-      if (deleteMessage) await message.delete().catch(() => {});
-
-      // ── العقوبة: خاصّة بالكلمة إن وُجدت، وإلا العقوبة العامة للسيرفر ──
-      const globalPunishment = getConfig(guildId, 'bad_words_punishment') || 'delete';
-      const punishment = hit.punishment || globalPunishment;
-      // مدة الإيقاف: خاصّة بالكلمة إن وُجدت، وإلا المدة العامة
-      const globalTimeout = parseInt(getConfig(guildId, 'bad_words_timeout') || '60', 10) || 60;
-      const timeoutSec = parseInt(hit.timeout, 10) > 0 ? parseInt(hit.timeout, 10) : globalTimeout;
-
-      // جلب عضوية حديثة (قد يكون message.member قديماً أو مفقوداً من الكاش)
-      const targetMember = member && member.id === userId
-        ? member
-        : await guild.members.fetch(userId).catch(() => null);
-
-      let timedOut = false, kicked = false, banned = false, warned = false, punishFailed = false;
-      let actionLabel = 'حذف فقط';
-
-      if (punishment === 'timeout') {
-        try {
-          if (targetMember) { await targetMember.timeout(timeoutSec * 1000, 'Auto-Mod: كلمة ممنوعة'); timedOut = true; }
-        } catch { punishFailed = true; /* لا صلاحية ModerateMembers أو رتبة أقل */ }
-        actionLabel = timedOut ? `إيقاف ${timeoutSec} ثانية` : `إيقاف ${timeoutSec}ث ⚠️ فشل`;
-      } else if (punishment === 'warn') {
-        warned = true;
-        addWarning(guildId, userId, message.client.user.id, `عقاب تلقائي: كلمة ممنوعة (${hit.word})`);
-        const totalWarns = getWarnings(guildId, userId).length;
-        try {
-          await message.author.send({
-            embeds: [
-              warnEmbed('تحذير تلقائي — كلمة ممنوعة', `استخدمت كلمة ممنوعة في **${guild.name}**.\n\n**الكلمة:** \`${hit.word}\`\n**إجمالي تحذيراتك:** ${totalWarns}`)
-                .setThumbnail(guild.iconURL({ dynamic: true })),
-            ],
-          }).catch(() => {});
-        } catch { /* DMs مغلقة */ }
-        actionLabel = 'تحذير رسمي';
-      } else if (punishment === 'kick') {
-        try {
-          if (targetMember) { await targetMember.kick(`Auto-Mod: كلمة ممنوعة (${hit.word})`); kicked = true; }
-        } catch { punishFailed = true; /* لا صلاحية KickMembers أو رتبة أقل أو المالك */ }
-        actionLabel = kicked ? 'طرد 🥾' : 'طرد ⚠️ فشل';
-      } else if (punishment === 'ban') {
-        try { await guild.members.ban(userId, { reason: `Auto-Mod: كلمة ممنوعة (${hit.word})` }); banned = true; }
-        catch { punishFailed = true; /* لا صلاحية BanMembers أو المالك */ }
-        actionLabel = banned ? 'حظر ⛔' : 'حظر ⚠️ فشل';
-      }
-
-      const actionNote = banned  ? ' تم **حظرك** من السيرفر.' :
-                         kicked  ? ' تم **طردك** من السيرفر.' :
-                         timedOut ? ` تم **إيقافك** مؤقتاً لمدة **${timeoutSec} ثانية**.` :
-                         warned   ? ' تم تسجيل **تحذير رسمي** بحقك — راجع الخاص.' :
-                         '';
-
-      const failNote = punishFailed
-        ? '\n\n⚠️ لم تُطبَّق العقوبة الكاملة (تحقق من صلاحيات البوت: رتبته يجب أن تكون أعلى من رتبة المخالف وتشمل ModerateMembers/KickMembers/BanMembers).'
-        : '';
-
-      const warn = await channel.send({
-        embeds: [
-          new EmbedBuilder()
-            .setColor(Colors.ERROR)
-            .setTitle('🚫 كلمة ممنوعة')
-            .setDescription(
-              `${message.author} — تحتوي رسالتك على كلمة ممنوعة.` + (deleteMessage ? '' : '\n(لم تُحذف الرسالة — تفعيل «حذف الرسالة» مغلق لهذه الكلمة/السيرفر)') + actionNote + failNote
-            )
-            .setTimestamp()
-            .setFooter({ text: '⚔️ FX9-SYS  •  الحماية التلقائية' })
-        ],
-      }).catch(() => null);
-      if (warn) setTimeout(() => warn.delete().catch(() => {}), 6000);
-
-      if (alertCh) {
-        await alertCh.send({
-          embeds: [
-            new EmbedBuilder()
-              .setColor(Colors.ERROR)
-              .setTitle('📛 Auto-Mod — كلمة ممنوعة')
-              .addFields(
-                { name: '👤 المستخدم', value: `${message.author} \`${userTag(message.author)}\``, inline: true },
-                { name: '💬 القناة',   value: `${channel}`,                                       inline: true },
-                { name: '🚫 الكلمة',   value: `\`${String(hit.word).slice(0, 100)}\``,                 inline: true },
-                { name: '⚡ الإجراء',  value: actionLabel,                                        inline: true },
-              )
-              .setTimestamp()
-              .setFooter({ text: '⚔️ FX9-SYS  •  سجلات الإشراف' })
-          ],
-        }).catch(() => {});
-      }
-      return;
-    }
   }
 
   // ─── Anti-Spam ────────────────────────────────────────────────────────
