@@ -11,8 +11,13 @@ const BG_URL = 'https://i.ibb.co/pvYMQfxt/Gemini-Generated-Image-gimcq9gimcq9gim
 const WIDTH = 1920;
 const HEIGHT = 1080;
 
-// فتحة الصورة الدائرية داخل تصميم البنر (إحداثيات بمقاس الصورة الأصلية 1672x940)
-const SLOT = { x: 824, y: 466, w: 280, h: 280 };
+// فتحة الصورة الدائرية داخل تصميم البنر
+// مقاس التصميم المرجعي: 1664x864 — نحول الإحداثيات إلى نسب لإبقائها صحيحة على أي مقاس فعلي
+const DESIGN = { w: 1664, h: 864 };
+const SLOT_CF = 824 / DESIGN.w;   // ~0.4952 (مركز X نسبة أفقية)
+const SLOT_RF = 466 / DESIGN.h;   // ~0.5394 (مركز Y نسبة رأسية)
+const SLOT_DIAM = 275;            // قطر الصورة الدائرية (270–280)
+const SLOT_RF_R = SLOT_DIAM / 2 / DESIGN.h; // نصف القطر نسبة رأسية (يحافظ على الدائرة)
 
 let bgCache = null;
 
@@ -99,15 +104,15 @@ export async function generateWelcomeCard(member) {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-  // تحويل إحداثيات الفتحة من مقاس الصورة إلى مقاس الكارت بعد الـ coverFit
+  // تحويل مواقع الفتحة من نسب التصميم إلى إحداثيات الكارت بعد الـ coverFit
   let cx, cy, r;
   if (bgImg) {
     const params = getCoverParams(bgImg, WIDTH, HEIGHT);
-    cx = (SLOT.x + SLOT.w / 2 - params.ox) * params.scale;
-    cy = (SLOT.y + SLOT.h / 2 - params.oy) * params.scale;
-    r = (SLOT.w / 2) * params.scale;
+    cx = (SLOT_CF * bgImg.width - params.ox) * params.scale;
+    cy = (SLOT_RF * bgImg.height - params.oy) * params.scale;
+    r = SLOT_RF_R * bgImg.height * params.scale;
   } else {
-    cx = 964; cy = 606; r = 140;
+    cx = WIDTH * SLOT_CF; cy = HEIGHT * SLOT_RF; r = (SLOT_DIAM / 2) * (HEIGHT / DESIGN.h);
   }
 
   roundImage(ctx, avatarImg, cx, cy, r);
