@@ -150,6 +150,19 @@ app.post('/api/config/update', async (req, res) => {
   }
 });
 
+// يعيد القائمة الافتراضية للكلمات الممنوعة (المدمجة في البوت) ليستعرضها الداشبورد
+// عندما يكون السيرفر بدون قائمة مخصصة — ببنية {word, enabled, punishment}.
+app.get('/api/bad-words/default', async (_req, res) => {
+  try {
+    const { DEFAULT_BAD_WORDS } = await import('./utils/badWords.js');
+    const words = (Array.isArray(DEFAULT_BAD_WORDS) ? DEFAULT_BAD_WORDS : [])
+      .map(w => ({ word: String(w), enabled: true, punishment: '' }));
+    res.json({ words });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // يعيد الصور الافتراضية الثلاث (ترحيب / بنل تذاكر / بنل صوتيات) ليستعرضها الداشبورد
 // عبر زر «عرض الصورة الحالية» عندما لا تكون هناك صورة مخصصة للسيرفر.
 app.get('/api/default-images/:type', async (req, res) => {

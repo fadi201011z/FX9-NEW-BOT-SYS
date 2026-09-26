@@ -59,21 +59,46 @@ function vowelReduced(s) {
 }
 
 /**
+ * تطبيع قائمة الكلمات الممنوعة إلى كائنات موحّدة {word, enabled, punishment}.
+ * يقبل القوائم القديمة (مصفوفة نصوص) والقوائم الجديدة (مصفوفة كائنات).
+ */
+export function normalizeBadWords(words) {
+  if (!Array.isArray(words)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const e of words) {
+    if (!e) continue;
+    const word = typeof e === 'string' ? e.trim() : (typeof e?.word === 'string' ? e.word.trim() : '');
+    if (!word || seen.has(word) || word.length < 1) continue;
+    seen.add(word);
+    const enabled    = typeof e === 'object' ? (e.enabled !== false) : true;
+    const punishment = typeof e === 'object' && ['delete','timeout','warn','kick','ban'].includes(e.punishment)
+      ? e.punishment : '';
+    out.push({ word, enabled, punishment });
+  }
+  return out;
+}
+
+/**
  * البحث عن كلمة ممنوعة داخل النص.
  * @param {string} content النص الأصلي للرسالة
- * @param {string[]} words قائمة الكلمات الممنوعة
- * @returns {string|null} الكلمة الممنوعة المُصادة أو null
+ * @param {Array<string|{word:string,enabled?:boolean,punishment?:string}>} words قائمة الكلمات الممنوعة
+ * @returns {object|null} كائن الكلمة المُصادة {word, punishment} أو null
  */
-export function hasBadWord(content, words) {
+export function findBadWord(content, words) {
   if (!content || !Array.isArray(words) || words.length === 0) return null;
+
+  const entries = normalizeBadWords(words);
+  if (entries.length === 0) return null;
 
   const arFlat  = toArabicFlat(content);
   const laFlat  = toLatinFlat(content);
   // هل استُخدمت رموز/أرقام لاتينية مقنّعة؟ (لا نطبّق فحص العلة إلا عندها لتفادي النتائج الخاطئة)
   const hasLeetMark = /[0-9@$!+]/.test(content);
 
-  for (const w of words) {
-    if (!w || typeof w !== 'string') continue;
+  for (const entry of entries) {
+    if (!entry || entry.enabled === false) continue;
+    const w = entry.word;
     const first = w.trim().charAt(0);
     const isArabic = /[\u0600-\u06FF]/.test(first);
 
@@ -82,17 +107,25 @@ export function hasBadWord(content, words) {
     if (prepared.length < 3) continue;
 
     if (isArabic) {
-      if (arFlat.includes(prepared)) return w;
+      if (arFlat.includes(prepared)) return { word: w, punishment: entry.punishment };
     } else {
-      if (laFlat.includes(prepared)) return w;
+      if (laFlat.includes(prepared)) return { word: w, punishment: entry.punishment };
       // f@ck → fack: مطابقة بغض النظر عن حروف العلة (فقط عند وجود رموز مقنّعة)
       if (hasLeetMark) {
         const pV = vowelReduced(prepared);
-        if (pV.length >= 3 && vowelReduced(laFlat).includes(pV)) return w;
+        if (pV.length >= 3 && vowelReduced(laFlat).includes(pV)) return { word: w, punishment: entry.punishment };
       }
     }
   }
   return null;
+}
+
+/**
+ * للتوافق مع الاستخدامات القديمة: تُرجع نص الكلمة المُصادة أو null.
+ */
+export function hasBadWord(content, words) {
+  const hit = findBadWord(content, words);
+  return hit ? hit.word : null;
 }
 
 /**

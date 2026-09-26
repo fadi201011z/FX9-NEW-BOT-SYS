@@ -7,7 +7,7 @@ import { getTicket, getTicketByAdminChannel, getGuildConfig } from '../data/tick
 import mongoose from 'mongoose';
 import GuildConfig from '../models/GuildConfig.js';
 import { getGuildInvite } from '../utils/invite.js';
-import { hasBadWord, DEFAULT_BAD_WORDS } from '../utils/badWords.js';
+import { findBadWord, DEFAULT_BAD_WORDS } from '../utils/badWords.js';
 
 export const name = Events.MessageCreate;
 export const once = false;
@@ -335,12 +335,13 @@ export async function execute(message, client) {
     try { words = rawWords ? JSON.parse(rawWords) : []; } catch { words = []; }
     if (!Array.isArray(words) || words.length === 0) words = DEFAULT_BAD_WORDS;
 
-    const hit = hasBadWord(message.content, words);
+    const hit = findBadWord(message.content, words);
     if (hit) {
       await message.delete().catch(() => {});
 
-      // ── العقوبة: تُقرأ من الداشبورد مباشرة ──
-      const punishment = getConfig(guildId, 'bad_words_punishment') || 'delete';
+      // ── العقوبة: خاصّة بالكلمة إن وُجدت، وإلا العقوبة العامة للسيرفر ──
+      const globalPunishment = getConfig(guildId, 'bad_words_punishment') || 'delete';
+      const punishment = hit.punishment || globalPunishment;
       const timeoutSec = parseInt(getConfig(guildId, 'bad_words_timeout') || '60', 10) || 60;
 
       // جلب عضوية حديثة (قد يكون message.member قديماً أو مفقوداً من الكاش)
@@ -358,12 +359,12 @@ export async function execute(message, client) {
         actionLabel = timedOut ? `إيقاف ${timeoutSec} ثانية` : `إيقاف ${timeoutSec}ث ⚠️ فشل`;
       } else if (punishment === 'warn') {
         warned = true;
-        addWarning(guildId, userId, message.client.user.id, `عقاب تلقائي: كلمة ممنوعة (${hit})`);
+        addWarning(guildId, userId, message.client.user.id, `عقاب تلقائي: كلمة ممنوعة (${hit.word})`);
         const totalWarns = getWarnings(guildId, userId).length;
         try {
           await message.author.send({
             embeds: [
-              warnEmbed('تحذير تلقائي — كلمة ممنوعة', `استخدمت كلمة ممنوعة في **${guild.name}**.\n\n**الكلمة:** \`${hit}\`\n**إجمالي تحذيراتك:** ${totalWarns}`)
+              warnEmbed('تحذير تلقائي — كلمة ممنوعة', `استخدمت كلمة ممنوعة في **${guild.name}**.\n\n**الكلمة:** \`${hit.word}\`\n**إجمالي تحذيراتك:** ${totalWarns}`)
                 .setThumbnail(guild.iconURL({ dynamic: true })),
             ],
           }).catch(() => {});
@@ -371,11 +372,11 @@ export async function execute(message, client) {
         actionLabel = 'تحذير رسمي';
       } else if (punishment === 'kick') {
         try {
-          if (targetMember) { await targetMember.kick(`Auto-Mod: كلمة ممنوعة (${hit})`); kicked = true; }
+          if (targetMember) { await targetMember.kick(`Auto-Mod: كلمة ممنوعة (${hit.word})`); kicked = true; }
         } catch { punishFailed = true; /* لا صلاحية KickMembers أو رتبة أقل أو المالك */ }
         actionLabel = kicked ? 'طرد 🥾' : 'طرد ⚠️ فشل';
       } else if (punishment === 'ban') {
-        try { await guild.members.ban(userId, { reason: `Auto-Mod: كلمة ممنوعة (${hit})` }); banned = true; }
+        try { await guild.members.ban(userId, { reason: `Auto-Mod: كلمة ممنوعة (${hit.word})` }); banned = true; }
         catch { punishFailed = true; /* لا صلاحية BanMembers أو المالك */ }
         actionLabel = banned ? 'حظر ⛔' : 'حظر ⚠️ فشل';
       }
@@ -413,7 +414,7 @@ export async function execute(message, client) {
               .addFields(
                 { name: '👤 المستخدم', value: `${message.author} \`${userTag(message.author)}\``, inline: true },
                 { name: '💬 القناة',   value: `${channel}`,                                       inline: true },
-                { name: '🚫 الكلمة',   value: `\`${String(hit).slice(0, 100)}\``,                 inline: true },
+                { name: '🚫 الكلمة',   value: `\`${String(hit.word).slice(0, 100)}\``,                 inline: true },
                 { name: '⚡ الإجراء',  value: actionLabel,                                        inline: true },
               )
               .setTimestamp()
