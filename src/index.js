@@ -254,6 +254,12 @@ client.once('ready', async () => {
     res.json({ guilds, members, ping });
   });
 
+  // Bot guild IDs for dashboard (to filter guilds where the bot is present)
+  app.get('/api/guilds', (req, res) => {
+    const guildIds = client.guilds.cache.map(g => String(g.id));
+    res.json({ guilds: guildIds, count: guildIds.length });
+  });
+
   // Command statistics for dashboard (real count from source folders)
   app.get('/api/commands/stats', (req, res) => {
     const commandsDir = path.join(__dirname, 'commands');
