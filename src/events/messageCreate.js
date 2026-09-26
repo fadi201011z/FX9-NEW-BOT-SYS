@@ -7,6 +7,7 @@ import { getTicket, getTicketByAdminChannel, getGuildConfig } from '../data/tick
 import mongoose from 'mongoose';
 import GuildConfig from '../models/GuildConfig.js';
 import { getGuildInvite } from '../utils/invite.js';
+import { hasBadWord, DEFAULT_BAD_WORDS } from '../utils/badWords.js';
 
 export const name = Events.MessageCreate;
 export const once = false;
@@ -329,6 +330,59 @@ export async function execute(message, client) {
         }).catch(() => {});
       }
       return;
+  }
+
+  // ─── Bad-Words (كلمات ممنوعة) ──────────────────────────────────────────
+  if (getConfig(guildId, 'bad_words_enabled') !== 'false') {
+    const rawWords = getConfig(guildId, 'bad_words') || null;
+    let words = [];
+    try { words = rawWords ? JSON.parse(rawWords) : []; } catch { words = []; }
+    if (!Array.isArray(words) || words.length === 0) words = DEFAULT_BAD_WORDS;
+
+    const hit = hasBadWord(message.content, words);
+    if (hit) {
+      await message.delete().catch(() => {});
+
+      const punishment = getConfig(guildId, 'bad_words_punishment') || 'delete';
+      let timedOut = false;
+      if (punishment === 'timeout') {
+        try { await member.timeout(60_000, 'Auto-Mod: كلمة ممنوعة'); timedOut = true; } catch { /* no permission */ }
+      }
+
+      const warn = await channel.send({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(Colors.ERROR)
+            .setTitle('🚫 كلمة ممنوعة')
+            .setDescription(
+              `${message.author} — تحتوي رسالتك على كلمة ممنوعة.` +
+              (timedOut ? ` تم إيقافك مؤقتاً لمدة **60 ثانية**.` : '')
+            )
+            .setTimestamp()
+            .setFooter({ text: '⚔️ FX9-SYS  •  الحماية التلقائية' })
+        ],
+      }).catch(() => null);
+      if (warn) setTimeout(() => warn.delete().catch(() => {}), 6000);
+
+      if (alertCh) {
+        await alertCh.send({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(Colors.ERROR)
+              .setTitle('📛 Auto-Mod — كلمة ممنوعة')
+              .addFields(
+                { name: '👤 المستخدم', value: `${message.author} \`${userTag(message.author)}\``, inline: true },
+                { name: '💬 القناة',   value: `${channel}`,                                       inline: true },
+                { name: '🚫 الكلمة',   value: `\`${String(hit).slice(0, 100)}\``,                 inline: true },
+                { name: '⚡ الإجراء',  value: timedOut ? 'إيقاف 60 ثانية' : 'حذف فقط',            inline: true },
+              )
+              .setTimestamp()
+              .setFooter({ text: '⚔️ FX9-SYS  •  سجلات الإشراف' })
+          ],
+        }).catch(() => {});
+      }
+      return;
+    }
   }
 
   // ─── Anti-Spam ────────────────────────────────────────────────────────
