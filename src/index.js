@@ -1,4 +1,4 @@
-import { Client, Collection, GatewayIntentBits, Partials, EmbedBuilder } from 'discord.js';
+import { Client, Collection, GatewayIntentBits, Partials, EmbedBuilder, ChannelType, PermissionFlagsBits } from 'discord.js';
 import { readdir } from 'fs/promises';
 import { readFileSync, statSync, readdirSync, existsSync, writeFileSync, createReadStream } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -313,9 +313,39 @@ client.once('ready', async () => {
     res.json(list);
   });
 
-  // Guilds list for dashboard (hasBot detection without Discord token)
-  app.get('/api/guilds', (req, res) => {
-    res.json(client.guilds.cache.map(g => ({ id: g.id, name: g.name, memberCount: g.memberCount })));
+  // Rich guilds list for dashboard (dev page: all connected servers with details)
+  app.get('/api/guilds/full', (req, res) => {
+    const guilds = client.guilds.cache.map(g => ({
+      id: g.id,
+      name: g.name,
+      icon: g.icon,
+      memberCount: g.memberCount,
+    }));
+    res.json({ guilds, count: guilds.length });
+  });
+
+  // Server invite link for dashboard (dev page: join a connected server)
+  const inviteCache = new Map(); // guildId -> { url, code, channelId, ts }
+  app.get('/api/guilds/:guildId/invite', async (req, res) => {
+    const guild = client.guilds.cache.get(req.params.guildId);
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+    const cached = inviteCache.get(guild.id);
+    if (cached && Date.now() - cached.ts < 3600000) {
+      return res.json({ url: cached.url, code: cached.code, channelId: cached.channelId, cached: true });
+    }
+    try {
+      const botId = guild.members.me?.id || client.user?.id;
+      const channel = guild.channels.cache
+        .filter(c => c.type === ChannelType.GuildText)
+        .find(c => c.permissionsFor(botId)?.has(PermissionFlagsBits.CreateInstantInvite));
+      if (!channel) return res.status(403).json({ error: 'لا يوجد روم نصي يمكن إنشاء دعوة فيه' });
+      const invite = await channel.createInvite({ maxAge: 0, maxUses: 0, reason: 'FX9 Dashboard — dev page join link' });
+      const url = `https://discord.gg/${invite.code}`;
+      inviteCache.set(guild.id, { url, code: invite.code, channelId: channel.id, ts: Date.now() });
+      res.json({ url, code: invite.code, channelId: channel.id, cached: false });
+    } catch (e) {
+      res.status(500).json({ error: e?.message || 'فشل إنشاء الدعوة' });
+    }
   });
 
   // Guild info for dashboard (member count without listing members)
