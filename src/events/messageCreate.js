@@ -337,12 +337,17 @@ export async function execute(message, client) {
 
     const hit = findBadWord(message.content, words);
     if (hit) {
-      await message.delete().catch(() => {});
+      // ── هل نحذف رسالة المخالفة؟ (خيار عام + خاصية خاصة بالكلمة) ──
+      const globalDeleteMsg = getConfig(guildId, 'bad_words_delete_message') !== 'false';
+      const deleteMessage = hit.deleteMsg === null ? globalDeleteMsg : hit.deleteMsg;
+      if (deleteMessage) await message.delete().catch(() => {});
 
       // ── العقوبة: خاصّة بالكلمة إن وُجدت، وإلا العقوبة العامة للسيرفر ──
       const globalPunishment = getConfig(guildId, 'bad_words_punishment') || 'delete';
       const punishment = hit.punishment || globalPunishment;
-      const timeoutSec = parseInt(getConfig(guildId, 'bad_words_timeout') || '60', 10) || 60;
+      // مدة الإيقاف: خاصّة بالكلمة إن وُجدت، وإلا المدة العامة
+      const globalTimeout = parseInt(getConfig(guildId, 'bad_words_timeout') || '60', 10) || 60;
+      const timeoutSec = parseInt(hit.timeout, 10) > 0 ? parseInt(hit.timeout, 10) : globalTimeout;
 
       // جلب عضوية حديثة (قد يكون message.member قديماً أو مفقوداً من الكاش)
       const targetMember = member && member.id === userId
@@ -397,7 +402,7 @@ export async function execute(message, client) {
             .setColor(Colors.ERROR)
             .setTitle('🚫 كلمة ممنوعة')
             .setDescription(
-              `${message.author} — تحتوي رسالتك على كلمة ممنوعة.` + actionNote + failNote
+              `${message.author} — تحتوي رسالتك على كلمة ممنوعة.` + (deleteMessage ? '' : '\n(لم تُحذف الرسالة — تفعيل «حذف الرسالة» مغلق لهذه الكلمة/السيرفر)') + actionNote + failNote
             )
             .setTimestamp()
             .setFooter({ text: '⚔️ FX9-SYS  •  الحماية التلقائية' })

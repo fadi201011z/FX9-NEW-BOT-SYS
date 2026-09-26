@@ -128,7 +128,7 @@ app.post('/api/sync-config', async (_req, res) => {
 
 // يسمح للداشبورد بدفع إعدادات محددة للبوت فوراً (كاش + DB) — تُستخدم لإعدادات
 // الحماية (الكلمات الممنوعة) لضمان التطبيق اللحظي مهما كان مصدر المزامنة.
-const BOT_CONFIG_WHITELIST = new Set(['bad_words_enabled', 'bad_words', 'bad_words_punishment', 'bad_words_timeout']);
+const BOT_CONFIG_WHITELIST = new Set(['bad_words_enabled', 'bad_words', 'bad_words_punishment', 'bad_words_timeout', 'bad_words_delete_message']);
 app.post('/api/config/update', async (req, res) => {
   try {
     const { setConfig } = await import('./database.js');

@@ -59,8 +59,11 @@ function vowelReduced(s) {
 }
 
 /**
- * تطبيع قائمة الكلمات الممنوعة إلى كائنات موحّدة {word, enabled, punishment}.
+ * تطبيع قائمة الكلمات الممنوعة إلى كائنات موحّدة
+ * {word, enabled, punishment, timeout, deleteMsg}.
  * يقبل القوائم القديمة (مصفوفة نصوص) والقوائم الجديدة (مصفوفة كائنات).
+ * - timeout: مدة الإيقاف الخاصة بالكلمة (ثوانٍ) أو '' لاستخدام المدة العامة
+ * - deleteMsg: true/false للتحكم بحذف رسالة المخالفة لهذه الكلمة تحديداً ('' = حسب السيرفر)
  */
 export function normalizeBadWords(words) {
   if (!Array.isArray(words)) return [];
@@ -71,10 +74,16 @@ export function normalizeBadWords(words) {
     const word = typeof e === 'string' ? e.trim() : (typeof e?.word === 'string' ? e.word.trim() : '');
     if (!word || seen.has(word) || word.length < 1) continue;
     seen.add(word);
-    const enabled    = typeof e === 'object' ? (e.enabled !== false) : true;
+    const enabled = typeof e === 'object' ? (e.enabled !== false) : true;
     const punishment = typeof e === 'object' && ['delete','timeout','warn','kick','ban'].includes(e.punishment)
       ? e.punishment : '';
-    out.push({ word, enabled, punishment });
+    let timeout = '';
+    if (typeof e === 'object' && e.timeout !== undefined && e.timeout !== '' && e.timeout !== null) {
+      const t = parseInt(String(e.timeout), 10);
+      if (Number.isFinite(t) && t > 0) timeout = Math.min(Math.max(t, 10), 86400);
+    }
+    const deleteMsg = typeof e === 'object' && typeof e.deleteMsg === 'boolean' ? e.deleteMsg : null;
+    out.push({ word, enabled, punishment, timeout, deleteMsg });
   }
   return out;
 }
@@ -82,8 +91,8 @@ export function normalizeBadWords(words) {
 /**
  * البحث عن كلمة ممنوعة داخل النص.
  * @param {string} content النص الأصلي للرسالة
- * @param {Array<string|{word:string,enabled?:boolean,punishment?:string}>} words قائمة الكلمات الممنوعة
- * @returns {object|null} كائن الكلمة المُصادة {word, punishment} أو null
+ * @param {Array<string|{word:string,enabled?:boolean,punishment?:string,timeout?:number|string,deleteMsg?:boolean}>} words قائمة الكلمات الممنوعة
+ * @returns {object|null} كائن الكلمة المُصادة {word, punishment, timeout, deleteMsg} أو null
  */
 export function findBadWord(content, words) {
   if (!content || !Array.isArray(words) || words.length === 0) return null;
@@ -107,13 +116,13 @@ export function findBadWord(content, words) {
     if (prepared.length < 3) continue;
 
     if (isArabic) {
-      if (arFlat.includes(prepared)) return { word: w, punishment: entry.punishment };
+      if (arFlat.includes(prepared)) return { word: w, punishment: entry.punishment, timeout: entry.timeout, deleteMsg: entry.deleteMsg };
     } else {
-      if (laFlat.includes(prepared)) return { word: w, punishment: entry.punishment };
+      if (laFlat.includes(prepared)) return { word: w, punishment: entry.punishment, timeout: entry.timeout, deleteMsg: entry.deleteMsg };
       // f@ck → fack: مطابقة بغض النظر عن حروف العلة (فقط عند وجود رموز مقنّعة)
       if (hasLeetMark) {
         const pV = vowelReduced(prepared);
-        if (pV.length >= 3 && vowelReduced(laFlat).includes(pV)) return { word: w, punishment: entry.punishment };
+        if (pV.length >= 3 && vowelReduced(laFlat).includes(pV)) return { word: w, punishment: entry.punishment, timeout: entry.timeout, deleteMsg: entry.deleteMsg };
       }
     }
   }
