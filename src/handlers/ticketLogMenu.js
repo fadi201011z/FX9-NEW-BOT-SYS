@@ -46,6 +46,11 @@ export async function handleTicketLogMenu(client, interaction) {
         );
       if (ticket.description) embed.addFields({ name: "📝 الوصف", value: ticket.description.slice(0, 1024), inline: false });
       if (ticket.evidence) embed.addFields({ name: "🔗 الأدلة", value: ticket.evidence.slice(0, 1024), inline: false });
+      if (Array.isArray(ticket.extra) && ticket.extra.length) {
+        for (const e of ticket.extra) {
+          embed.addFields({ name: `⚙️ ${e.label}`, value: (e.value ?? "").slice(0, 1024), inline: false });
+        }
+      }
       if (ticket.rating) embed.addFields({ name: "⭐ التقييم", value: `${stars} (${ticket.rating}/5)`, inline: true });
       if (ticket.channelId) {
         const ch = client.channels.cache.get(ticket.channelId);

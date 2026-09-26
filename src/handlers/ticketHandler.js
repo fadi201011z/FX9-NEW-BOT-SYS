@@ -9,22 +9,29 @@ import {
 } from "../data/ticketDB.js";
 import { ticketEmbed, ticketButtons, logEmbed, COLOR, panelPayload } from "../utils/embeds.js";
 import { sendOrUpdateTicketLog } from "../utils/ticketLogUtils.js";
-import { CATEGORY_SLUG } from "../data/ticketTypes.js";
+import { CATEGORY_SLUG, CATEGORY_LABEL, CATEGORY_MODAL_FIELDS, CATEGORY_EMOJI } from "../data/ticketTypes.js";
+
+const STYLE_MAP = { short: TextInputStyle.Short, paragraph: TextInputStyle.Paragraph };
 
 export async function handleCategorySelect(interaction) {
   const category = interaction.values[0];
-  const modal = new ModalBuilder().setCustomId(`ticket_modal_${category}`).setTitle("📝 تفاصيل طلبك");
-  modal.addComponents(
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder().setCustomId("title").setLabel("عنوان المشكلة").setStyle(TextInputStyle.Short).setPlaceholder("اكتب عنواناً مختصراً").setRequired(true).setMaxLength(100)
-    ),
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder().setCustomId("description").setLabel("وصف المشكلة").setStyle(TextInputStyle.Paragraph).setPlaceholder("اشرح مشكلتك بالتفصيل...").setRequired(true).setMaxLength(1000)
-    ),
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder().setCustomId("evidence").setLabel("رابط الأدلة (اختياري)").setStyle(TextInputStyle.Short).setPlaceholder("https://...").setRequired(false).setMaxLength(500)
-    )
-  );
+  const fields = CATEGORY_MODAL_FIELDS[category] ?? CATEGORY_MODAL_FIELDS.other;
+  const modal = new ModalBuilder()
+    .setCustomId(`ticket_modal_${category}`)
+    .setTitle(`${CATEGORY_EMOJI[category] ?? '📝'} ${CATEGORY_LABEL[category] ?? 'تفاصيل طلبك'}`);
+  for (const f of fields) {
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId(f.id)
+          .setLabel(f.label)
+          .setStyle(STYLE_MAP[f.style] ?? TextInputStyle.Short)
+          .setPlaceholder(f.placeholder ?? '')
+          .setRequired(f.required)
+          .setMaxLength(f.maxLength ?? 1000)
+      )
+    );
+  }
   await interaction.showModal(modal);
 }
 
@@ -50,6 +57,17 @@ export async function handleTicketModalSubmit(client, interaction) {
   const title = interaction.fields.getTextInputValue("title");
   const description = interaction.fields.getTextInputValue("description");
   const evidence = interaction.fields.getTextInputValue("evidence") || undefined;
+
+  // جمع الحقول الإضافية المخصصة لكل قسم
+  const fields = CATEGORY_MODAL_FIELDS[category] ?? CATEGORY_MODAL_FIELDS.other;
+  const extra = fields
+    .filter((f) => !["title", "description", "evidence"].includes(f.id))
+    .map((f) => ({
+      id: f.id,
+      label: f.label.replace(/^[^\s]+\s/, ""), // إزالة الإيموجي من التسمية للعرض
+      value: (() => { try { return interaction.fields.getTextInputValue(f.id); } catch { return ""; } })(),
+    }))
+    .filter((e) => e.value && e.value.trim());
 
   config.ticketCounter = (config.ticketCounter ?? 0) + 1;
   await saveGuildConfig(config);
@@ -113,6 +131,7 @@ export async function handleTicketModalSubmit(client, interaction) {
     title,
     description,
     evidence,
+    extra,
     priority: "medium",
     status: "open",
     openedAt: Date.now(),

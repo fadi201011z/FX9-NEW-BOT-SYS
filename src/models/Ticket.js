@@ -12,6 +12,7 @@ const ticketSchema = new mongoose.Schema({
   title: String,
   description: String,
   evidence: String,
+  extra: { type: mongoose.Schema.Types.Mixed, default: undefined },
   priority: { type: String, default: 'medium' },
   status: { type: String, default: 'open' },
   openedAt: { type: Number, default: Date.now },

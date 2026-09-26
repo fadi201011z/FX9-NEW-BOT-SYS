@@ -238,6 +238,9 @@ export function ticketEmbed(t, adminChannel = false) {
     `**📝 الوصف**`,
     `> ${t.description}`,
     t.evidence ? `\n**🔗 الأدلة**\n> ${t.evidence}` : '',
+    ...(Array.isArray(t.extra) && t.extra.length
+      ? t.extra.map((e) => `\n**⚙️ ${e.label}**\n> ${e.value}`).join('')
+      : []),
     '',
     `${DIV}`,
   ].filter(Boolean).join('\n');

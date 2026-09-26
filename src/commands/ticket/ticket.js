@@ -54,6 +54,9 @@ export async function execute(interaction) {
         { name: "📌 العنوان",     value: t.title },
         { name: "📝 الوصف",       value: t.description },
         ...(t.evidence ? [{ name: "🔗 الأدلة", value: t.evidence }] : []),
+        ...(Array.isArray(t.extra) && t.extra.length
+          ? t.extra.map((e) => ({ name: `⚙️ ${e.label}`, value: e.value }))
+          : []),
       ).setFooter({ text: "FX9 • Ticket Info" }).setTimestamp();
     await interaction.editReply({ embeds: [embed] });
 
