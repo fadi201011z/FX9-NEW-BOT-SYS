@@ -428,7 +428,7 @@ export async function restoreAllPanels(client) {
       const ch = guild.channels.cache.get(config.panelChannelId);
       if (!ch) continue;
       const messages = await ch.messages.fetch({ limit: 10 });
-      const existing = messages.find((m) => m.author.id === client.user.id && m.embeds.length > 0 && m.embeds[0].image?.url);
+      const existing = messages.find((m) => m.author.id === client.user.id && m.attachments.size > 0 && m.attachments.first()?.name === 'panel.png');
       if (existing) {
         await existing.edit(panelPayload());
       } else {

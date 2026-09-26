@@ -177,15 +177,8 @@ const DIV2 = '━━━━━━━━━━━━━━━━━━━━━━
 
 const PANEL_IMAGE = fileURLToPath(new URL('../../assets/panel.png', import.meta.url));
 
-export function panelEmbed() {
-  return new EmbedBuilder()
-    .setColor(0x6366f1)
-    .setImage('attachment://panel.png');
-}
-
 export function panelPayload() {
   return {
-    embeds: [panelEmbed()],
     files: [{ attachment: PANEL_IMAGE, name: 'panel.png' }],
     components: [panelMenu()],
   };
