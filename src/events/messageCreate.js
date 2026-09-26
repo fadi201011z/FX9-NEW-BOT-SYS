@@ -1,7 +1,7 @@
 import { Events, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
-import { getConfig, getSpamData, upsertSpamData } from '../database.js';
+import { getConfig, getSpamData, upsertSpamData, addWarning, getWarnings } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
-import { Colors, userTag } from '../utils/embeds.js';
+import { Colors, userTag, warnEmbed } from '../utils/embeds.js';
 import { updateTicketActivity } from '../handlers/inactivityHandler.js';
 import { getTicket, getTicketByAdminChannel, getGuildConfig } from '../data/ticketDB.js';
 import mongoose from 'mongoose';
@@ -343,11 +343,42 @@ export async function execute(message, client) {
     if (hit) {
       await message.delete().catch(() => {});
 
+      // ── العقوبة: تُقرأ من الداشبورد مباشرة ──
       const punishment = getConfig(guildId, 'bad_words_punishment') || 'delete';
-      let timedOut = false;
+      const timeoutSec = parseInt(getConfig(guildId, 'bad_words_timeout') || '60', 10) || 60;
+
+      let timedOut = false, kicked = false, banned = false, warned = false;
+      let actionLabel = 'حذف فقط';
+
       if (punishment === 'timeout') {
-        try { await member.timeout(60_000, 'Auto-Mod: كلمة ممنوعة'); timedOut = true; } catch { /* no permission */ }
+        try { await member.timeout(timeoutSec * 1000, 'Auto-Mod: كلمة ممنوعة'); timedOut = true; } catch { /* no permission */ }
+        actionLabel = `إيقاف ${timeoutSec} ثانية`;
+      } else if (punishment === 'warn') {
+        warned = true;
+        addWarning(guildId, userId, message.client.user.id, `عقاب تلقائي: كلمة ممنوعة (${hit})`);
+        const totalWarns = getWarnings(guildId, userId).length;
+        try {
+          await message.author.send({
+            embeds: [
+              warnEmbed('تحذير تلقائي — كلمة ممنوعة', `استخدمت كلمة ممنوعة في **${guild.name}**.\n\n**الكلمة:** \`${hit}\`\n**إجمالي تحذيراتك:** ${totalWarns}`)
+                .setThumbnail(guild.iconURL({ dynamic: true })),
+            ],
+          }).catch(() => {});
+        } catch { /* DMs مغلقة */ }
+        actionLabel = 'تحذير رسمي';
+      } else if (punishment === 'kick') {
+        try { await member.kick(`Auto-Mod: كلمة ممنوعة (${hit})`); kicked = true; } catch { /* no permission أو المالك */ }
+        actionLabel = 'طرد';
+      } else if (punishment === 'ban') {
+        try { await guild.members.ban(userId, { reason: `Auto-Mod: كلمة ممنوعة (${hit})` }); banned = true; } catch { /* no permission أو المالك */ }
+        actionLabel = 'حظر';
       }
+
+      const actionNote = banned  ? ' تم **حظرك** من السيرفر.' :
+                         kicked  ? ' تم **طردك** من السيرفر.' :
+                         timedOut ? ` تم **إيقافك** مؤقتاً لمدة **${timeoutSec} ثانية**.` :
+                         warned   ? ' تم تسجيل **تحذير رسمي** بحقك — راجع الخاص.' :
+                         '';
 
       const warn = await channel.send({
         embeds: [
@@ -355,8 +386,7 @@ export async function execute(message, client) {
             .setColor(Colors.ERROR)
             .setTitle('🚫 كلمة ممنوعة')
             .setDescription(
-              `${message.author} — تحتوي رسالتك على كلمة ممنوعة.` +
-              (timedOut ? ` تم إيقافك مؤقتاً لمدة **60 ثانية**.` : '')
+              `${message.author} — تحتوي رسالتك على كلمة ممنوعة.` + actionNote
             )
             .setTimestamp()
             .setFooter({ text: '⚔️ FX9-SYS  •  الحماية التلقائية' })
@@ -374,7 +404,7 @@ export async function execute(message, client) {
                 { name: '👤 المستخدم', value: `${message.author} \`${userTag(message.author)}\``, inline: true },
                 { name: '💬 القناة',   value: `${channel}`,                                       inline: true },
                 { name: '🚫 الكلمة',   value: `\`${String(hit).slice(0, 100)}\``,                 inline: true },
-                { name: '⚡ الإجراء',  value: timedOut ? 'إيقاف 60 ثانية' : 'حذف فقط',            inline: true },
+                { name: '⚡ الإجراء',  value: banned ? 'حظر ⛔' : kicked ? 'طرد 🥾' : timedOut ? `إيقاف ${timeoutSec}ث` : warned ? 'تحذير رسمي ⚠️' : 'حذف فقط', inline: true },
               )
               .setTimestamp()
               .setFooter({ text: '⚔️ FX9-SYS  •  سجلات الإشراف' })
