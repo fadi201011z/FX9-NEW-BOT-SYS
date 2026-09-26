@@ -77,22 +77,78 @@ export async function execute(message, client) {
         if (userMsgs.size > 0) await channel.bulkDelete(userMsgs).catch(() => {});
       } catch {}
 
+      // Fetch invite link for DM messages (BEFORE banning — بمجرد الحظر يفقد
+      // البوت السيرفر المشترك مع المستخدم فيفشل إرسال رسالة الخاص)
+      const inviteLink = await getGuildInvite(guild);
+
+      const userId = message.author.id;
+      const guildId = guild.id;
+      const ownerMention = guild.ownerId ? `<@${guild.ownerId}>` : 'مالك السيرفر';
+
+      // ── رسالة الخاص تُرسل قبل الحظر لضمان وصولها (طالما السيرفر مشترك) ──
+      let dmSent = false;
+      try {
+        const desc = [
+          `**السيرفر:** ${guild.name}`,
+          `**السبب:** كتابتك في روم محضور (${channel.name})`,
+          '',
+          '> هذا الإجراء تلقائي لحماية السيرفر.',
+          '> قد يكون سبب الحظر أن حسابك تم اختراقه،',
+          '> أو أنك أرسلت بالخطأ في روم ممنوع.',
+          '',
+          '**⏰ مدة الحظر: 24 ساعة**',
+          'سيتم فك الحظر تلقائياً بعد انتهاء المدة.',
+        ];
+        if (inviteLink) {
+          desc.push('');
+          desc.push(`**🔗 رابط العودة بعد فك الحظر:** ${inviteLink}`);
+        }
+        desc.push('');
+        desc.push(`إذا كنت تعتقد أن هذا خطأ، تواصل مع ${ownerMention}.`);
+
+        const dmEmbed = new EmbedBuilder()
+          .setColor(Colors.BLOOD)
+          .setTitle('🚫 تم حظرك من السيرفر')
+          .setDescription(desc.join('\n'))
+          .setTimestamp()
+          .setFooter({ text: '⚔️ FX9-SYS  •  الحماية التلقائية' });
+        await message.author.send({ embeds: [dmEmbed] });
+        dmSent = true;
+      } catch (dmErr) {
+        // حفظ سبب الفشل ليظهر في سجل الإشراف بدل الصمت التام
+        console.error(`[Restricted] فشل إرسال رسالة الخاص لـ ${userId}:`, dmErr?.message || dmErr);
+      }
+
       // Ban user for 1 day
       let banned = false;
       try {
-        await guild.members.ban(message.author.id, {
+        await guild.members.ban(userId, {
           reason: 'كتابة في روم محضور — حظر تلقائي لمدة يوم',
           deleteMessageSeconds: 86400,
         });
         banned = true;
-      } catch {}
-
-      // Fetch invite link for DM messages
-      const inviteLink = await getGuildInvite(guild);
+      } catch {
+        // الحظر فشل (لا صلاحية BanMembers أو رتبة المخالف أعلى أو مالك السيرفر)
+        // أرسل رسالة تصحيحية لأن «تم حظرك» وصلت وربما لم يُطبق الحظر فعلاً
+        try {
+          await message.author.send({
+            embeds: [
+              new EmbedBuilder()
+                .setColor(Colors.ERROR)
+                .setTitle('⚠️ لم يتم تطبيق الحظر فعلياً')
+                .setDescription(
+                  `**السيرفر:** ${guild.name}\n\n` +
+                  'تعذّر تنفيذ الحظر التلقائي (غالباً بسبب صلاحيات البوت أو أن رتبتك أعلى من رتبته).\n\n' +
+                  `إذا كنت تواجه مشكلة تواصل مع ${ownerMention}.`
+                )
+                .setTimestamp()
+                .setFooter({ text: '⚔️ FX9-SYS  •  الحماية التلقائية' }),
+            ],
+          }).catch(() => {});
+        } catch {}
+      }
 
       // Auto unban after 1 day + send DM
-      const userId = message.author.id;
-      const guildId = guild.id;
       if (banned) {
         if (!client.pendingAutoUnbans) client.pendingAutoUnbans = new Set();
         setTimeout(async () => {
@@ -124,35 +180,6 @@ export async function execute(message, client) {
         }, 24 * 60 * 60 * 1000);
       }
 
-      // Send DM to user
-      try {
-        const desc = [
-          `**السيرفر:** ${guild.name}`,
-          `**السبب:** كتابتك في روم محضور (${channel.name})`,
-          '',
-          '> هذا الإجراء تلقائي لحماية السيرفر.',
-          '> قد يكون سبب الحظر أن حسابك تم اختراقه،',
-          '> أو أنك أرسلت بالخطأ في روم ممنوع.',
-          '',
-          '**⏰ مدة الحظر: 24 ساعة**',
-          'سيتم فك الحظر تلقائياً بعد انتهاء المدة.',
-        ];
-        if (inviteLink) {
-          desc.push('');
-          desc.push(`**🔗 رابط العودة بعد فك الحظر:** ${inviteLink}`);
-        }
-        desc.push('');
-        desc.push('إذا كنت تعتقد أن هذا خطأ، تواصل مع مالك السيرفر.');
-
-        const dmEmbed = new EmbedBuilder()
-          .setColor(Colors.BLOOD)
-          .setTitle('🚫 تم حظرك من السيرفر')
-          .setDescription(desc.join('\n'))
-          .setTimestamp()
-          .setFooter({ text: '⚔️ FX9-SYS  •  الحماية التلقائية' });
-        await message.author.send({ embeds: [dmEmbed] }).catch(() => {});
-      } catch {}
-
       // Send log to alert channel
       try {
         const logChDoc = await GuildConfig.findOne({ guildId: guild.id, key: 'log_channel' }).lean();
@@ -171,6 +198,7 @@ export async function execute(message, client) {
                 { name: '👤 المستخدم', value: `${message.author} \`${userTag(message.author)}\``, inline: true },
                 { name: '💬 القناة',   value: `${channel}`,                                 inline: true },
                 { name: '📋 الإجراء',  value: banned ? 'حظر لمدة يوم ✅' : 'حذف الرسائل ❌',   inline: true },
+                { name: '✉️ رسالة الخاص', value: dmSent ? 'وصلت للمخالف ✅' : 'تعذّر الإرسال ⚠️ (خاص مغلق/حساب غير متاح)', inline: true },
                 { name: '📝 محتوى الرسالة', value: `\`\`\`${(message.content || '(بدون نص)').slice(0, 990)}\`\`\``, inline: false },
               )
               .setTimestamp()
