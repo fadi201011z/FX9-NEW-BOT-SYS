@@ -1,5 +1,5 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder, PermissionsBitField, TextChannel } from "discord.js";
-import { panelEmbed, panelMenu } from "../../utils/embeds.js";
+import { panelPayload } from "../../utils/embeds.js";
 
 export const data = new SlashCommandBuilder()
   .setName("panel")
@@ -8,6 +8,6 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   await interaction.deferReply({ ephemeral: true });
-  await interaction.channel.send({ embeds: [panelEmbed()], components: [panelMenu()] });
+  await interaction.channel.send(panelPayload());
   await interaction.editReply({ content: "✅ تم إرسال البنل بنجاح!" });
 }

@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import {
   EmbedBuilder,
   ActionRowBuilder,
@@ -174,33 +175,20 @@ export function errorEmbed(desc) {
 const DIV = '━━━━━━━━━━━━━━━━━━━━━━━━';
 const DIV2 = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
 
+const PANEL_IMAGE = fileURLToPath(new URL('../../assets/panel.png', import.meta.url));
+
 export function panelEmbed() {
   return new EmbedBuilder()
     .setColor(0x6366f1)
-    .setTitle('FX9 Ticket Tool • مركز الدعم')
-    .setDescription([
-      '### ✦ أهلاً بك في مركز الدعم',
-      '> اختر القسم المناسب من القائمة أدناه',
-      '',
-      `${DIV}`,
-      '```ansi',
-      '\u001b[1;36m🛠️  \u001b[0m\u001b[1;37mالدعم التقني     \u001b[0m\u001b[1;30m│ مشاكل وأعطال',
-      '\u001b[1;31m🚫  \u001b[0m\u001b[1;37mالبلاغات        \u001b[0m\u001b[1;30m│ شكاوى وتقارير',
-      '\u001b[1;32m🤝  \u001b[0m\u001b[1;37mالشراكات        \u001b[0m\u001b[1;30m│ تعاون واستضافة',
-      '\u001b[1;33m❓  \u001b[0m\u001b[1;37mاستفسارات عامة  \u001b[0m\u001b[1;30m│ أسئلة واستفسارات',
-      '```',
-      `${DIV}`,
-      '',
-      '### ⏱ وقت الاستجابة المتوقع',
-      '> يصل إلى **24 ساعة** — فريقنا يعمل على مدار الساعة',
-      '',
-      `${DIV}`,
-      '',
-      '>>> 🔒 **محادثتك خاصة** ولا يراها إلا المسؤولون المخولون',
-      '💡 **يرجى كتابة تفاصيل واضحة** ليسهل علينا مساعدتك',
-    ].join('\n'))
-    .setFooter(footer('FX9 • مركز الدعم'))
-    .setTimestamp();
+    .setImage('attachment://panel.png');
+}
+
+export function panelPayload() {
+  return {
+    embeds: [panelEmbed()],
+    files: [{ attachment: PANEL_IMAGE, name: 'panel.png' }],
+    components: [panelMenu()],
+  };
 }
 
 export function panelMenu() {

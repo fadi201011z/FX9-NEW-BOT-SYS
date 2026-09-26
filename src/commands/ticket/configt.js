@@ -3,7 +3,7 @@ import {
   PermissionsBitField, EmbedBuilder, ChannelType, TextChannel,
 } from "discord.js";
 import { getGuildConfig, saveGuildConfig } from "../../data/ticketDB.js";
-import { panelEmbed, panelMenu, COLOR, successEmbed, errorEmbed } from "../../utils/embeds.js";
+import { panelPayload, COLOR, successEmbed, errorEmbed } from "../../utils/embeds.js";
 
 export const data = new SlashCommandBuilder()
   .setName("configt")
@@ -100,7 +100,7 @@ export async function execute(interaction) {
 
     if (sendNow) {
       const tc = interaction.guild.channels.cache.get(ch.id);
-      await tc?.send({ embeds: [panelEmbed()], components: [panelMenu()] });
+      await tc?.send(panelPayload());
     }
     await interaction.reply({ embeds: [successEmbed(`قناة البنل: <#${ch.id}>${sendNow ? "\n✅ تم إرسال البنل فيها." : ""}`)], ephemeral: true });
 

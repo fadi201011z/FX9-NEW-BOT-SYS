@@ -7,7 +7,7 @@ import {
   saveTicket, getTicket, getAdminStats, saveAdminStats,
   getTicketByAdminChannel,
 } from "../data/ticketDB.js";
-import { ticketEmbed, ticketButtons, logEmbed, COLOR, panelEmbed, panelMenu } from "../utils/embeds.js";
+import { ticketEmbed, ticketButtons, logEmbed, COLOR, panelPayload } from "../utils/embeds.js";
 import { sendOrUpdateTicketLog } from "../utils/ticketLogUtils.js";
 import { CATEGORY_SLUG } from "../data/ticketTypes.js";
 
@@ -428,11 +428,11 @@ export async function restoreAllPanels(client) {
       const ch = guild.channels.cache.get(config.panelChannelId);
       if (!ch) continue;
       const messages = await ch.messages.fetch({ limit: 10 });
-      const existing = messages.find((m) => m.author.id === client.user.id && m.embeds.length > 0 && m.embeds[0].title?.includes?.("FX9 Ticket Tool"));
+      const existing = messages.find((m) => m.author.id === client.user.id && m.embeds.length > 0 && m.embeds[0].image?.url);
       if (existing) {
-        await existing.edit({ embeds: [panelEmbed()], components: [panelMenu()] });
+        await existing.edit(panelPayload());
       } else {
-        await ch.send({ embeds: [panelEmbed()], components: [panelMenu()] });
+        await ch.send(panelPayload());
       }
       restored++;
     } catch {}
