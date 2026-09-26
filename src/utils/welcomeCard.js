@@ -5,23 +5,26 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, '..', '..', 'data');
+const BG_ASSET = join(__dirname, '..', '..', 'assets', 'welcome-bg.png');
 const BG_CACHE = join(DATA_DIR, 'welcome_bg.png');
 const BG_URL = 'https://i.ibb.co/pvYMQfxt/Gemini-Generated-Image-gimcq9gimcq9gimc-clean.png';
 const WIDTH = 1920;
 const HEIGHT = 1080;
 
+// فتحة الصورة الدائرية داخل تصميم البنر (إحداثيات بمقاس الصورة الأصلية 1672x940)
+const SLOT = { x: 824, y: 466, w: 280, h: 280 };
+
 let bgCache = null;
 
-function coverFit(ctx, img, dw, dh) {
+function getCoverParams(img, dw, dh) {
   const sx = img.width / dw;
   const sy = img.height / dh;
   if (sx > sy) {
     const sw = img.height * (dw / dh);
-    ctx.drawImage(img, (img.width - sw) / 2, 0, sw, img.height, 0, 0, dw, dh);
-  } else {
-    const sh = img.width * (dh / dw);
-    ctx.drawImage(img, 0, (img.height - sh) / 2, img.width, sh, 0, 0, dw, dh);
+    return { sw, sh: img.height, ox: (img.width - sw) / 2, oy: 0, scale: dw / sw };
   }
+  const sh = img.width * (dh / dw);
+  return { sw: img.width, sh, ox: 0, oy: (img.height - sh) / 2, scale: dh / sh };
 }
 
 function roundImage(ctx, img, cx, cy, r) {
@@ -44,6 +47,15 @@ function withTimeout(promise, ms) {
 async function loadBg() {
   if (bgCache) return bgCache;
 
+  // 1) الملف المحلي المرفوع مع البوت (assets/welcome-bg.png)
+  if (existsSync(BG_ASSET)) {
+    try {
+      bgCache = await loadImage(readFileSync(BG_ASSET));
+      return bgCache;
+    } catch {}
+  }
+
+  // 2) كاش سابق في مجلد البيانات
   if (existsSync(BG_CACHE)) {
     try {
       bgCache = await loadImage(readFileSync(BG_CACHE));
@@ -51,6 +63,7 @@ async function loadBg() {
     } catch {}
   }
 
+  // 3) الرابط البعيد كخطة أخيرة
   try {
     const buf = await withTimeout(fetch(BG_URL).then(r => r.arrayBuffer()), 10000);
     const arr = new Uint8Array(buf);
@@ -73,26 +86,36 @@ export async function generateWelcomeCard(member) {
   ]);
 
   if (bgImg) {
-    coverFit(ctx, bgImg, WIDTH, HEIGHT);
+    const params = getCoverParams(bgImg, WIDTH, HEIGHT);
+    ctx.drawImage(bgImg, params.ox, params.oy, params.sw, params.sh, 0, 0, WIDTH, HEIGHT);
   } else {
     ctx.fillStyle = '#1a1a2e';
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
   }
 
   const grad = ctx.createLinearGradient(0, 0, 0, HEIGHT);
-  grad.addColorStop(0, 'rgba(0,0,0,0.25)');
-  grad.addColorStop(1, 'rgba(0,0,0,0.7)');
+  grad.addColorStop(0, 'rgba(0,0,0,0.15)');
+  grad.addColorStop(1, 'rgba(0,0,0,0.45)');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-  const cx = 1340, cy = 527, r = 253;
-  const avatarR = 256;
-  roundImage(ctx, avatarImg, cx, cy, avatarR);
+  // تحويل إحداثيات الفتحة من مقاس الصورة إلى مقاس الكارت بعد الـ coverFit
+  let cx, cy, r;
+  if (bgImg) {
+    const params = getCoverParams(bgImg, WIDTH, HEIGHT);
+    cx = (SLOT.x + SLOT.w / 2 - params.ox) * params.scale;
+    cy = (SLOT.y + SLOT.h / 2 - params.oy) * params.scale;
+    r = (SLOT.w / 2) * params.scale;
+  } else {
+    cx = 964; cy = 606; r = 140;
+  }
+
+  roundImage(ctx, avatarImg, cx, cy, r);
 
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 5;
+  ctx.lineWidth = 6;
   ctx.stroke();
 
   return canvas.toBuffer('image/png');
