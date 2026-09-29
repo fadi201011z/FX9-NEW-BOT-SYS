@@ -4,6 +4,7 @@ import { getLogChannel } from '../utils/permissions.js';
 import { Colors, alertEmbed, userTag } from '../utils/embeds.js';
 import { updateStatusChannels } from '../utils/statusUpdater.js';
 import { generateWelcomeCard } from '../utils/welcomeCard.js';
+import { generatePremiumCard } from '../utils/premiumCard.js';
 
 export const name = Events.GuildMemberAdd;
 export const once = false;
@@ -90,6 +91,15 @@ export async function execute(member) {
         }
       })();
     }
+  }
+
+  // ─── ⚜️ قسيم البريميوم — يُرسل للعضو فور دخوله السيرفر ────────────────
+  // المحتوى فارغ حالياً بانتظار تحديد ما يوضع فيه (داخل premiumCard.js)
+  try {
+    const premiumCard = await generatePremiumCard({ member, guild });
+    await member.send({ embeds: [premiumCard] }).catch(() => {});
+  } catch {
+    // فشل الإرسال (خاص مغلق/حساب غير متاح) — يُتجاهل بصمت
   }
 
   // ─── سجل الانضمام (قناة السجلات العامة) ─────────────────────────────────
