@@ -18,6 +18,23 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = Number(process.env.PORT) || 10000;
 
+// ─── Internal API Guard ────────────────────────────────────────────────────
+// The dashboard talks to this API across hosts. Without a shared secret the
+// /api/* routes are world-readable: anyone could dump your members or stop
+// the bot via /api/maintenance/sync. Every /api call must present the secret.
+const API_SECRET = process.env.API_SECRET || '';
+app.use('/api', (req, res, next) => {
+  if (!API_SECRET) {
+    console.error('[API Guard] API_SECRET is not set — refusing all /api requests.');
+    return res.status(503).json({ error: 'API disabled: API_SECRET not configured' });
+  }
+  const provided = req.get('x-api-key') || req.get('authorization')?.replace(/^Bearer\s+/i, '');
+  if (provided !== API_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+});
+
 app.get('/', (req, res) => res.send('FX9 Merged Bot is Online! ✅'));
 app.use(express.json());
 
