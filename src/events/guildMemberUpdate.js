@@ -4,6 +4,7 @@ import { getLogChannel } from '../utils/permissions.js';
 import { Colors, userTag } from '../utils/embeds.js';
 
 const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:10001';
+const API_SECRET = process.env.API_SECRET || '';
 
 export const name = Events.GuildMemberUpdate;
 export const once = false;
@@ -20,7 +21,10 @@ export async function execute(oldMember, newMember) {
     try {
       await fetch(`${DASHBOARD_URL}/admins/webhook/sync-member`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': API_SECRET,
+        },
         body: JSON.stringify({ guildId: guild.id, userId: newMember.id }),
       });
     } catch {}

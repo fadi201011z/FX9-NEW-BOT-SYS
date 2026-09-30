@@ -6,6 +6,7 @@ import VoiceChannel from '../models/VoiceChannel.js';
 import GuildSetup from '../models/GuildSetup.js';
 
 const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:10001';
+const API_SECRET = process.env.API_SECRET || '';
 
 export const name = Events.GuildDelete;
 export const once = false;
@@ -23,7 +24,10 @@ export async function execute(guild) {
     // Also notify dashboard to clean its data
     fetch(`${DASHBOARD_URL}/api/webhooks/guild-delete`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': API_SECRET,
+      },
       body: JSON.stringify({ guildId, secret: process.env.BOT_TOKEN }),
     }).catch(() => {}),
   ]);
