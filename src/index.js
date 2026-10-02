@@ -25,7 +25,6 @@ const PORT = Number(process.env.PORT) || 10000;
 const API_SECRET = process.env.API_SECRET || '';
 app.use('/api', (req, res, next) => {
   if (!API_SECRET) {
-    console.error('[API Guard] API_SECRET is not set — refusing all /api requests.');
     return res.status(503).json({ error: 'API disabled: API_SECRET not configured' });
   }
   const provided = req.get('x-api-key') || req.get('authorization')?.replace(/^Bearer\s+/i, '');
@@ -34,6 +33,29 @@ app.use('/api', (req, res, next) => {
   }
   next();
 });
+
+// This is a misconfiguration that produces no visible symptom on the bot side —
+// the process boots, logs in and looks perfectly healthy, while the dashboard
+// quietly reports "offline" forever. The single-line log below this used to be
+// easy to miss in a wall of startup output, and diagnosing it from the
+// dashboard side costs a round trip per guess. Print a block instead.
+if (!API_SECRET) {
+  console.error('');
+  console.error('╔══════════════════════════════════════════════════════════════╗');
+  console.error('║  ✗ API_SECRET IS NOT SET — every /api/* request returns 503   ║');
+  console.error('║                                                              ║');
+  console.error('║  The dashboard cannot read your stats, guild list or command  ║');
+  console.error('║  counts, so it shows the bot as permanently offline.          ║');
+  console.error('║                                                              ║');
+  console.error('║  FIX: in this service\'s environment variables, set            ║');
+  console.error('║       API_SECRET to the exact same value you set on the       ║');
+  console.error('║       dashboard service. Generate one with:                   ║');
+  console.error('║       node -e "console.log(require(\'crypto\')                 ║');
+  console.error('║         .randomBytes(48).toString(\'hex\'))"                  ║');
+  console.error('║  Then restart this service.                                    ║');
+  console.error('╚══════════════════════════════════════════════════════════════╝');
+  console.error('');
+}
 
 app.get('/', (req, res) => res.send('FX9 Merged Bot is Online! ✅'));
 app.use(express.json());
