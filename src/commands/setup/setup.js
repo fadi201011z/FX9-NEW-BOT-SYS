@@ -32,7 +32,7 @@ export async function execute(interaction) {
 
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
-    .setTitle('⚙️ مركز الإعدادات الموحّد — FX9')
+    .setTitle('⚙️ مركز الإعدادات الموحّد — KRS')
     .setDescription(
       '> اختر النظام الذي تريد إعداده من القائمة أدناه:\n\n' +
       '🎫 **نظام التكتات** — تكتات الدعم الفني (الأقسام، الرتب، الريلاي)\n' +
@@ -42,7 +42,7 @@ export async function execute(interaction) {
       '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n' +
       '💡 **اختر من القائمة بالأسفل** 👇'
     )
-    .setFooter({ text: 'FX9 Merged Bot • مركز الإعدادات الموحّد' })
+    .setFooter({ text: 'Kratos System • مركز الإعدادات الموحّد' })
     .setTimestamp();
 
   await interaction.reply({ embeds: [embed], components: [menu], flags: EPHEMERAL });

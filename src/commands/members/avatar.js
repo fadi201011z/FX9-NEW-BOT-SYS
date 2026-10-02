@@ -25,7 +25,7 @@ export async function execute(interaction) {
       { name: '📥 تنزيل الصورة', value: `[PNG](${user.displayAvatarURL({ format: 'png', size: 4096 })}) • [WebP](${globalAvatar}) ${isGif ? `• [GIF](${serverAvatar})` : ''}`, inline: false },
     )
     .setTimestamp()
-    .setFooter({ text: '⚔️ FX9-SYS  •  صورة العضو' });
+    .setFooter({ text: '⚔️ KRS-SYS  •  صورة العضو' });
 
   // إذا كانت صورة السيرفر مختلفة عن الصورة العامة
   if (serverAvatar !== globalAvatar) {

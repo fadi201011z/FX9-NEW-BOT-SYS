@@ -59,7 +59,7 @@ export async function sendMaintenanceStart(client, channelId, message, endTime) 
       '> ⚠️ سيتم استئناف جميع الخدمات تلقائياً بمجرد انتهاء الصيانة',
     ].join('\n'))
     .setThumbnail(client.user.displayAvatarURL({ size: 1024 }))
-    .setFooter({ text: 'FX9 System — شكراً لتفهمكم', iconURL: client.user.displayAvatarURL() });
+    .setFooter({ text: 'KRS System — شكراً لتفهمكم', iconURL: client.user.displayAvatarURL() });
 
   try {
     await channel.send({
@@ -110,7 +110,7 @@ export async function sendMaintenanceEnd(client, channelId, durationMinutes, cha
     .setTitle('✅  تم الانتهاء من الصيانة')
     .setDescription(desc)
     .setThumbnail(client.user.displayAvatarURL({ size: 1024 }))
-    .setFooter({ text: 'FX9 System — نعتذر عن أي إزعاج، وشكراً لثقتكم', iconURL: client.user.displayAvatarURL() });
+    .setFooter({ text: 'KRS System — نعتذر عن أي إزعاج، وشكراً لثقتكم', iconURL: client.user.displayAvatarURL() });
 
   const cl = changelog || {};
   const botText = (cl.botUpdates || '').trim();

@@ -6,7 +6,7 @@ import { COLOR } from "../../utils/embeds.js";
 
 export const data = new SlashCommandBuilder()
   .setName("helpt")
-  .setDescription("📖 دليل أوامر نظام التكتات FX9 — للإدارة فقط")
+  .setDescription("📖 دليل أوامر نظام التكتات KRS — للإدارة فقط")
   .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageChannels);
 
 export async function execute(interaction) {
@@ -15,7 +15,7 @@ export async function execute(interaction) {
     embeds: [
       new EmbedBuilder()
         .setColor(COLOR.blue)
-        .setTitle("📖 FX9 Ticket System v2 — دليل الأوامر الكامل")
+        .setTitle("📖 KRS Ticket System v2 — دليل الأوامر الكامل")
         .setDescription([
           "```",
           "  ███████╗██╗  ██╗ █████╗ ",
@@ -95,7 +95,7 @@ export async function execute(interaction) {
           "",
           "`/botinfo` — ℹ️ معلومات البوت والمطور والإحصائيات",
         ].join("\n"))
-        .setFooter({ text: "FX9 Support System v2 • /helpt للإدارة فقط" })
+        .setFooter({ text: "KRS Support System v2 • /helpt للإدارة فقط" })
         .setTimestamp(),
     ],
   });

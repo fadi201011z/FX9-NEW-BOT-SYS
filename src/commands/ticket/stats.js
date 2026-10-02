@@ -7,7 +7,7 @@ import { COLOR } from "../../utils/embeds.js";
 
 export const data = new SlashCommandBuilder()
   .setName("stats")
-  .setDescription("📊 .إحصائيات نظام التكتات FX9")
+  .setDescription("📊 .إحصائيات نظام التكتات KRS")
   .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageChannels);
 
 export async function execute(interaction) {
@@ -33,7 +33,7 @@ export async function execute(interaction) {
 
   const embed = new EmbedBuilder()
     .setColor(COLOR.blue)
-    .setTitle("📊 إحصائيات FX9 Ticket System")
+    .setTitle("📊 إحصائيات KRS Ticket System")
     .setDescription("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     .addFields(
       { name: "🟢 مفتوحة",          value: `**${open.length}**`, inline: true },
@@ -64,6 +64,6 @@ export async function execute(interaction) {
     });
   }
 
-  embed.setFooter({ text: "FX9 Support System • Statistics" }).setTimestamp();
+  embed.setFooter({ text: "KRS Support System • Statistics" }).setTimestamp();
   await interaction.editReply({ embeds: [embed] });
 }

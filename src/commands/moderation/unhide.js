@@ -37,7 +37,7 @@ export async function execute(interaction) {
           { name: '🛡️  بواسطة', value: `${interaction.user}`, inline: true },
         )
         .setTimestamp()
-        .setFooter({ text: '⚔️ FX9-SYS  •  إدارة القنوات' }),
+        .setFooter({ text: '⚔️ KRS-SYS  •  إدارة القنوات' }),
     ],
     flags: EPHEMERAL,
   });
@@ -54,7 +54,7 @@ export async function execute(interaction) {
             { name: '🛡️  المشرف', value: `${interaction.user}`, inline: true },
           )
           .setTimestamp()
-          .setFooter({ text: '⚔️ FX9-SYS  •  سجلات الإشراف' }),
+          .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' }),
       ],
     }).catch(() => {});
   }

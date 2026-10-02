@@ -7,7 +7,7 @@ export const data = new SlashCommandBuilder()
   .setName("ticket-show")
   .setDescription("🎫 عرض معلومات تكت برقمه أو البحث عنه")
   .addStringOption((opt) =>
-    opt.setName("ticket_id").setDescription("رقم التكت (مثل FX9-0001 أو 1)").setRequired(true).setMaxLength(20)
+    opt.setName("ticket_id").setDescription("رقم التكت (مثل KRS-0001 أو 1)").setRequired(true).setMaxLength(20)
   );
 
 export async function execute(interaction) {
@@ -36,7 +36,7 @@ export async function execute(interaction) {
     let ticket = getTicketById(input);
     if (ticket && ticket.guildId !== guildId) ticket = null;
 
-    // 2. Try searching by numeric part (FX9-0001 → user types 1)
+    // 2. Try searching by numeric part (KRS-0001 → user types 1)
     if (!ticket) {
       const all = getAllTickets(guildId);
       const num = input.replace(/[^0-9]/g, "");

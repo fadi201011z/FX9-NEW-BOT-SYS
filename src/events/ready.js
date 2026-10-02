@@ -15,7 +15,7 @@ const STATS_INTERVAL = 60 * 1000;
 
 export async function execute(client) {
   console.log(`\n╔════════════════════════════════════════╗`);
-  console.log(`║     FX9 Merged Bot — Ready!           ║`);
+  console.log(`║     Kratos System — Ready!           ║`);
   console.log(`╠════════════════════════════════════════╣`);
   console.log(`║  Tag:    ${client.user.tag.padEnd(30)}║`);
   console.log(`║  Guilds: ${String(client.guilds.cache.size).padEnd(30)}║`);

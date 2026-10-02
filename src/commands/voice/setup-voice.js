@@ -65,7 +65,7 @@ export async function execute(interaction) {
           { name: '🔊 قناة الانضمام', value: `${joinCh}`, inline: true },
           { name: '💬 قناة التحكم', value: `${textCh}`, inline: true },
         )
-        .setFooter({ text: 'FX9-VOICE v3.0' })
+        .setFooter({ text: 'KRS-VOICE v3.0' })
         .setTimestamp(),
     ],
   });

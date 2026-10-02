@@ -12,7 +12,7 @@ function buildStatuses(client) {
     { name: `🛡️ يحمي ${totalGuilds} سيرفر`,        type: ActivityType.Watching,  status: 'online' },
     { name: `👥 ${totalMembers} عضو`,                 type: ActivityType.Watching,  status: 'online' },
     { name: `⚡ ${totalCommands} أمر جاهز`,           type: ActivityType.Playing,   status: 'online' },
-    { name: '🔴 FX9-SYS | System Core',           type: ActivityType.Watching,  status: 'online' },
+    { name: '🔴 KRS-SYS | System Core',           type: ActivityType.Watching,  status: 'online' },
     { name: '🛡️ Protocol: Red-Shield Active',     type: ActivityType.Playing,   status: 'dnd'    },
     { name: '📡 Surveillance: Deep Scan',         type: ActivityType.Watching,  status: 'online' },
     { name: '⚡ Optimization: 100%',               type: ActivityType.Listening, status: 'online' },

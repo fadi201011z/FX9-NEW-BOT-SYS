@@ -60,7 +60,7 @@ export async function execute(interaction) {
       ...(after  ? [{ name: '⬇️ انضم بعده',  value: `${after}`,  inline: true }] : []),
     )
     .setTimestamp()
-    .setFooter({ text: '⚔️ FX9-SYS  •  ترتيب الانضمام' });
+    .setFooter({ text: '⚔️ KRS-SYS  •  ترتيب الانضمام' });
 
   await interaction.editReply({ embeds: [embed] });
 }

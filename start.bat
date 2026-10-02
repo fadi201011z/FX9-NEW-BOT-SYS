@@ -3,7 +3,7 @@ chcp 65001 >nul
 cd /d "%~dp0"
 
 echo ============================================
-echo   FX9 Bot - Local Launcher (v5.0.0)
+echo   KRS Bot - Local Launcher (v5.0.0)
 echo ============================================
 echo.
 

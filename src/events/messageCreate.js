@@ -111,7 +111,7 @@ export async function execute(message, client) {
           .setTitle('🚫 تم حظرك من السيرفر')
           .setDescription(desc.join('\n'))
           .setTimestamp()
-          .setFooter({ text: '⚔️ FX9-SYS  •  الحماية التلقائية' });
+          .setFooter({ text: '⚔️ KRS-SYS  •  الحماية التلقائية' });
         await message.author.send({ embeds: [dmEmbed] });
         dmSent = true;
       } catch (dmErr) {
@@ -142,7 +142,7 @@ export async function execute(message, client) {
                   `إذا كنت تواجه مشكلة تواصل مع ${ownerMention}.`
                 )
                 .setTimestamp()
-                .setFooter({ text: '⚔️ FX9-SYS  •  الحماية التلقائية' }),
+                .setFooter({ text: '⚔️ KRS-SYS  •  الحماية التلقائية' }),
             ],
           }).catch(() => {});
         } catch {}
@@ -174,7 +174,7 @@ export async function execute(message, client) {
                 'نعتذر عن أي إزعاج، ونشكرك على تفهمك.',
               ].join('\n'))
               .setTimestamp()
-              .setFooter({ text: '⚔️ FX9-SYS  •  الحماية التلقائية' });
+              .setFooter({ text: '⚔️ KRS-SYS  •  الحماية التلقائية' });
             await user.send({ embeds: [autoUnbanEmbed] }).catch(() => {});
           } catch {}
         }, 24 * 60 * 60 * 1000);
@@ -202,7 +202,7 @@ export async function execute(message, client) {
                 { name: '📝 محتوى الرسالة', value: `\`\`\`${(message.content || '(بدون نص)').slice(0, 990)}\`\`\``, inline: false },
               )
               .setTimestamp()
-              .setFooter({ text: '⚔️ FX9-SYS  •  الرومات المحضورة' });
+              .setFooter({ text: '⚔️ KRS-SYS  •  الرومات المحضورة' });
             if (message.attachments.size > 0) {
               logEmbed.addFields({
                 name: '📎 المرفقات',
@@ -295,7 +295,7 @@ export async function execute(message, client) {
           .setTitle('🚫 مسح جماعي للمنشنات')
           .setDescription(`${message.author} — لا يُسمح بمنشنة ${mentionCount} عضو في رسالة واحدة.`)
           .setTimestamp()
-          .setFooter({ text: '⚔️ FX9-SYS  •  الحماية التلقائية' })
+          .setFooter({ text: '⚔️ KRS-SYS  •  الحماية التلقائية' })
       ],
     }).catch(() => null);
     if (warn) setTimeout(() => warn.delete().catch(() => {}), 6000);
@@ -312,7 +312,7 @@ export async function execute(message, client) {
               { name: '📊 المنشنات', value: `${mentionCount} منشن`,                       inline: true },
             )
             .setTimestamp()
-            .setFooter({ text: '⚔️ FX9-SYS  •  سجلات الإشراف' })
+            .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' })
         ],
       }).catch(() => {});
     }
@@ -331,7 +331,7 @@ export async function execute(message, client) {
             .setTitle('🔗 رابط محظور')
             .setDescription(`${message.author} — الروابط غير مسموح بها في هذا السيرفر.`)
             .setTimestamp()
-            .setFooter({ text: '⚔️ FX9-SYS  •  الحماية التلقائية' })
+            .setFooter({ text: '⚔️ KRS-SYS  •  الحماية التلقائية' })
         ],
       }).catch(() => null);
       if (warn) setTimeout(() => warn.delete().catch(() => {}), 5000);
@@ -348,7 +348,7 @@ export async function execute(message, client) {
                 { name: '🔗 الرابط',   value: links[0].slice(0, 512),                       inline: false },
               )
               .setTimestamp()
-              .setFooter({ text: '⚔️ FX9-SYS  •  سجلات الإشراف' })
+              .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' })
           ],
         }).catch(() => {});
       }
@@ -385,7 +385,7 @@ export async function execute(message, client) {
             (timedOut ? `تم إيقافك مؤقتاً لمدة **${TIMEOUT_MS / 1000} ثانية**.` : 'يُرجى التوقف عن الإرسال المتكرر.')
           )
           .setTimestamp()
-          .setFooter({ text: '⚔️ FX9-SYS  •  الحماية التلقائية' })
+          .setFooter({ text: '⚔️ KRS-SYS  •  الحماية التلقائية' })
       ],
     }).catch(() => null);
     if (warn) setTimeout(() => warn.delete().catch(() => {}), 8000);
@@ -403,7 +403,7 @@ export async function execute(message, client) {
               { name: '⚡ الإجراء',  value: timedOut ? `إيقاف ${TIMEOUT_MS / 1000}ث` : 'تحذير', inline: true },
             )
             .setTimestamp()
-            .setFooter({ text: '⚔️ FX9-SYS  •  سجلات الإشراف' })
+            .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' })
         ],
       }).catch(() => {});
     }

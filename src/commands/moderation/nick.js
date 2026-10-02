@@ -36,7 +36,7 @@ export async function execute(interaction) {
         )
         .setThumbnail(target.user.displayAvatarURL({ dynamic: true }))
         .setTimestamp()
-        .setFooter({ text: '⚔️ FX9-SYS  •  إدارة الأعضاء' })
+        .setFooter({ text: '⚔️ KRS-SYS  •  إدارة الأعضاء' })
     ],
     flags: EPHEMERAL,
   });
@@ -56,7 +56,7 @@ export async function execute(interaction) {
           )
           .setThumbnail(target.user.displayAvatarURL({ dynamic: true }))
           .setTimestamp()
-          .setFooter({ text: '⚔️ FX9-SYS  •  سجلات الإشراف' })
+          .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' })
       ],
     }).catch(() => {});
   }

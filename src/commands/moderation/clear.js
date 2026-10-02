@@ -58,7 +58,7 @@ export async function execute(interaction) {
             '\u001b[1;31m✖  لا توجد رسائل مطابقة للفلتر\u001b[0m',
             '```',
           ].join('\n'))
-          .setFooter(footer('FX9 • إدارة القنوات'))
+          .setFooter(footer('KRS • إدارة القنوات'))
           .setTimestamp(),
       ],
     });
@@ -99,7 +99,7 @@ export async function execute(interaction) {
           filterText,
           `${DIV}`,
         ].join('\n'))
-        .setFooter(footer(`FX9 • ${interaction.channel.name}`))
+        .setFooter(footer(`KRS • ${interaction.channel.name}`))
         .setTimestamp(),
     ],
   });
@@ -122,7 +122,7 @@ export async function execute(interaction) {
             `**📊 العدد**  ─  ${deletedCount}`,
             filterText,
           ].join('\n'))
-          .setFooter(footer('FX9 • سجلات الإشراف'))
+          .setFooter(footer('KRS • سجلات الإشراف'))
           .setTimestamp(),
       ],
     }).catch(() => {});

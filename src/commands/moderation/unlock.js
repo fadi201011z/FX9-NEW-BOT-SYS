@@ -49,7 +49,7 @@ export async function execute(interaction) {
       '',
       '> جميع الأعضاء يستطيعون الإرسال الآن',
     ].join('\n'))
-    .setFooter(footer('FX9 • إدارة القنوات'))
+    .setFooter(footer('KRS • إدارة القنوات'))
     .setTimestamp();
 
   await interaction.reply({ embeds: [embed] });
@@ -68,7 +68,7 @@ export async function execute(interaction) {
             '',
             `**🛡️ بواسطة**  ─  ${interaction.user}`,
           ].join('\n'))
-          .setFooter(footer('FX9 • إدارة القنوات'))
+          .setFooter(footer('KRS • إدارة القنوات'))
           .setTimestamp(),
       ],
     }).catch(() => {});
@@ -90,7 +90,7 @@ export async function execute(interaction) {
             `**📢 القناة**  ─  ${channel}`,
             `**🛡️ المشرف**  ─  ${interaction.user}`,
           ].join('\n'))
-          .setFooter(footer('FX9 • سجلات الإشراف'))
+          .setFooter(footer('KRS • سجلات الإشراف'))
           .setTimestamp(),
       ],
     }).catch(() => {});

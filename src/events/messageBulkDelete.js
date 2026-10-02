@@ -37,7 +37,7 @@ export async function execute(messages, channel) {
       { name: '🛡️  بواسطة',    value: deletedBy,                        inline: true },
     )
     .setTimestamp()
-    .setFooter({ text: '⚔️ FX9-SYS  •  السجلات العامة' });
+    .setFooter({ text: '⚔️ KRS-SYS  •  السجلات العامة' });
 
   if (sample) {
     embed.addFields({ name: '📝  عينة من المحتوى', value: `\`\`\`\n${sample.slice(0, 950)}\n\`\`\``, inline: false });

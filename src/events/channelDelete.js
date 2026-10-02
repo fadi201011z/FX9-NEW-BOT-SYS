@@ -46,7 +46,7 @@ export async function execute(channel) {
         { name: '👤  المنفّذ',     value: `<@${executor.id}> (${userTag(executor)})`,       inline: false },
       )
       .setTimestamp()
-      .setFooter({ text: '⚔️ FX9-SYS  •  سجلات الإشراف' });
+      .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' });
     await targetCh.send({ embeds: [embed] }).catch(() => {});
   }
 

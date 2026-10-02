@@ -47,7 +47,7 @@ export async function execute(interaction) {
         )
         .setThumbnail(interaction.guild.iconURL({ dynamic: true }))
         .setTimestamp()
-        .setFooter({ text: '⚔️ FX9-SYS  •  الإعداد' })
+        .setFooter({ text: '⚔️ KRS-SYS  •  الإعداد' })
     ],
     flags: EPHEMERAL,
   });

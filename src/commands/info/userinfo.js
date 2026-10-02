@@ -57,7 +57,7 @@ export async function execute(interaction) {
       { name: '🏷️  الأدوار',          value: roles.slice(0, 1024),                                       inline: false },
     )
     .setTimestamp()
-    .setFooter({ text: '⚔️ FX9-SYS  •  معلومات العضو' });
+    .setFooter({ text: '⚔️ KRS-SYS  •  معلومات العضو' });
 
   if (badges.length > 0) {
     embed.addFields({ name: '🏅  الشارات', value: badges.join('\n'), inline: false });

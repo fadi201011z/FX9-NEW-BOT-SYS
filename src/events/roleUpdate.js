@@ -46,7 +46,7 @@ export async function execute(oldRole, newRole) {
       { name: '🛡️  بواسطة', value: modifiedBy, inline: true },
     )
     .setTimestamp()
-    .setFooter({ text: '⚔️ FX9-SYS  •  سجلات الإشراف' });
+    .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' });
 
   await modLogCh.send({ embeds: [embed] }).catch(() => {});
 }

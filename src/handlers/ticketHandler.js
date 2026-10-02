@@ -72,7 +72,7 @@ export async function handleTicketModalSubmit(client, interaction) {
   config.ticketCounter = (config.ticketCounter ?? 0) + 1;
   await saveGuildConfig(config);
 
-  const ticketId = `FX9-${config.ticketCounter.toString().padStart(4, "0")}`;
+  const ticketId = `KRS-${config.ticketCounter.toString().padStart(4, "0")}`;
   const chanName = `${config.ticketCounter}-${CATEGORY_SLUG[category] ?? "تكت"}`;
   const guild = interaction.guild;
 
@@ -359,7 +359,7 @@ export async function handleQuickReply(client, interaction) {
     need_evidence: "📸 **يرجى تزويدنا بصور أو أدلة إضافية** لمساعدتنا في حل مشكلتك.",
     resolved: "✅ **تم حل مشكلتك بنجاح.**\nإذا احتجت أي شيء آخر لا تتردد في التواصل.",
     clarify: "❓ **يرجى توضيح مشكلتك أكثر** حتى نتمكن من مساعدتك بشكل أفضل.",
-    thanks: "🙏 **شكراً لتواصلك مع فريق FX9!**\nنحن هنا دائماً لخدمتك.",
+    thanks: "🙏 **شكراً لتواصلك مع فريق KRS!**\nنحن هنا دائماً لخدمتك.",
     transfer: "🔄 **سيتم تحويل طلبك** إلى الجهة المختصة. يرجى الانتظار.",
     known_issue: "⚠️ **هذه مشكلة معروفة لدينا** ويعمل فريقنا على حلها حالياً. سنخطرك فور الانتهاء.",
   };

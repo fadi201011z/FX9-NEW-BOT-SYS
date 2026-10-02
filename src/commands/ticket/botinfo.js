@@ -7,7 +7,7 @@ import { COLOR } from "../../utils/embeds.js";
 
 export const data = new SlashCommandBuilder()
   .setName("botinfo")
-  .setDescription("ℹ️ معلومات حول بوت FX9 Ticket System");
+  .setDescription("ℹ️ معلومات حول بوت KRS Ticket System");
 
 export async function execute(interaction) {
   await interaction.deferReply();
@@ -27,7 +27,7 @@ export async function execute(interaction) {
 
   const embed = new EmbedBuilder()
     .setColor(COLOR.blue)
-    .setTitle("ℹ️ FX9 Ticket System — معلومات البوت")
+    .setTitle("ℹ️ KRS Ticket System — معلومات البوت")
     .setThumbnail(client.user.displayAvatarURL({ size: 256 }))
     .setDescription(
       [
@@ -46,7 +46,7 @@ export async function execute(interaction) {
       { name: "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🤖 اسم البوت",       value: `**${client.user.tag}**`, inline: true },
       { name: "📌 الإصدار",           value: "**v2.0.0**", inline: true },
       { name: "📡 السيرفرات",         value: `**${client.guilds.cache.size}**`, inline: true },
-      { name: "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n👨‍💻 مطور البوت",       value: "**FX9**", inline: true },
+      { name: "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n👨‍💻 مطور البوت",       value: "**KRS**", inline: true },
       { name: "🏷️ Framework",         value: `**discord.js v${djsVersion}**`, inline: true },
       { name: "🖥️ Runtime",           value: `**Node.js ${process.version}**`, inline: true },
       { name: "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n⏰ وقت التشغيل",      value: `**${h}س ${m}د ${s}ث**`, inline: true },
@@ -65,7 +65,7 @@ export async function execute(interaction) {
       ].join("\n"), },
       { name: "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🔗 الأوامر",          value: "`/helpt` للمشرفين | `/botinfo` | `/ticket` | `/panel`" },
     )
-    .setFooter({ text: `FX9 Ticket System v2 • طُلب بواسطة ${interaction.user.username}` })
+    .setFooter({ text: `KRS Ticket System v2 • طُلب بواسطة ${interaction.user.username}` })
     .setTimestamp();
 
   await interaction.editReply({ embeds: [embed] });

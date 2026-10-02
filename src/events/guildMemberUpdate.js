@@ -49,7 +49,7 @@ export async function execute(oldMember, newMember) {
       )
       .setThumbnail(newMember.user.displayAvatarURL({ dynamic: true }))
       .setTimestamp()
-      .setFooter({ text: '⚔️ FX9-SYS  •  سجلات الإشراف' });
+      .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' });
 
     if (addedRoles.size) {
       embed.addFields({
@@ -81,7 +81,7 @@ export async function execute(oldMember, newMember) {
       )
       .setThumbnail(newMember.user.displayAvatarURL({ dynamic: true }))
       .setTimestamp()
-      .setFooter({ text: '⚔️ FX9-SYS  •  السجلات العامة' });
+      .setFooter({ text: '⚔️ KRS-SYS  •  السجلات العامة' });
 
     await logCh.send({ embeds: [embed] }).catch(() => {});
   }

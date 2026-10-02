@@ -26,7 +26,7 @@ export async function execute(member) {
   const role = guild.roles.cache.get(autoRoleId);
   if (role) {
     member.roles.add(role).catch(() => {
-      console.log(`[FX9-SYS] فشل إضافة الرتبة - تأكد أن رتبة البوت أعلى من الرتبة المراد منحها.`);
+      console.log(`[KRS-SYS] فشل إضافة الرتبة - تأكد أن رتبة البوت أعلى من الرتبة المراد منحها.`);
     });
   }
 
@@ -85,7 +85,7 @@ export async function execute(member) {
             .setDescription(`## 👋 أهلاً بك ${member}\n` + `مرحباً في **${guild.name}**!\n` + `أنت العضو رقم **#${guild.memberCount}**`)
             .setThumbnail(avatarURL)
             .setTimestamp()
-            .setFooter({ text: `⚔️ FX9-SYS  •  ${guild.name}` });
+            .setFooter({ text: `⚔️ KRS-SYS  •  ${guild.name}` });
           await welcomeCh.send({ embeds: [fallback] }).catch(() => {});
         }
       })();
@@ -110,7 +110,7 @@ export async function execute(member) {
             )
             .setThumbnail(avatarURL)
             .setTimestamp()
-            .setFooter({ text: '⚔️ FX9-SYS  •  السجلات العامة' })
+            .setFooter({ text: '⚔️ KRS-SYS  •  السجلات العامة' })
         ],
       }).catch(() => {});
     }

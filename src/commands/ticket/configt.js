@@ -7,7 +7,7 @@ import { panelPayload, COLOR, successEmbed, errorEmbed } from "../../utils/embed
 
 export const data = new SlashCommandBuilder()
   .setName("configt")
-  .setDescription("⚙️ إعداد نظام التكتات FX9 — للإدارة فقط")
+  .setDescription("⚙️ إعداد نظام التكتات KRS — للإدارة فقط")
   .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageChannels)
 
   .addSubcommand((s) => s.setName("setup").setDescription("🚀 معالج الإعداد — عرض الوضع الحالي"))
@@ -72,7 +72,7 @@ export async function execute(interaction) {
       embeds: [
         new EmbedBuilder()
           .setColor(done >= 3 ? COLOR.green : done >= 2 ? COLOR.orange : COLOR.red)
-          .setTitle("🚀 معالج إعداد FX9")
+          .setTitle("🚀 معالج إعداد KRS")
           .setDescription([
             `**التقدم: ${done}/${checks.length}** \`[${bar}]\``,
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
@@ -86,7 +86,7 @@ export async function execute(interaction) {
             { name: "🔐 نظام القنوات المزدوجة", value: config.adminCategoryId ? "✅ مفعّل" : "❌ معطّل", inline: true },
             { name: "📌 للمساعدة",             value: "`/helpt`", inline: true },
           )
-          .setFooter({ text: "FX9 • Setup Wizard" })
+          .setFooter({ text: "KRS • Setup Wizard" })
           .setTimestamp(),
       ],
       ephemeral: true,
@@ -134,7 +134,7 @@ export async function execute(interaction) {
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
         "لتفعيله: `/configt admin_category category:[الفئة]`",
         "لتعطيله: `/configt admin_category disable:true`",
-      ].join("\n")).setFooter({ text: "FX9 • Dual Channel Relay" })], ephemeral: true });
+      ].join("\n")).setFooter({ text: "KRS • Dual Channel Relay" })], ephemeral: true });
       return;
     }
     config.adminCategoryId = ch.id;
@@ -164,7 +164,7 @@ export async function execute(interaction) {
       }
       const rows = roles.map((id, i) => `${i + 1}. <@&${id}> \`(${id})\``);
       await interaction.reply({
-        embeds: [new EmbedBuilder().setColor(COLOR.blue).setTitle(`🛡️ رتب فريق الدعم — ${roles.length}`).setDescription(rows.join("\n")).setFooter({ text: "FX9 • Support Roles" }).setTimestamp()],
+        embeds: [new EmbedBuilder().setColor(COLOR.blue).setTitle(`🛡️ رتب فريق الدعم — ${roles.length}`).setDescription(rows.join("\n")).setFooter({ text: "KRS • Support Roles" }).setTimestamp()],
         ephemeral: true,
       });
 
@@ -212,7 +212,7 @@ export async function execute(interaction) {
       embeds: [
         new EmbedBuilder()
           .setColor(COLOR.blue)
-          .setTitle("⚙️ إعدادات FX9 Ticket System")
+          .setTitle("⚙️ إعدادات KRS Ticket System")
           .setDescription("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
           .addFields(
             { name: "📣 قناة البنل",             value: config.panelChannelId    ? `<#${config.panelChannelId}>`    : "❌", inline: true },
@@ -230,7 +230,7 @@ export async function execute(interaction) {
               "`/panel` — إرسال البنل | `/helpt` — دليل الأوامر",
             ].join("\n") },
           )
-          .setFooter({ text: "FX9 • Configuration" })
+          .setFooter({ text: "KRS • Configuration" })
           .setTimestamp(),
       ],
       ephemeral: true,

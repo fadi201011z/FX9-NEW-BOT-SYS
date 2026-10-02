@@ -24,7 +24,7 @@ export async function execute(interaction) {
       { name: '6️⃣  طاعة الإدارة',           value: 'اتبع تعليمات المشرفين والمديرين.', inline: false },
     )
     .setTimestamp()
-    .setFooter({ text: `⚔️ FX9-SYS  •  قوانين ${guild.name}` });
+    .setFooter({ text: `⚔️ KRS-SYS  •  قوانين ${guild.name}` });
 
   await interaction.reply({ embeds: [embed] });
 }

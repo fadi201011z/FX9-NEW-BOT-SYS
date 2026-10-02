@@ -172,7 +172,7 @@ export async function execute(oldState, newState) {
           .setThumbnail(member?.user.displayAvatarURL({ dynamic: true }) ?? null)
           .addFields({ name: '🆔  المعرّف', value: `\`${member?.user.id ?? 'N/A'}\``, inline: true })
           .setTimestamp()
-          .setFooter({ text: '⚔️ FX9-SYS  •  السجلات العامة' })
+          .setFooter({ text: '⚔️ KRS-SYS  •  السجلات العامة' })
       ],
     }).catch(() => {});
   }

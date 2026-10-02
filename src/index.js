@@ -57,7 +57,7 @@ if (!API_SECRET) {
   console.error('');
 }
 
-app.get('/', (req, res) => res.send('FX9 Merged Bot is Online! ✅'));
+app.get('/', (req, res) => res.send('Kratos System is Online! ✅'));
 app.use(express.json());
 
 // ─── Member Resolution (gateway cache first, REST pagination guarantee) ───
@@ -406,7 +406,7 @@ client.once('ready', async () => {
         .filter(c => c.type === ChannelType.GuildText)
         .find(c => c.permissionsFor(botId)?.has(PermissionFlagsBits.CreateInstantInvite));
       if (!channel) return res.status(403).json({ error: 'لا يوجد روم نصي يمكن إنشاء دعوة فيه' });
-      const invite = await channel.createInvite({ maxAge: 0, maxUses: 0, reason: 'FX9 Dashboard — dev page join link' });
+      const invite = await channel.createInvite({ maxAge: 0, maxUses: 0, reason: 'Kratos Dashboard — dev page join link' });
       const url = `https://discord.gg/${invite.code}`;
       inviteCache.set(guild.id, { url, code: invite.code, channelId: channel.id, ts: Date.now() });
       res.json({ url, code: invite.code, channelId: channel.id, cached: false });
@@ -821,10 +821,10 @@ client.once('ready', async () => {
           '- يرجى احترام هذه القناة وعدم الكتابة فيها',
           '```',
           '',
-          '> 🛡️ *نظام الحماية التلقائية — FX9-SYS*',
+          '> 🛡️ *نظام الحماية التلقائية — KRS-SYS*',
         ].join('\n'))
         .setTimestamp()
-        .setFooter({ text: '⚔️ FX9-SYS  •  الحماية التلقائية' });
+        .setFooter({ text: '⚔️ KRS-SYS  •  الحماية التلقائية' });
       await ch.send({ embeds: [setupEmbed] });
       res.json({ success: true, message: 'Setup message sent' });
     } catch (err) {

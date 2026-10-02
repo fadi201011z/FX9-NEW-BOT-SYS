@@ -23,7 +23,7 @@ export async function execute(interaction) {
       { name: '🟢  الحالة',            value: statusText,             inline: true },
     )
     .setTimestamp()
-    .setFooter({ text: '⚔️ FX9-SYS  •  فحص الاتصال' });
+    .setFooter({ text: '⚔️ KRS-SYS  •  فحص الاتصال' });
 
   await interaction.editReply({ content: null, embeds: [embed] });
 }

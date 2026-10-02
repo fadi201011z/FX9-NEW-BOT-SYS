@@ -51,7 +51,7 @@ export async function execute(oldChannel, newChannel) {
       { name: '🛡️  بواسطة', value: modifiedBy, inline: true },
     )
     .setTimestamp()
-    .setFooter({ text: '⚔️ FX9-SYS  •  سجلات الإشراف' });
+    .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' });
 
   if (topicChanged) {
     embed.addFields(

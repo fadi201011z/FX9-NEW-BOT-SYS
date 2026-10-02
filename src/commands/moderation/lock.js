@@ -52,7 +52,7 @@ export async function execute(interaction) {
       '',
       '> الرتب الإدارية لا تزال قادرة على الإرسال بشكل طبيعي',
     ].join('\n'))
-    .setFooter(footer('FX9 • إدارة القنوات'))
+    .setFooter(footer('KRS • إدارة القنوات'))
     .setTimestamp();
 
   await interaction.reply({ embeds: [embed] });
@@ -72,7 +72,7 @@ export async function execute(interaction) {
             `**📋 السبب**  ─  ${reason}`,
             `**🛡️ بواسطة**  ─  ${interaction.user}`,
           ].join('\n'))
-          .setFooter(footer('FX9 • إدارة القنوات'))
+          .setFooter(footer('KRS • إدارة القنوات'))
           .setTimestamp(),
       ],
     }).catch(() => {});
@@ -95,7 +95,7 @@ export async function execute(interaction) {
             `**🛡️ المشرف**  ─  ${interaction.user}`,
             `**📋 السبب**  ─  ${reason}`,
           ].join('\n'))
-          .setFooter(footer('FX9 • سجلات الإشراف'))
+          .setFooter(footer('KRS • سجلات الإشراف'))
           .setTimestamp(),
       ],
     }).catch(() => {});

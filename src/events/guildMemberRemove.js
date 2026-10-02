@@ -33,7 +33,7 @@ export async function execute(member) {
     )
     .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
     .setTimestamp()
-    .setFooter({ text: '⚔️ FX9-SYS  •  السجلات العامة' });
+    .setFooter({ text: '⚔️ KRS-SYS  •  السجلات العامة' });
 
   await logCh.send({ embeds: [embed] }).catch(() => {});
   updateStatusChannels(guild, { fetchMembers: false }).catch(() => {});

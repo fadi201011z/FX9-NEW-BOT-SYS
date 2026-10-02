@@ -1,4 +1,4 @@
-# ─── FX9 Bot — Northflank / Production Dockerfile ─────────────────────────
+# ─── KRS Bot — Northflank / Production Dockerfile ─────────────────────────
 # Debian slim (glibc) وليس Alpine (musl):
 # @napi-rs/canvas وحدة أصلية، ونسخة Alpine تحتاج musl build وقد تتعطل.
 FROM node:22-slim

@@ -22,7 +22,7 @@ export async function execute(interaction, client) {
           { name: '📡 زمن الاستجابة', value: `${bar} \`${latency}ms\``, inline: true },
           { name: '💓 WebSocket', value: `${bar} \`${ws}ms\``, inline: true },
         )
-        .setFooter({ text: 'FX9-VOICE v3.0' })
+        .setFooter({ text: 'KRS-VOICE v3.0' })
         .setTimestamp(),
     ],
   });

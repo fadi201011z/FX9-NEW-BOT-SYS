@@ -44,7 +44,7 @@ export async function execute(interaction) {
 
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
-    .setTitle('⚔️ FX9 — دليل الأوامر الكامل')
+    .setTitle('⚔️ KRS — دليل الأوامر الكامل')
     .setDescription(
       '> البوت الموحّد يجمع أنظمة الإدارة والتكتات والقنوات الصوتية معاً\n' +
       '> اختر القسم من القائمة بالأسفل لاستعراض الأوامر 👇\n\n' +
@@ -67,7 +67,7 @@ export async function execute(interaction) {
         inline: false,
       },
     )
-    .setFooter({ text: 'FX9 Merged Bot • اختر القسم من القائمة أدناه' })
+    .setFooter({ text: 'Kratos System • اختر القسم من القائمة أدناه' })
     .setTimestamp();
 
   await interaction.reply({ embeds: [embed], components: [menu], flags: EPHEMERAL });

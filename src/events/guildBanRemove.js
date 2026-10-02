@@ -36,7 +36,7 @@ export async function execute(ban, client) {
             { name: '🛡️  بواسطة',  value: executor,                  inline: true },
           )
           .setTimestamp()
-          .setFooter({ text: '⚔️ FX9-SYS  •  سجلات الإشراف' })
+          .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' })
       ],
     }).catch(() => {});
   }
@@ -56,7 +56,7 @@ export async function execute(ban, client) {
           : 'يمكنك العودة إلى السيرفر الآن.',
       ].join('\n'))
       .setTimestamp()
-      .setFooter({ text: '⚔️ FX9-SYS  •  الحماية التلقائية' });
+      .setFooter({ text: '⚔️ KRS-SYS  •  الحماية التلقائية' });
     await user.send({ embeds: [embed] }).catch(() => {});
   } catch {}
 }

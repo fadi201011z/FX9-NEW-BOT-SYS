@@ -19,7 +19,7 @@ export function youtubeEmbed(video) {
       { name: 'القناة', value: `[${video.channelName}](https://www.youtube.com/channel/${video.channelId})`, inline: true },
       { name: 'تاريخ النشر', value: `<t:${Math.floor(video.publishedAt / 1000)}:R>`, inline: true },
     )
-    .setFooter({ text: 'FX9 Notifier' })
+    .setFooter({ text: 'KRS Notifier' })
     .setTimestamp();
 }
 
@@ -37,7 +37,7 @@ export function kickEmbed(stream) {
     );
   if (stream.category) embed.addFields({ name: 'Game', value: stream.category, inline: true });
   if (stream.thumbnail) embed.setImage(stream.thumbnail);
-  embed.setFooter({ text: 'FX9 Notifier' }).setTimestamp();
+  embed.setFooter({ text: 'KRS Notifier' }).setTimestamp();
   return embed;
 }
 
@@ -49,6 +49,6 @@ export function twitterEmbed(tweet) {
     .setDescription(tweet.text?.slice(0, 2000) || '')
     .setURL(tweet.url)
     .setThumbnail(tweet.channelAvatar)
-    .setFooter({ text: 'FX9 Notifier' })
+    .setFooter({ text: 'KRS Notifier' })
     .setTimestamp();
 }

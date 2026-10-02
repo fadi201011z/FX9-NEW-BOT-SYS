@@ -60,7 +60,7 @@ export async function execute(interaction) {
         "> إذا لم يكن هناك رد سيُغلق التكت تلقائياً.",
       ].join("\n")
     )
-    .setFooter({ text: `بواسطة: ${interaction.user.username} • FX9 Support` })
+    .setFooter({ text: `بواسطة: ${interaction.user.username} • KRS Support` })
     .setTimestamp();
 
   const userCh = interaction.client.channels.cache.get(ticket.channelId);

@@ -41,7 +41,7 @@ export async function execute(interaction) {
       { name: '✨  مستوى البوست',    value: `المستوى ${boostTier} (${boosters} بوست)`,                             inline: true },
     )
     .setTimestamp()
-    .setFooter({ text: '⚔️ FX9-SYS  •  معلومات السيرفر' });
+    .setFooter({ text: '⚔️ KRS-SYS  •  معلومات السيرفر' });
 
   if (guild.bannerURL()) embed.setImage(guild.bannerURL({ size: 1024 }));
 

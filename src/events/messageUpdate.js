@@ -36,7 +36,7 @@ export async function execute(oldMessage, newMessage) {
     )
     .setThumbnail(newMessage.author?.displayAvatarURL({ dynamic: true }) ?? null)
     .setTimestamp()
-    .setFooter({ text: '⚔️ FX9-SYS  •  السجلات العامة' });
+    .setFooter({ text: '⚔️ KRS-SYS  •  السجلات العامة' });
 
   await logCh.send({ embeds: [embed] }).catch(() => {});
 }

@@ -57,7 +57,7 @@ export async function execute(interaction) {
         ...(Array.isArray(t.extra) && t.extra.length
           ? t.extra.map((e) => ({ name: `⚙️ ${e.label}`, value: e.value }))
           : []),
-      ).setFooter({ text: "FX9 • Ticket Info" }).setTimestamp();
+      ).setFooter({ text: "KRS • Ticket Info" }).setTimestamp();
     await interaction.editReply({ embeds: [embed] });
 
   } else if (sub === "add") {
@@ -90,7 +90,7 @@ export async function execute(interaction) {
     const sorted = [...msgs.values()].reverse();
     const lines  = [
       `╔══════════════════════════════════════╗`,
-      `║    FX9 Support — Ticket Transcript   ║`,
+      `║    KRS Support — Ticket Transcript   ║`,
       `╚══════════════════════════════════════╝`,
       `رقم التكت : ${t.ticketId}`,
       `العضو     : ${t.username} (${t.userId})`,
@@ -100,7 +100,7 @@ export async function execute(interaction) {
       `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
       ...sorted.map((m) => `[${new Date(m.createdTimestamp).toLocaleString("ar-SA")}] ${m.author.username}: ${m.content || (m.embeds.length ? "[Embed]" : "[Attachment]")}`),
       `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-      `FX9 Support System — ${new Date().toLocaleString("ar-SA")}`,
+      `KRS Support System — ${new Date().toLocaleString("ar-SA")}`,
     ];
     const buf = Buffer.from(lines.join("\n"), "utf-8");
 
@@ -118,7 +118,7 @@ export async function execute(interaction) {
 
     const catIcon = { technical: "🛠️", complaint: "🚫", partnership: "🤝", other: "❓" };
     const rows = open.map((t) => `${catIcon[t.category] ?? "📋"} \`${t.ticketId}\` <#${t.channelId}> — ${t.claimedBy ? `📩 <@${t.claimedBy}>` : "⏳ غير مستلم"}`);
-    await interaction.editReply({ embeds: [new EmbedBuilder().setColor(COLOR.blue).setTitle(`📋 التكتات المفتوحة — ${open.length}`).setDescription("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" + rows.join("\n") + "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━").setFooter({ text: "FX9 • Open Tickets" }).setTimestamp()] });
+    await interaction.editReply({ embeds: [new EmbedBuilder().setColor(COLOR.blue).setTitle(`📋 التكتات المفتوحة — ${open.length}`).setDescription("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" + rows.join("\n") + "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━").setFooter({ text: "KRS • Open Tickets" }).setTimestamp()] });
 
   } else if (sub === "priority") {
     await interaction.deferReply({ ephemeral: true });

@@ -32,7 +32,7 @@ export async function execute(role) {
       { name: '👤  المنشئ',   value: creator,                   inline: true },
     )
     .setTimestamp()
-    .setFooter({ text: '⚔️ FX9-SYS  •  سجلات الإشراف' });
+    .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' });
 
   await modLogCh.send({ embeds: [embed] }).catch(() => {});
 }

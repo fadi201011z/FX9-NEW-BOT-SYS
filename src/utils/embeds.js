@@ -61,7 +61,7 @@ export function userTag(user) {
 
 const R = '\u200b';
 
-export function footer(text = 'FX9-SYS') {
+export function footer(text = 'KRS-SYS') {
   return { text: `⚔️ ${text}` };
 }
 
@@ -77,25 +77,25 @@ function base(color, section) {
 // ════════════════════════════════════════════════════════════════════════════
 
 export function sysSuccessEmbed(title, desc) {
-  const e = base(Colors.SUCCESS, 'FX9-SYS').setTitle(`✅ ${title}`);
+  const e = base(Colors.SUCCESS, 'KRS-SYS').setTitle(`✅ ${title}`);
   if (desc) e.setDescription(desc);
   return e;
 }
 
 export function sysErrorEmbed(title, desc) {
-  const e = base(Colors.ERROR, 'FX9-SYS').setTitle(`❌ ${title}`);
+  const e = base(Colors.ERROR, 'KRS-SYS').setTitle(`❌ ${title}`);
   if (desc) e.setDescription(desc);
   return e;
 }
 
 export function infoEmbed(title, desc) {
-  const e = base(Colors.INFO, 'FX9-SYS').setTitle(`ℹ️ ${title}`);
+  const e = base(Colors.INFO, 'KRS-SYS').setTitle(`ℹ️ ${title}`);
   if (desc) e.setDescription(desc);
   return e;
 }
 
 export function warnEmbed(title, desc) {
-  const e = base(Colors.WARNING, 'FX9-SYS').setTitle(`⚠️ ${title}`);
+  const e = base(Colors.WARNING, 'KRS-SYS').setTitle(`⚠️ ${title}`);
   if (desc) e.setDescription(desc);
   return e;
 }
@@ -157,7 +157,7 @@ export function successEmbed(desc) {
     .setTitle('✅ تم بنجاح')
     .setDescription(desc)
     .setTimestamp()
-    .setFooter(footer('FX9-SYS'));
+    .setFooter(footer('KRS-SYS'));
 }
 
 export function errorEmbed(desc) {
@@ -166,7 +166,7 @@ export function errorEmbed(desc) {
     .setTitle('❌ خطأ')
     .setDescription(desc)
     .setTimestamp()
-    .setFooter(footer('FX9-SYS'));
+    .setFooter(footer('KRS-SYS'));
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -253,7 +253,7 @@ export function ticketEmbed(t, adminChannel = false) {
     .setColor(color)
     .setTitle(adminChannel ? `🔐 ${t.ticketId} — ${label}` : `🎫 ${t.ticketId} — ${label}`)
     .setDescription(desc)
-    .setFooter(footer(adminChannel ? `FX9 • ${t.ticketId} • إدارة` : `FX9 • ${t.ticketId}`))
+    .setFooter(footer(adminChannel ? `KRS • ${t.ticketId} • إدارة` : `KRS • ${t.ticketId}`))
     .setTimestamp();
 }
 
@@ -348,10 +348,10 @@ export function ratingEmbed(ticketId, adminUsername) {
 
   return new EmbedBuilder()
     .setColor(0xf59e0b)
-    .setAuthor({ name: 'FX9 • نظام التقييم', iconURL: 'https://cdn.discordapp.com/emojis/1100192159824027751.webp' })
+    .setAuthor({ name: 'KRS • نظام التقييم', iconURL: 'https://cdn.discordapp.com/emojis/1100192159824027751.webp' })
     .setTitle('⭐ تقييم تجربة الدعم')
     .setDescription(desc)
-    .setFooter(footer('FX9 • تقييم'))
+    .setFooter(footer('KRS • تقييم'))
     .setTimestamp();
 }
 
@@ -402,7 +402,7 @@ export function closeEmbed(ticket, closedBy) {
     .setColor(COLOR.red)
     .setTitle(`🔒 تم إغلاق التذكرة — ${ticket.ticketId}`)
     .setDescription(desc)
-    .setFooter(footer(`FX9 • ${ticket.ticketId} • إغلاق`))
+    .setFooter(footer(`KRS • ${ticket.ticketId} • إغلاق`))
     .setTimestamp();
 }
 
@@ -416,7 +416,7 @@ export function logEmbed(title, color, fields) {
     .setTitle(`📋 ${title}`)
     .addFields(fields)
     .setTimestamp()
-    .setFooter(footer('FX9-SYS • سجل'));
+    .setFooter(footer('KRS-SYS • سجل'));
 }
 
 export function inactivityEmbed(ticketId) {
@@ -436,7 +436,7 @@ export function inactivityEmbed(ticketId) {
       '',
       '> 💬 يرجى الرد إن كنت لا تزال بحاجة للمساعدة',
     ].join('\n'))
-    .setFooter(footer('FX9 • تنبيه عدم نشاط'))
+    .setFooter(footer('KRS • تنبيه عدم نشاط'))
     .setTimestamp();
 }
 
@@ -464,7 +464,7 @@ export function buildTicketLogEmbed(ticket) {
   if (ticket.rating) e.addFields({ name: '⭐ التقييم', value: `${stars} (${ticket.rating}/5)`, inline: true });
 
   return e
-    .setFooter(footer(`FX9 • ${ticket.ticketId}`))
+    .setFooter(footer(`KRS • ${ticket.ticketId}`))
     .setTimestamp();
 }
 

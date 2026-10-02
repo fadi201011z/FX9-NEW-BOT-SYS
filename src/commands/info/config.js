@@ -68,7 +68,7 @@ export async function execute(interaction) {
       }
     )
     .setTimestamp()
-    .setFooter({ text: '⚔️ FX9-SYS  •  لوحة الإعدادات' });
+    .setFooter({ text: '⚔️ KRS-SYS  •  لوحة الإعدادات' });
 
   await interaction.reply({ embeds: [embed], flags: EPHEMERAL });
 }

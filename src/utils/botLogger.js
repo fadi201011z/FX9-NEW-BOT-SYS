@@ -49,7 +49,7 @@ export async function sendOnlineLog() {
   await broadcast(
     new EmbedBuilder()
       .setColor(Colors.WHITE)
-      .setTitle('🟢 FX9-SYS — متصل الآن')
+      .setTitle('🟢 KRS-SYS — متصل الآن')
       .addFields(
         { name: '🤖  البوت',          value: `\`${userTag(_client.user)}\``,       inline: true },
         { name: '🌐  السيرفرات',      value: `\`${_client.guilds.cache.size}\``,     inline: true },
@@ -60,7 +60,7 @@ export async function sendOnlineLog() {
       )
       .setThumbnail(_client.user.displayAvatarURL({ dynamic: true }))
       .setTimestamp()
-      .setFooter({ text: '⚔️ FX9-SYS  •  سجل البوت' })
+      .setFooter({ text: '⚔️ KRS-SYS  •  سجل البوت' })
   );
 }
 
@@ -69,13 +69,13 @@ export async function sendOfflineLog(reason = 'إيقاف منظّم') {
   await broadcast(
     new EmbedBuilder()
       .setColor(Colors.CRIMSON)
-      .setTitle('🔴 FX9-SYS — أوفلاين')
+      .setTitle('🔴 KRS-SYS — أوفلاين')
       .addFields(
         { name: '📋  السبب',          value: reason,                                   inline: true },
         { name: '🕐  وقت الإيقاف',   value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
       )
       .setTimestamp()
-      .setFooter({ text: '⚔️ FX9-SYS  •  سجل البوت' })
+      .setFooter({ text: '⚔️ KRS-SYS  •  سجل البوت' })
   );
 }
 
@@ -89,7 +89,7 @@ export async function sendErrorLog(label, err) {
       .setDescription(`\`\`\`\n${errText}\n\`\`\``)
       .addFields({ name: '🕐  الوقت', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true })
       .setTimestamp()
-      .setFooter({ text: '⚔️ FX9-SYS  •  سجل الأخطاء' })
+      .setFooter({ text: '⚔️ KRS-SYS  •  سجل الأخطاء' })
   );
 }
 
@@ -134,7 +134,7 @@ async function buildHbEmbed(guildId) {
 
   const embed = new EmbedBuilder()
     .setColor(Colors.DARK)
-    .setAuthor({ name: 'FX9-SYS', iconURL: client.user.displayAvatarURL() })
+    .setAuthor({ name: 'KRS-SYS', iconURL: client.user.displayAvatarURL() })
     .setTimestamp()
     .setFooter({ text: '🔄 يتحدث كل 10 دقائق • اختر تصنيفاً من القائمة' });
 

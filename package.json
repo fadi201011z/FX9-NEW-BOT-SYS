@@ -1,7 +1,7 @@
 {
-  "name": "fx9-merged-bot",
+  "name": "krs-merged-bot",
   "version": "5.0.0",
-  "description": "FX9 Merged Bot — System + Tickets + Temp Voice",
+  "description": "Kratos System — System + Tickets + Temp Voice",
   "main": "src/index.js",
   "type": "module",
   "scripts": {

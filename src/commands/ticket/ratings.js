@@ -51,7 +51,7 @@ export async function execute(interaction) {
       return [`${medals[i] ?? `\`${i + 1}.\``} <@${s.adminId}>`, `> ⭐ **${avg}/5** ${stars}`, `> 📊 ${s.ratingCount} تقييم | 🔒 ${s.closed ?? 0} مغلق`].join("\n");
     });
 
-    await interaction.editReply({ embeds: [new EmbedBuilder().setColor(COLOR.gold).setTitle(`🏆 لوحة المتصدرين — أفضل ${top}`).setDescription("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" + rows.join("\n\n") + "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━").setFooter({ text: "FX9 • Leaderboard" }).setTimestamp()] });
+    await interaction.editReply({ embeds: [new EmbedBuilder().setColor(COLOR.gold).setTitle(`🏆 لوحة المتصدرين — أفضل ${top}`).setDescription("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" + rows.join("\n\n") + "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━").setFooter({ text: "KRS • Leaderboard" }).setTimestamp()] });
 
   } else if (sub === "history") {
     const limit = interaction.options.getInteger("limit") ?? 10;
@@ -66,7 +66,7 @@ export async function execute(interaction) {
       return `\`${t.ticketId}\` ${stars} — ${admin} ${date}`;
     });
 
-    await interaction.editReply({ embeds: [new EmbedBuilder().setColor(COLOR.blue).setTitle(`📜 آخر ${limit} تقييمات`).setDescription("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" + rows.join("\n") + "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━").setFooter({ text: "FX9 • Rating History" }).setTimestamp()] });
+    await interaction.editReply({ embeds: [new EmbedBuilder().setColor(COLOR.blue).setTitle(`📜 آخر ${limit} تقييمات`).setDescription("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" + rows.join("\n") + "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━").setFooter({ text: "KRS • Rating History" }).setTimestamp()] });
 
   } else if (sub === "reset") {
     const member = await interaction.guild.members.fetch(interaction.user.id);
@@ -106,7 +106,7 @@ async function viewOne(interaction, user, guildId) {
         { name: "🔒 Closed",           value: `**${stats.closed ?? 0}**`, inline: true },
         { name: "📈 نسبة الإغلاق",    value: stats.claimed > 0 ? `**${Math.round(((stats.closed ?? 0) / stats.claimed) * 100)}%**` : "**—**", inline: true },
         { name: "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📉 توزيع النجوم", value: dist.join("\n") }
-      ).setFooter({ text: "FX9 • Admin Ratings" }).setTimestamp()
+      ).setFooter({ text: "KRS • Admin Ratings" }).setTimestamp()
   ] });
 }
 
@@ -123,6 +123,6 @@ async function viewAll(interaction, _guildId) {
   await interaction.editReply({ embeds: [
     new EmbedBuilder().setColor(COLOR.blue).setTitle("👥 تقييمات جميع المشرفين")
       .setDescription("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" + rows.join("\n") + "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n*📩 = Claimed | 🔒 = Closed*")
-      .setFooter({ text: `FX9 • ${list.length} مشرف` }).setTimestamp()
+      .setFooter({ text: `KRS • ${list.length} مشرف` }).setTimestamp()
   ] });
 }

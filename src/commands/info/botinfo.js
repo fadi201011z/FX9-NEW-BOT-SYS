@@ -30,7 +30,7 @@ export async function execute(interaction) {
 
   const embed = new EmbedBuilder()
     .setColor(Colors.INFO)
-    .setTitle('🤖 FX9-SYS — معلومات النظام')
+    .setTitle('🤖 KRS-SYS — معلومات النظام')
     .setThumbnail(client.user.displayAvatarURL({ dynamic: true, size: 256 }))
     .addFields(
       // ─── قسم البوت ───────────────────────────────────────────────────────
@@ -52,7 +52,7 @@ export async function execute(interaction) {
       { name: '👨‍💻  المطور',         value: devValue,                           inline: false },
     )
     .setTimestamp()
-    .setFooter({ text: '⚔️ FX9-SYS  •  معلومات النظام' });
+    .setFooter({ text: '⚔️ KRS-SYS  •  معلومات النظام' });
 
   await interaction.reply({ embeds: [embed] });
 }

@@ -53,7 +53,7 @@ export async function execute(interaction) {
           )
           .setThumbnail(target.user.displayAvatarURL({ dynamic: true }))
           .setTimestamp()
-          .setFooter({ text: '⚔️ FX9-SYS  •  إدارة الأدوار' })
+          .setFooter({ text: '⚔️ KRS-SYS  •  إدارة الأدوار' })
       ],
     });
 
@@ -69,7 +69,7 @@ export async function execute(interaction) {
               { name: '🛡️  المشرف', value: `${interaction.user}`,             inline: true },
             )
             .setTimestamp()
-            .setFooter({ text: '⚔️ FX9-SYS  •  سجلات الإشراف' })
+            .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' })
         ],
       }).catch(() => {});
     }
@@ -93,7 +93,7 @@ export async function execute(interaction) {
           )
           .setThumbnail(target.user.displayAvatarURL({ dynamic: true }))
           .setTimestamp()
-          .setFooter({ text: '⚔️ FX9-SYS  •  إدارة الأدوار' })
+          .setFooter({ text: '⚔️ KRS-SYS  •  إدارة الأدوار' })
       ],
     });
 
@@ -109,7 +109,7 @@ export async function execute(interaction) {
               { name: '🛡️  المشرف', value: `${interaction.user}`,             inline: true },
             )
             .setTimestamp()
-            .setFooter({ text: '⚔️ FX9-SYS  •  سجلات الإشراف' })
+            .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' })
         ],
       }).catch(() => {});
     }
