@@ -203,6 +203,65 @@ const client = new Client({
   ],
 });
 
+// ─── Dashboard-Facing API (module scope, not inside `ready`) ───────────────
+// These three endpoints feed the dashboard's landing-page metrics, so they must
+// respond from the moment the process starts — not from the moment Discord
+// logs in. A Render free-tier service sleeps after ~15 min idle and then takes
+// tens of seconds to boot and authenticate; during that window every request
+// here used to 404 and the cards showed a blank dash forever.
+// They only touch `client` at request time, so registering them early is safe.
+app.get('/api/stats', (req, res) => {
+  const ready = client.isReady();
+  const guilds = ready ? client.guilds.cache.size : 0;
+
+  // `memberCount` is undefined for guilds whose member list has not been
+  // fetched yet. Summing it unguarded turned the total into NaN, and NaN is
+  // falsy — so the dashboard's `members ? … : '—'` guard printed a dash.
+  const members = ready
+    ? client.guilds.cache.reduce(
+        (sum, g) => sum + (Number.isFinite(g.memberCount) ? g.memberCount : 0),
+        0,
+      )
+    : 0;
+
+  // ws.ping is 0 until the first heartbeat round-trip completes. Report null
+  // rather than 0 so the UI can say "غير متاح" instead of claiming "0ms".
+  const wsPing = client.ws?.ping;
+  const ping = ready && Number.isFinite(wsPing) && wsPing > 0 ? Math.round(wsPing) : null;
+
+  res.json({ online: ready, guilds, members, ping });
+});
+
+// Bot guild IDs for dashboard (to filter guilds where the bot is present)
+app.get('/api/guilds', (req, res) => {
+  const guildIds = client.isReady() ? client.guilds.cache.map(g => String(g.id)) : [];
+  res.json({ guilds: guildIds, count: guildIds.length });
+});
+
+// Command statistics for dashboard (real count from source folders)
+app.get('/api/commands/stats', (req, res) => {
+  const commandsDir = path.join(__dirname, 'commands');
+  const perCategory = {};
+  let total = 0;
+  try {
+    const cats = readdirSync(commandsDir);
+    for (const cat of cats) {
+      const catPath = path.join(commandsDir, cat);
+      if (!statSync(catPath).isDirectory()) continue;
+      const files = readdirSync(catPath).filter(f => f.endsWith('.js'));
+      let count = 0;
+      for (const file of files) {
+        try {
+          const content = readFileSync(path.join(catPath, file), 'utf-8');
+          if (/\.setName\(['"`]/.test(content)) count++;
+        } catch {}
+      }
+      if (count > 0) { perCategory[cat] = count; total += count; }
+    }
+  } catch {}
+  res.json({ total, categories: Object.keys(perCategory), perCategory });
+});
+
 client.commands = new Collection();
 
 // ─── Load Commands from ALL directories ───────────────────────────────────
@@ -263,43 +322,12 @@ client.once('ready', async () => {
   // Clean stale temp voice channels
   await cleanStaleChannels(client);
 
-  // Bot stats endpoint for dashboard
-  app.get('/api/stats', (req, res) => {
-    const guilds = client.guilds.cache.size;
-    const members = client.guilds.cache.reduce((sum, g) => sum + g.memberCount, 0);
-    const ping = client.ws.ping;
-    res.json({ guilds, members, ping });
-  });
-
-  // Bot guild IDs for dashboard (to filter guilds where the bot is present)
-  app.get('/api/guilds', (req, res) => {
-    const guildIds = client.guilds.cache.map(g => String(g.id));
-    res.json({ guilds: guildIds, count: guildIds.length });
-  });
-
-  // Command statistics for dashboard (real count from source folders)
-  app.get('/api/commands/stats', (req, res) => {
-    const commandsDir = path.join(__dirname, 'commands');
-    const perCategory = {};
-    let total = 0;
-    try {
-      const cats = readdirSync(commandsDir);
-      for (const cat of cats) {
-        const catPath = path.join(commandsDir, cat);
-        if (!statSync(catPath).isDirectory()) continue;
-        const files = readdirSync(catPath).filter(f => f.endsWith('.js'));
-        let count = 0;
-        for (const file of files) {
-          try {
-            const content = readFileSync(path.join(catPath, file), 'utf-8');
-            if (/\.setName\(['"`]/.test(content)) count++;
-          } catch {}
-        }
-        if (count > 0) { perCategory[cat] = count; total += count; }
-      }
-    } catch {}
-    res.json({ total, categories: Object.keys(perCategory), perCategory });
-  });
+  // NOTE: /api/stats, /api/guilds and /api/commands/stats are registered at
+  // module scope — right after the Discord client is constructed — so they
+  // answer even while the gateway handshake is still running. They used to
+  // live in here, which meant they 404'd until `ready` fired: during a cold
+  // start, a crash-restart or a Render free-tier wake-up the dashboard's live
+  // metric cards had nothing to read and rendered empty.
 
   // Full command list for dashboard (live source of truth)
   app.get('/api/commands', async (req, res) => {
