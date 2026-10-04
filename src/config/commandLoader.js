@@ -19,7 +19,6 @@
  */
 
 import { readdir } from 'node:fs/promises';
-import { pathToFileURL } from 'node:url';
 
 const COMMANDS_ROOT = new URL('../commands/', import.meta.url);
 
@@ -59,7 +58,11 @@ export async function commandModules() {
     }
 
     for (const file of files) {
-      const mod = await import(pathToFileURL(new URL(file, dirUrl).href).href);
+      // `new URL(...)` is already a file:// URL. Do NOT pass it through
+      // pathToFileURL again — that treats the URL as a relative filesystem path,
+      // resolves it against process.cwd(), and produces a doubled path like
+      // `file:///opt/render/project/src/file:/opt/render/project/src/...`.
+      const mod = await import(new URL(file, dirUrl).href);
       if (!mod?.data) continue;
       loaded.push({ name: mod.data.name, folder, file, mod });
     }
