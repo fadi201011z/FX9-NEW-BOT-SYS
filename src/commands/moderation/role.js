@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { requireRole, getLogChannel } from '../../utils/permissions.js';
 import { fail, modAction, logEntry, field, userTag } from '../../utils/embeds.js';
+import { markSelfAction, roleChangeKey } from '../../utils/recentAction.js';
 import { getConfig } from '../../database.js';
 import { COMMAND_ROLES } from '../../config/roles.js';
 
@@ -43,6 +44,10 @@ export async function execute(interaction) {
     if (target.roles.cache.has(role.id)) {
       return interaction.reply(fail(`${userTag(target.user)} already has ${role}`));
     }
+    // Discord answers with a GUILD_MEMBER_UPDATE a moment after this returns,
+    // and the event handler logs role changes to the same modlog. Declaring the
+    // change here keeps the modlog to one entry per action — see utils/recentAction.js.
+    markSelfAction(roleChangeKey(interaction.guildId, target.id));
     await target.roles.add(role, `added by ${userTag(interaction.user)}`);
     await interaction.reply({
       embeds: [modAction({
@@ -70,6 +75,8 @@ export async function execute(interaction) {
     if (!target.roles.cache.has(role.id)) {
       return interaction.reply(fail(`${userTag(target.user)} does not have ${role}`));
     }
+    // Same reasoning as the add branch above.
+    markSelfAction(roleChangeKey(interaction.guildId, target.id));
     await target.roles.remove(role, `removed by ${userTag(interaction.user)}`);
     await interaction.reply({
       embeds: [modAction({

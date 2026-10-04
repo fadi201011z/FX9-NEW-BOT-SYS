@@ -7,6 +7,7 @@ import { getTicket, getTicketByAdminChannel, getGuildConfig } from '../data/tick
 import mongoose from 'mongoose';
 import GuildConfig from '../models/GuildConfig.js';
 import { getGuildInvite } from '../utils/invite.js';
+import { markSelfAction, autoUnbanKey, AUTO_UNBAN_TTL_MS } from '../utils/recentAction.js';
 
 export const name = Events.MessageCreate;
 export const once = false;
@@ -164,18 +165,19 @@ export async function execute(message, client) {
 
     // ── Auto-unban ─────────────────────────────────────────────────────────
     if (banned) {
-      if (!client.pendingAutoUnbans) client.pendingAutoUnbans = new Set();
-      const key = `${guildId}:${userId}`;
+      const key = autoUnbanKey(guildId, userId);
 
       setTimeout(async () => {
+        // Registered *before* the unban so GUILD_BAN_REMOVE recognises it, and
+        // deliberately left in place afterwards: that event arrives over the
+        // gateway a moment after this REST call resolves, and on a different
+        // connection, so clearing the marker immediately meant the event almost
+        // always missed it — logging a phantom "a staff member lifted your ban"
+        // and sending the member a second, contradicting DM.
+        markSelfAction(key, AUTO_UNBAN_TTL_MS);
         try {
-          // Registered before the unban so guildBanRemove knows not to log it
-          // as a manual action.
-          client.pendingAutoUnbans.add(key);
           await guild.members.unban(userId, 'Automatic 24-hour ban expired');
-          client.pendingAutoUnbans.delete(key);
         } catch {
-          client.pendingAutoUnbans.delete(key);
           return;
         }
 

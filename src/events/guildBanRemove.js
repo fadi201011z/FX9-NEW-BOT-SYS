@@ -4,17 +4,20 @@ import { getLogChannel } from '../utils/permissions.js';
 import { getAuditEntry } from '../utils/audit.js';
 import { logEntry, notice, C } from '../utils/embeds.js';
 import { getGuildInvite } from '../utils/invite.js';
+import { isSelfAction, autoUnbanKey } from '../utils/recentAction.js';
 
 export const name = Events.GuildBanRemove;
 export const once = false;
 
-export async function execute(ban, client) {
+export async function execute(ban) {
   const { guild, user } = ban;
   if (!guild || user.bot) return;
 
-  // The bot's own /unban path already logs this — don't double-report.
-  const key = `${guild.id}:${user.id}`;
-  if (client.pendingAutoUnbans?.has(key)) return;
+  // The automatic 24-hour unban armed by the restricted-channel guard already
+  // told the member their ban lifted. Logging this event too would record an
+  // unban nobody performed and send a second DM saying a staff member lifted it
+  // manually. A real moderator unban carries no such marker, so it still logs.
+  if (isSelfAction(autoUnbanKey(guild.id, user.id))) return;
 
   let executor = null;
   try {

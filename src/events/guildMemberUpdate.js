@@ -2,6 +2,7 @@ import { Events } from 'discord.js';
 import { getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
 import { logEntry, field } from '../utils/embeds.js';
+import { isSelfAction, roleChangeKey } from '../utils/recentAction.js';
 
 const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:10001';
 const API_SECRET = process.env.API_SECRET || '';
@@ -39,7 +40,17 @@ export async function execute(oldMember, newMember) {
   const addedRoles   = newMember.roles.cache.filter((r) => !oldMember.roles.cache.has(r.id) && r.id !== guild.id);
   const removedRoles = oldMember.roles.cache.filter((r) => !newMember.roles.cache.has(r.id) && r.id !== guild.id);
 
-  if ((addedRoles.size > 0 || removedRoles.size > 0) && modLogCh) {
+  // /role already wrote its own entry — a more specific one, because it names
+  // the role and the moderator. Logging here as well gave the modlog two records
+  // of a single grant. A change made from the dashboard or the client still
+  // reaches this branch, because nothing marked it.
+  //
+  // Only this branch is skipped, not the whole handler: an event carrying a role
+  // change and a nickname change together still loses its nickname record if the
+  // role half returns early.
+  const loggedByCommand = isSelfAction(roleChangeKey(guild.id, newMember.id));
+
+  if ((addedRoles.size > 0 || removedRoles.size > 0) && modLogCh && !loggedByCommand) {
     const fields = [];
     if (addedRoles.size) {
       fields.push(field('Roles added', addedRoles.map((r) => r.toString()).join(', ').slice(0, 1024), false));
