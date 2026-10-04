@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { requireRole, canModerate, getLogChannel } from '../../utils/permissions.js';
-import { ok, fail, notice, logEntry, C } from '../../utils/embeds.js';
+import { fail, notice, modAction, logEntry, C, userTag } from '../../utils/embeds.js';
 import { getConfig } from '../../database.js';
 import { COMMAND_ROLES } from '../../config/roles.js';
 
@@ -25,24 +25,31 @@ export async function execute(interaction) {
     await target.send({
       embeds: [notice({
         title: `You have been kicked from ${interaction.guild.name}`,
-        description: `**Reason:** ${reason}\n**Moderator:** ${interaction.user.tag}`,
+        description: `**Reason:** ${reason}\n**Moderator:** ${userTag(interaction.user)}`,
         color: C.warn,
         thumbnail: interaction.guild.iconURL({ dynamic: true }),
       })],
     });
   } catch { /* DMs are closed */ }
 
-  await target.kick(`${interaction.user.tag}: ${reason}`);
+  await target.kick(`${userTag(interaction.user)}: ${reason}`);
 
-  await interaction.reply(ok(`Kicked ${target.user.tag}`));
+  await interaction.reply({
+    embeds: [modAction({
+      kind: 'kick',
+      target: `${userTag(target.user)} (\`${target.user.id}\`)`,
+      actor: userTag(interaction.user),
+      reason,
+    })],
+  });
 
   const modLogCh = await getLogChannel(interaction.guild, getConfig(interaction.guildId, 'modlog_channel'));
   if (modLogCh) {
     await modLogCh.send({
       embeds: [logEntry({
         kind: 'kick',
-        target: `${target.user.tag} (\`${target.user.id}\`)`,
-        actor: interaction.user.tag,
+        target: `${userTag(target.user)} (\`${target.user.id}\`)`,
+        actor: userTag(interaction.user),
         reason,
       })],
     }).catch(() => {});

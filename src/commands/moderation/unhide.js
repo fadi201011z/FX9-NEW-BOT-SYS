@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
 import { requireRole, getLogChannel } from '../../utils/permissions.js';
-import { ok, logEntry } from '../../utils/embeds.js';
+import { modAction, logEntry, userTag } from '../../utils/embeds.js';
 import { getConfig } from '../../database.js';
 import { COMMAND_ROLES, clearAdminOverwrites } from '../../config/roles.js';
 
@@ -27,7 +27,14 @@ export async function execute(interaction) {
   // 2) Drop the explicit overwrites /hide added for admin roles
   await clearAdminOverwrites(channel, interaction.guild);
 
-  await interaction.reply(ok(`Unhid ${channel} — regular members can see it again.`));
+  await interaction.reply({
+    embeds: [modAction({
+      kind: 'unhide',
+      description: 'Regular members can see this channel again.',
+      target: channel.toString(),
+      actor: userTag(interaction.user),
+    })],
+  });
 
   const modLogCh = await getLogChannel(interaction.guild, getConfig(interaction.guildId, 'modlog_channel'));
   if (modLogCh) {
@@ -35,7 +42,7 @@ export async function execute(interaction) {
       embeds: [logEntry({
         kind: 'unhide',
         target: channel.toString(),
-        actor: interaction.user.tag,
+        actor: userTag(interaction.user),
       })],
     }).catch(() => {});
   }

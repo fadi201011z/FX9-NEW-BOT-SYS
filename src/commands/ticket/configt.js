@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionsBitField, ChannelType } from 'discord.js';
 import { getGuildConfig, saveGuildConfig } from '../../data/ticketDB.js';
-import { ok, fail, notice, field, panelPayload, C } from '../../utils/embeds.js';
+import { C, EPHEMERAL, fail, field, notice, ok, panelPayload } from '../../utils/embeds.js';
 
 export const data = new SlashCommandBuilder()
   .setName('configt')
@@ -50,7 +50,7 @@ const channel = (id) => (id ? `<#${id}>` : UNSET);
 export async function execute(interaction) {
   const config = getGuildConfig(interaction.guildId);
   const sub    = interaction.options.getSubcommand();
-  const reply  = (payload) => interaction.reply({ flags: 64, ...payload });
+  const reply  = (payload) => interaction.reply({ flags: EPHEMERAL, ...payload });
 
   // ── setup ────────────────────────────────────────────────────────────────
   // A checklist the owner works through, so each row carries its own fix.

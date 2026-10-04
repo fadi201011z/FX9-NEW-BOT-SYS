@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { requireRole, getLogChannel } from '../../utils/permissions.js';
-import { logEntry, field } from '../../utils/embeds.js';
+import { modAction, logEntry, field, C, userTag } from '../../utils/embeds.js';
 import { getConfig } from '../../database.js';
 import { COMMAND_ROLES } from '../../config/roles.js';
 
@@ -17,7 +17,11 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction) {
   if (!await requireRole(interaction, COMMAND_ROLES.clear)) return;
 
-  await interaction.deferReply({ flags: 64 });
+  // Deferred publicly, and therefore finished publicly: Discord does not let a
+  // deferred message change ephemeralness. Purging can take several fetches, so
+  // both the "nothing matched" outcome and the result have to live in the
+  // channel — staff should see that a purge was attempted, and what it removed.
+  await interaction.deferReply();
 
   const amount     = interaction.options.getInteger('amount');
   const filterUser = interaction.options.getUser('user');
@@ -47,8 +51,14 @@ export async function execute(interaction) {
 
   if (collected.length === 0) {
     return interaction.editReply({
-      content: '❌ No messages matched that filter.',
-      flags: 64,
+      embeds: [modAction({
+        kind: 'clear',
+        description: 'Nothing matched, so nothing was deleted.',
+        color: C.warn,
+        target: interaction.channel.toString(),
+        actor: userTag(interaction.user),
+        fields: [field('Requested', `${amount} message${amount === 1 ? '' : 's'}`)],
+      })],
     });
   }
 
@@ -67,14 +77,19 @@ export async function execute(interaction) {
   }
 
   const filters = [];
-  if (filterUser) filters.push(field('Member filter', filterUser.tag));
+  if (filterUser) filters.push(field('Member filter', userTag(filterUser)));
   if (botsOnly)   filters.push(field('Message source', 'Bots only'));
 
   const summary = deletedCount === 1 ? '1 message' : `${deletedCount} messages`;
 
   await interaction.editReply({
-    content: `✅ Purged ${summary} in ${interaction.channel}.`,
-    flags: 64,
+    embeds: [modAction({
+      kind: 'clear',
+      description: `${summary} removed from this channel.`,
+      target: interaction.channel.toString(),
+      actor: userTag(interaction.user),
+      fields: [field('Deleted', summary), ...filters],
+    })],
   });
 
   const modLogCh = await getLogChannel(interaction.guild, getConfig(interaction.guildId, 'modlog_channel'));
@@ -83,7 +98,7 @@ export async function execute(interaction) {
       embeds: [logEntry({
         kind: 'clear',
         target: interaction.channel.toString(),
-        actor: interaction.user.tag,
+        actor: userTag(interaction.user),
         fields: [field('Deleted', summary), ...filters],
       })],
     }).catch(() => {});

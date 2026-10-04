@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionsBitField } from 'discord.js';
-import { notice, field, C } from '../../utils/embeds.js';
+import { C, EPHEMERAL, field, notice } from '../../utils/embeds.js';
 
 export const data = new SlashCommandBuilder()
   .setName('helpt')
@@ -50,6 +50,6 @@ export async function execute(interaction) {
       footer: 'Kratos System • Ticket system',
       timestamp: true,
     })],
-    flags: 64,
+    flags: EPHEMERAL,
   });
 }

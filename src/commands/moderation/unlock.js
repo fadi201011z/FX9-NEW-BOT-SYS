@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
 import { requireRole, getLogChannel } from '../../utils/permissions.js';
-import { notice, logEntry, C } from '../../utils/embeds.js';
+import { EPHEMERAL, logEntry, modAction, userTag } from '../../utils/embeds.js';
 import { getConfig } from '../../database.js';
 import { COMMAND_ROLES, clearAdminOverwrites } from '../../config/roles.js';
 
@@ -23,23 +23,29 @@ export async function execute(interaction) {
   const currentPermissions = channel.permissionOverwrites.cache.get(everyoneRole.id);
 
   if (!currentPermissions || !currentPermissions.deny.has(PermissionFlagsBits.SendMessages)) {
-    return interaction.reply({ content: `⚠️ ${channel} is already unlocked.`, flags: 64 });
+    return interaction.reply({ content: `⚠️ ${channel} is already unlocked.`, flags: EPHEMERAL });
   }
 
   await channel.permissionOverwrites.edit(everyoneRole, { SendMessages: null });
   await clearAdminOverwrites(channel, interaction.guild);
 
-  await interaction.reply({ content: `🔓 Unlocked ${channel} — members can post again.`, flags: 64 });
+  await interaction.reply({
+    embeds: [modAction({
+      kind: 'unlock',
+      description: 'Members can send messages here again.',
+      target: channel.toString(),
+      actor: userTag(interaction.user),
+    })],
+  });
 
-  // Public notice, same reasoning as /lock.
+  // And again in the reopened channel when it is a different channel, so the
+  // people who could not post are told why it opened.
   if (channel.id !== interaction.channel.id) {
     await channel.send({
-      embeds: [notice({
-        title: '🔓 This channel is open again',
+      embeds: [modAction({
+        kind: 'unlock',
         description: 'Members can send messages here again.',
-        color: C.ok,
-        footer: 'Kratos System',
-        timestamp: true,
+        fields: [{ name: 'Opened by', value: userTag(interaction.user), inline: true }],
       })],
     }).catch(() => {});
   }
@@ -50,7 +56,7 @@ export async function execute(interaction) {
       embeds: [logEntry({
         kind: 'unlock',
         target: channel.toString(),
-        actor: interaction.user.tag,
+        actor: userTag(interaction.user),
       })],
     }).catch(() => {});
   }

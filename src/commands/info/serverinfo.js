@@ -32,7 +32,10 @@ export async function execute(interaction) {
   const channels = guild.channels.cache;
 
   const count = (type) => channels.filter((c) => c.type === type).size;
-  const features = FEATURES.filter(([f]) => guild.features.has(f)).map(([, label]) => label);
+  // `guild.features` is a plain array of strings (discord.js types it
+  // `${GuildFeature}[]`), so this must be `includes`, not `has` — `has` is a
+  // Collection method and does not exist here.
+  const features = FEATURES.filter(([f]) => guild.features.includes(f)).map(([, label]) => label);
 
   const embed = notice({
     title: `🏠 ${guild.name}`,

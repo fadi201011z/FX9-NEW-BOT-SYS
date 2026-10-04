@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, version as djsVersion } from 'discord.js';
 import { getAllTickets, getAllOpenTickets, getAllAdminStats } from '../../data/ticketDB.js';
-import { notice, field, C } from '../../utils/embeds.js';
+import { C, EPHEMERAL, field, notice } from '../../utils/embeds.js';
 
 export const data = new SlashCommandBuilder()
   .setName('botinfo')
@@ -14,7 +14,7 @@ const uptime = (ms) => {
 };
 
 export async function execute(interaction) {
-  await interaction.deferReply({ flags: 64 });
+  await interaction.deferReply({ flags: EPHEMERAL });
 
   const client  = interaction.client;
   const guildId = interaction.guildId;

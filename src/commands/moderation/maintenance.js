@@ -2,10 +2,21 @@ import { SlashCommandBuilder } from 'discord.js';
 import Maintenance from '../../models/Maintenance.js';
 import { setMaintenancePresence, clearMaintenancePresence } from '../../utils/presence.js';
 import { sendMaintenanceStart, sendMaintenanceEnd } from '../../utils/maintenanceEmbed.js';
-import { ok, fail, notice, field, C, EPHEMERAL } from '../../utils/embeds.js';
+import { fail, notice, modAction, field, C, EPHEMERAL, userTag } from '../../utils/embeds.js';
 import { ROLES } from '../../config/roles.js';
 
 const DEV_ID = process.env.BOT_DEVELOPER_ID || null;
+
+/**
+ * A caught failure must never reach the user as "Could not start maintenance: "
+ * with nothing after the colon. `err.message` is empty for some thrown values
+ * (a bare string, a null-prototype object, a rejected fetch), so fall back to a
+ * generic phrase instead of printing a blank reason.
+ */
+const why = (err) => {
+  const msg = (err && typeof err.message === 'string' ? err.message : String(err ?? '')).trim();
+  return msg || 'the reason was not reported';
+};
 
 function canManage(interaction) {
   if (DEV_ID && interaction.user.id === DEV_ID) return true;
@@ -50,7 +61,9 @@ export async function execute(interaction) {
 }
 
 async function handleStart(interaction) {
-  await interaction.deferReply({ flags: EPHEMERAL });
+  // Public: turning maintenance on pauses every command in the server, so the
+  // channel has to record who did it and for how long.
+  await interaction.deferReply();
 
   try {
     const duration = interaction.options.getInteger('duration');
@@ -78,24 +91,34 @@ async function handleStart(interaction) {
       await sendMaintenanceStart(interaction.client, doc.channelId, doc.message, doc.endTime);
     }
 
-    await interaction.editReply(ok(
-      doc.durationMinutes > 0
-        ? `Maintenance is on for ${doc.durationMinutes} minute${doc.durationMinutes === 1 ? '' : 's'} — all services are paused.`
-        : 'Maintenance is on indefinitely — all services are paused.'
-    ));
+    await interaction.editReply({
+      embeds: [modAction({
+        kind: 'maintenance_start',
+        description: doc.durationMinutes > 0
+          ? `All commands and protection systems are paused for ${doc.durationMinutes} minute${doc.durationMinutes === 1 ? '' : 's'}.`
+          : 'All commands and protection systems are paused until maintenance ends.',
+        actor: userTag(interaction.user),
+        fields: [
+          field('Duration', doc.durationMinutes > 0
+            ? `<t:${Math.floor(doc.endTime / 1000)}:R>`
+            : 'Indefinite'),
+          ...(doc.channelId ? [field('Announcement', `<#${doc.channelId}>`)] : []),
+        ],
+      })],
+    });
   } catch (err) {
-    console.error('[MaintenanceCmd] Failed to start maintenance:', err.message);
-    await interaction.editReply({ content: `❌ Could not start maintenance: ${err.message}` });
+    console.error('[MaintenanceCmd] Failed to start maintenance:', why(err));
+    await interaction.editReply(fail(`Could not start maintenance: ${why(err)}`));
   }
 }
 
 async function handleStop(interaction) {
-  await interaction.deferReply({ flags: EPHEMERAL });
+  await interaction.deferReply();
 
   try {
     const doc = await Maintenance.findOne();
     if (!doc || !doc.enabled) {
-      return interaction.editReply({ content: '⚠️ Maintenance was not on.' });
+      return interaction.editReply(fail('Maintenance was not on.'));
     }
 
     const oldChannelId = doc.channelId || '';
@@ -115,10 +138,20 @@ async function handleStop(interaction) {
       await sendMaintenanceEnd(interaction.client, oldChannelId, oldDuration);
     }
 
-    await interaction.editReply(ok('Maintenance is off — all services are live again.'));
+    await interaction.editReply({
+      embeds: [modAction({
+        kind: 'maintenance_stop',
+        description: 'All commands and protection systems are live again.',
+        actor: userTag(interaction.user),
+        fields: [
+          field('Ran for', oldDuration > 0 ? `${oldDuration} minute${oldDuration === 1 ? '' : 's'}` : 'Unknown'),
+          ...(oldChannelId ? [field('Announcement', `<#${oldChannelId}>`)] : []),
+        ],
+      })],
+    });
   } catch (err) {
-    console.error('[MaintenanceCmd] Failed to stop maintenance:', err.message);
-    await interaction.editReply({ content: `❌ Could not stop maintenance: ${err.message}` });
+    console.error('[MaintenanceCmd] Failed to stop maintenance:', why(err));
+    await interaction.editReply(fail(`Could not stop maintenance: ${why(err)}`));
   }
 }
 

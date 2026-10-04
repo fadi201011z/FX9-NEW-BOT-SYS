@@ -3,7 +3,7 @@ import {
   getAllOpenTickets, getAllTickets, getClosedTicketsCount,
   getAllAdminStats, getGuildConfig,
 } from '../../data/ticketDB.js';
-import { notice, field, C } from '../../utils/embeds.js';
+import { C, EPHEMERAL, field, notice } from '../../utils/embeds.js';
 
 export const data = new SlashCommandBuilder()
   .setDescription('📊 Ticket system statistics')
@@ -11,7 +11,7 @@ export const data = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageChannels);
 
 export async function execute(interaction) {
-  await interaction.deferReply({ flags: 64 });
+  await interaction.deferReply({ flags: EPHEMERAL });
 
   const guildId   = interaction.guildId;
   const config    = getGuildConfig(guildId);

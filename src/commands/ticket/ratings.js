@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionsBitField } from 'discord.js';
 import { getAllAdminStats, getAdminStats, saveAdminStats, getAllTickets } from '../../data/ticketDB.js';
-import { ok, fail, notice, field, C } from '../../utils/embeds.js';
+import { C, EPHEMERAL, fail, field, notice, ok } from '../../utils/embeds.js';
 
 export const data = new SlashCommandBuilder()
   .setName('ratings')
@@ -38,7 +38,7 @@ const average = (s) => (s.ratingCount > 0 ? s.totalRating / s.ratingCount : 0);
 const stars = (value) => (value > 0 ? '⭐'.repeat(Math.round(value)) : '—');
 
 export async function execute(interaction) {
-  await interaction.deferReply({ flags: 64 });
+  await interaction.deferReply({ flags: EPHEMERAL });
 
   const sub     = interaction.options.getSubcommand();
   const guildId = interaction.guildId;

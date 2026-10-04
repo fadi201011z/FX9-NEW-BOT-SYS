@@ -7,9 +7,7 @@ import {
   saveTicket, getTicket, getAdminStats, saveAdminStats,
   getTicketByAdminChannel,
 } from '../data/ticketDB.js';
-import {
-  ticketEmbed, ticketButtons, logEmbed, panelPayload, ok, fail, notice, field, C,
-} from '../utils/embeds.js';
+import { C, EPHEMERAL, fail, field, logEntry, notice, ok, panelPayload, ticketButtons, ticketEmbed } from '../utils/embeds.js';
 import { sendOrUpdateTicketLog } from '../utils/ticketLogUtils.js';
 import {
   CATEGORY_SLUG, CATEGORY_LABEL, CATEGORY_MODAL_FIELDS, CATEGORY_EMOJI,
@@ -60,7 +58,7 @@ export async function handleCategorySelect(interaction) {
 }
 
 export async function handleTicketModalSubmit(client, interaction) {
-  await interaction.deferReply({ flags: 64 });
+  await interaction.deferReply({ flags: EPHEMERAL });
 
   const category = interaction.customId.replace('ticket_modal_', '');
   const { guildId, user } = interaction;
@@ -257,7 +255,7 @@ export async function handleTicketModalSubmit(client, interaction) {
 export async function handleClaimTicket(client, interaction) {
   const isSelect = interaction.isStringSelectMenu?.() ?? false;
   if (isSelect) await interaction.deferUpdate();
-  else await interaction.deferReply({ flags: 64 });
+  else await interaction.deferReply({ flags: EPHEMERAL });
 
   const config = getGuildConfig(interaction.guildId);
   const member = await interaction.guild.members.fetch(interaction.user.id);
@@ -311,10 +309,11 @@ export async function handleClaimTicket(client, interaction) {
     }
   }
 
-  const logE = logEmbed('📩 Ticket claimed', C.info, [
-    field('Staff member', `<@${interaction.user.id}>`),
-    field('Ticket', ticket.ticketId),
-  ]);
+  const logE = logEntry({
+    kind: 'ticket_claimed',
+    actor: `<@${interaction.user.id}>`,
+    fields: [field('Ticket', ticket.ticketId)],
+  });
 
   for (const chId of [ticket.channelId, ticket.adminChannelId].filter(Boolean)) {
     const ch = client.channels.cache.get(chId);
@@ -329,7 +328,7 @@ export async function handleClaimTicket(client, interaction) {
 export async function handleUnclaimTicket(client, interaction) {
   const isSelect = interaction.isStringSelectMenu?.() ?? false;
   if (isSelect) await interaction.deferUpdate();
-  else await interaction.deferReply({ flags: 64 });
+  else await interaction.deferReply({ flags: EPHEMERAL });
 
   const ticket = getTicket(interaction.channelId) ?? getTicketByAdminChannel(interaction.channelId);
   if (!ticket) {
@@ -371,10 +370,14 @@ export async function handleUnclaimTicket(client, interaction) {
     }
   }
 
-  const logE = logEmbed('📤 Ticket released', C.neutral, [
-    field('Previous staff member', prev ? `<@${prev}>` : '—'),
-    field('Ticket', ticket.ticketId),
-  ]);
+  const logE = logEntry({
+    kind: 'ticket_released',
+    actor: `<@${interaction.user.id}>`,
+    fields: [
+      field('Previous staff member', prev ? `<@${prev}>` : '—'),
+      field('Ticket', ticket.ticketId),
+    ],
+  });
   for (const chId of [ticket.channelId, ticket.adminChannelId].filter(Boolean)) {
     const ch = client.channels.cache.get(chId);
     await ch?.send({ embeds: [logE] });
@@ -403,7 +406,7 @@ export async function handleRenameTicket(interaction) {
 }
 
 export async function handleRenameModalSubmit(client, interaction) {
-  await interaction.deferReply({ flags: 64 });
+  await interaction.deferReply({ flags: EPHEMERAL });
 
   const raw = interaction.fields.getTextInputValue('new_name');
   const slug = raw

@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, ChannelType } from 'discord.js';
 import { setGuildSetup, buildStatusPanel, updatePanelMessageId } from '../../handlers/tempVoice.js';
-import { notice, field, C } from '../../utils/embeds.js';
+import { C, EPHEMERAL, field, notice } from '../../utils/embeds.js';
 
 export const data = new SlashCommandBuilder()
   .setName('setup-voice')
@@ -22,7 +22,7 @@ export const data = new SlashCommandBuilder()
     .setRequired(true));
 
 export async function execute(interaction) {
-  await interaction.deferReply({ flags: 64 });
+  await interaction.deferReply({ flags: EPHEMERAL });
 
   const category = interaction.options.getChannel('category');
   const joinCh   = interaction.options.getChannel('join_channel');

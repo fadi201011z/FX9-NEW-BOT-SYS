@@ -3,7 +3,7 @@ import {
   getSubscriptions, addSubscription, removeSubscription,
 } from '../../data/notificationDB.js';
 import { getGuildConfig } from '../../data/ticketDB.js';
-import { fail, notice, field, C } from '../../utils/embeds.js';
+import { C, EPHEMERAL, fail, field, notice } from '../../utils/embeds.js';
 
 const PLATFORM_EMOJI = { youtube: '📹', kick: '🔴', twitter: '🐦' };
 const PLATFORM_LABEL = {
@@ -85,7 +85,7 @@ export async function execute(interaction) {
   const sub = interaction.options.getSubcommand();
 
   if (sub === 'add') {
-    await interaction.deferReply({ flags: 64 });
+    await interaction.deferReply({ flags: EPHEMERAL });
 
     const platform       = interaction.options.getString('platform');
     const url            = interaction.options.getString('url').trim();
@@ -156,7 +156,7 @@ export async function execute(interaction) {
   }
 
   if (sub === 'remove') {
-    await interaction.deferReply({ flags: 64 });
+    await interaction.deferReply({ flags: EPHEMERAL });
 
     const id = interaction.options.getString('id').trim();
     const subItem = getSubscriptions(interaction.guildId).find((s) => s._id.toString() === id);
@@ -172,7 +172,7 @@ export async function execute(interaction) {
   }
 
   if (sub === 'list') {
-    await interaction.deferReply({ flags: 64 });
+    await interaction.deferReply({ flags: EPHEMERAL });
 
     const subs = getSubscriptions(interaction.guildId);
     if (subs.length === 0) {

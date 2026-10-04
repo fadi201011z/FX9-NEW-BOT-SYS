@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionsBitField } from 'discord.js';
 import { getTicket, getTicketByAdminChannel, getGuildConfig } from '../../data/ticketDB.js';
-import { ok, fail, notice, C } from '../../utils/embeds.js';
+import { C, EPHEMERAL, fail, notice, ok } from '../../utils/embeds.js';
 
 export const data = new SlashCommandBuilder()
   .setName('remind')
@@ -13,7 +13,7 @@ export const data = new SlashCommandBuilder()
       .setMaxLength(300));
 
 export async function execute(interaction) {
-  await interaction.deferReply({ flags: 64 });
+  await interaction.deferReply({ flags: EPHEMERAL });
 
   const ticket = getTicket(interaction.channelId)
     ?? getTicketByAdminChannel(interaction.channelId);

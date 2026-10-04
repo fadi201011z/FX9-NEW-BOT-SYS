@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { requireRole, canModerate, getLogChannel } from '../../utils/permissions.js';
-import { ok, fail, logEntry, field } from '../../utils/embeds.js';
+import { fail, modAction, logEntry, field, userTag } from '../../utils/embeds.js';
 import { getConfig } from '../../database.js';
 import { COMMAND_ROLES } from '../../config/roles.js';
 
@@ -22,17 +22,24 @@ export async function execute(interaction) {
 
   const oldNick  = target.nickname ?? target.user.username;
   const newNick  = nickname ?? target.user.username;
-  await target.setNickname(nickname, `by ${interaction.user.tag}`);
+  await target.setNickname(nickname, `by ${userTag(interaction.user)}`);
 
-  await interaction.reply(ok(`Nickname for ${target.user.tag} changed to **${newNick}**`));
+  await interaction.reply({
+    embeds: [modAction({
+      kind: 'nick',
+      target: `${userTag(target.user)} (\`${target.user.id}\`)`,
+      actor: userTag(interaction.user),
+      fields: [field('Before', oldNick), field('After', newNick)],
+    })],
+  });
 
   const modLogCh = await getLogChannel(interaction.guild, getConfig(interaction.guildId, 'modlog_channel'));
   if (modLogCh) {
     await modLogCh.send({
       embeds: [logEntry({
         kind: 'nick',
-        target: `${target.user.tag} (\`${target.user.id}\`)`,
-        actor: interaction.user.tag,
+        target: `${userTag(target.user)} (\`${target.user.id}\`)`,
+        actor: userTag(interaction.user),
         fields: [field('Before', oldNick), field('After', newNick)],
       })],
     }).catch(() => {});

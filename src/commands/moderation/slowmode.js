@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { requireRole, getLogChannel } from '../../utils/permissions.js';
-import { ok, logEntry, field } from '../../utils/embeds.js';
+import { modAction, logEntry, field, userTag } from '../../utils/embeds.js';
 import { getConfig } from '../../database.js';
 import { COMMAND_ROLES } from '../../config/roles.js';
 
@@ -19,11 +19,17 @@ export async function execute(interaction) {
   const disabled = seconds === 0;
   await interaction.channel.setRateLimitPerUser(seconds);
 
-  await interaction.reply(ok(
-    disabled
-      ? `Slowmode disabled in ${interaction.channel}`
-      : `Slowmode set to ${seconds}s in ${interaction.channel}`
-  ));
+  await interaction.reply({
+    embeds: [modAction({
+      kind: 'slowmode',
+      description: disabled
+        ? 'Slowmode is off — members can post freely again.'
+        : `Members must wait ${seconds}s between messages in this channel.`,
+      target: interaction.channel.toString(),
+      actor: userTag(interaction.user),
+      fields: [field('Delay', disabled ? 'Disabled' : `${seconds}s`)],
+    })],
+  });
 
   const modLogCh = await getLogChannel(interaction.guild, getConfig(interaction.guildId, 'modlog_channel'));
   if (modLogCh) {
@@ -31,7 +37,7 @@ export async function execute(interaction) {
       embeds: [logEntry({
         kind: 'slowmode',
         target: interaction.channel.toString(),
-        actor: interaction.user.tag,
+        actor: userTag(interaction.user),
         fields: [field('Delay', disabled ? 'Disabled' : `${seconds}s`)],
       })],
     }).catch(() => {});

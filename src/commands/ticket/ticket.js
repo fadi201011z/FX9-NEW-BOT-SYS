@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionsBitField } from 'discord.js';
 import { getTicket, saveTicket, getGuildConfig, getAllOpenTickets } from '../../data/ticketDB.js';
-import { ok, fail, notice, logEmbed, field, C } from '../../utils/embeds.js';
+import { C, EPHEMERAL, fail, field, logEntry, notice, ok } from '../../utils/embeds.js';
 import { CATEGORY_LABEL, PRIORITY_LABEL, CATEGORY_EMOJI } from '../../data/ticketTypes.js';
 import { formatDuration } from '../../utils/parseDuration.js';
 
@@ -36,7 +36,7 @@ export async function execute(interaction) {
   // ── info ────────────────────────────────────────────────────────────────
   // This earns its embed: the moderator is reading a record, not a result.
   if (sub === 'info') {
-    await interaction.deferReply({ flags: 64 });
+    await interaction.deferReply({ flags: EPHEMERAL });
 
     const t = getTicket(interaction.channelId);
     if (!t) return interaction.editReply({ content: `❌ ${NOT_A_TICKET}` });
@@ -70,7 +70,7 @@ export async function execute(interaction) {
 
   // ── add ─────────────────────────────────────────────────────────────────
   if (sub === 'add') {
-    await interaction.deferReply({ flags: 64 });
+    await interaction.deferReply({ flags: EPHEMERAL });
 
     const t = getTicket(interaction.channelId);
     if (!t) return interaction.editReply({ content: `❌ ${NOT_A_TICKET}` });
@@ -85,10 +85,11 @@ export async function execute(interaction) {
 
     // The channel is public, so this one is logged where staff will see it.
     await interaction.channel.send({
-      embeds: [logEmbed('➕ Member added', C.ok, [
-        field('Member', `<@${user.id}>`),
-        field('Added by', `<@${interaction.user.id}>`),
-      ])],
+      embeds: [logEntry({
+        kind: 'ticket_member_add',
+        actor: `<@${interaction.user.id}>`,
+        target: `<@${user.id}>`,
+      })],
     });
 
     return interaction.editReply(ok(`<@${user.id}> can now see this ticket.`));
@@ -96,7 +97,7 @@ export async function execute(interaction) {
 
   // ── remove ──────────────────────────────────────────────────────────────
   if (sub === 'remove') {
-    await interaction.deferReply({ flags: 64 });
+    await interaction.deferReply({ flags: EPHEMERAL });
 
     const t = getTicket(interaction.channelId);
     if (!t) return interaction.editReply({ content: `❌ ${NOT_A_TICKET}` });
@@ -112,10 +113,11 @@ export async function execute(interaction) {
     await saveTicket(t);
 
     await interaction.channel.send({
-      embeds: [logEmbed('➖ Member removed', C.warn, [
-        field('Member', `<@${user.id}>`),
-        field('Removed by', `<@${interaction.user.id}>`),
-      ])],
+      embeds: [logEntry({
+        kind: 'ticket_member_remove',
+        actor: `<@${interaction.user.id}>`,
+        target: `<@${user.id}>`,
+      })],
     });
 
     return interaction.editReply(ok(`<@${user.id}> can no longer see this ticket.`));
@@ -123,7 +125,7 @@ export async function execute(interaction) {
 
   // ── transcript ──────────────────────────────────────────────────────────
   if (sub === 'transcript') {
-    await interaction.deferReply({ flags: 64 });
+    await interaction.deferReply({ flags: EPHEMERAL });
 
     const t = getTicket(interaction.channelId);
     if (!t) return interaction.editReply({ content: `❌ ${NOT_A_TICKET}` });
@@ -167,7 +169,7 @@ export async function execute(interaction) {
   // ── list ────────────────────────────────────────────────────────────────
   // A queue the moderator has to scan, so this is a table, not a sentence.
   if (sub === 'list') {
-    await interaction.deferReply({ flags: 64 });
+    await interaction.deferReply({ flags: EPHEMERAL });
 
     const open = getAllOpenTickets(interaction.guildId);
     if (open.length === 0) {
@@ -192,7 +194,7 @@ export async function execute(interaction) {
 
   // ── priority ────────────────────────────────────────────────────────────
   if (sub === 'priority') {
-    await interaction.deferReply({ flags: 64 });
+    await interaction.deferReply({ flags: EPHEMERAL });
 
     const t = getTicket(interaction.channelId);
     if (!t) return interaction.editReply({ content: `❌ ${NOT_A_TICKET}` });
@@ -203,10 +205,13 @@ export async function execute(interaction) {
     await saveTicket(t);
 
     await interaction.channel.send({
-      embeds: [logEmbed('🎯 Priority changed', { high: C.error, medium: C.info, low: C.ok }[level] ?? C.info, [
-        field('New priority', PRIORITY_LABEL[level] ?? level),
-        field('Changed by', `<@${interaction.user.id}>`),
-      ])],
+      embeds: [logEntry({
+        kind: 'ticket_priority',
+        actor: `<@${interaction.user.id}>`,
+        target: `<#${interaction.channelId}>`,
+        color: { high: C.error, medium: C.info, low: C.ok }[level] ?? C.info,
+        fields: [field('New priority', PRIORITY_LABEL[level] ?? level)],
+      })],
     });
 
     return interaction.editReply(ok(`Priority set to **${PRIORITY_LABEL[level] ?? level}**.`));

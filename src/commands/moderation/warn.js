@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { requireRole, getLogChannel } from '../../utils/permissions.js';
-import { ok, fail, notice, logEntry, field, C, EPHEMERAL } from '../../utils/embeds.js';
+import { fail, notice, modAction, logEntry, field, C, EPHEMERAL, userTag } from '../../utils/embeds.js';
 import { addWarning, getWarnings, clearWarnings, getConfig } from '../../database.js';
 import { COMMAND_ROLES } from '../../config/roles.js';
 
@@ -47,15 +47,23 @@ export async function execute(interaction) {
       });
     } catch { /* DMs are closed */ }
 
-    await interaction.reply(ok(`Warned ${target.tag} · ${warnings.length} total warning${warnings.length === 1 ? '' : 's'}`));
+    await interaction.reply({
+      embeds: [modAction({
+        kind: 'warn',
+        target: `${userTag(target)} (\`${target.id}\`)`,
+        actor: userTag(interaction.user),
+        reason,
+        fields: [field('Total warnings', `${warnings.length}`)],
+      })],
+    });
 
     const modLogCh = await getLogChannel(interaction.guild, getConfig(interaction.guildId, 'modlog_channel'));
     if (modLogCh) {
       await modLogCh.send({
         embeds: [logEntry({
           kind: 'warn',
-          target: `${target.tag} (\`${target.id}\`)`,
-          actor: interaction.user.tag,
+          target: `${userTag(target)} (\`${target.id}\`)`,
+          actor: userTag(interaction.user),
           reason,
           fields: [field('Total warnings', `${warnings.length}`)],
         })],
@@ -67,10 +75,11 @@ export async function execute(interaction) {
   if (sub === 'list') {
     const warnings = getWarnings(interaction.guildId, target.id);
     if (warnings.length === 0) {
-      return interaction.reply({ ...fail(`${target.tag} has no recorded warnings.`), flags: EPHEMERAL });
+      return interaction.reply({ ...fail(`${userTag(target)} has no recorded warnings.`), flags: EPHEMERAL });
     }
 
     // This one earns its embed — it is a table the moderator has to read.
+    // It stays private: a member's warning history is not channel business.
     const fields = warnings.slice(0, 10).map((w, i) => ({
       name: `#${i + 1} — <t:${Math.floor(w.timestamp / 1000)}:d>`,
       value: `**Reason:** ${w.reason}\n**Moderator:** <@${w.moderatorId}>`,
@@ -79,7 +88,7 @@ export async function execute(interaction) {
 
     return interaction.reply({
       embeds: [notice({
-        title: `Warnings for ${target.tag}`,
+        title: `Warnings for ${userTag(target)}`,
         description: `**${warnings.length}** warning${warnings.length === 1 ? '' : 's'} on record${warnings.length > 10 ? ` · showing the first 10` : ''}.`,
         color: C.warn,
         fields,
@@ -91,10 +100,21 @@ export async function execute(interaction) {
 
   if (sub === 'clear') {
     const had = getWarnings(interaction.guildId, target.id).length;
+    if (had === 0) {
+      return interaction.reply(fail(`${userTag(target)} had no warnings to clear.`));
+    }
     clearWarnings(interaction.guildId, target.id);
-    return interaction.reply(ok(had > 0 ? `Cleared ${had} warning${had === 1 ? '' : 's'} for ${target.tag}` : `${target.tag} had no warnings to clear`));
+    await interaction.reply({
+      embeds: [modAction({
+        kind: 'warn_clear',
+        target: `${userTag(target)} (\`${target.id}\`)`,
+        actor: userTag(interaction.user),
+        fields: [field('Cleared', `${had} warning${had === 1 ? '' : 's'}`)],
+      })],
+    });
 
-    // Nothing is logged here on purpose: a no-op clear would put noise in the
-    // modlog for something that changed nothing.
+    // Nothing is logged to the modlog on purpose: the modlog already holds every
+    // warning, and an extra "cleared" line would only add noise to the record.
+    return;
   }
 }

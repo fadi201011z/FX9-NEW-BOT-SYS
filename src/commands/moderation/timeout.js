@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { requireRole, canModerate, getLogChannel } from '../../utils/permissions.js';
-import { ok, fail, logEntry, field } from '../../utils/embeds.js';
+import { fail, modAction, logEntry, field, userTag } from '../../utils/embeds.js';
 import { parseDuration, formatDuration } from '../../utils/parseDuration.js';
 import { getConfig } from '../../database.js';
 import { COMMAND_ROLES } from '../../config/roles.js';
@@ -27,22 +27,31 @@ export async function execute(interaction) {
   if (!canModerate(interaction.guild, target)) return interaction.reply(fail('I cannot time out this member — their role is above mine.'));
 
   const until = new Date(Date.now() + durationMs);
-  await target.timeout(durationMs, `${interaction.user.tag}: ${reason}`);
+  await target.timeout(durationMs, `${userTag(interaction.user)}: ${reason}`);
 
   const extra = [
     field('Duration', formatDuration(durationMs)),
     field('Expires', `<t:${Math.floor(until.getTime() / 1000)}:R>`),
   ];
 
-  await interaction.reply(ok(`Timed out ${target.user.tag} for ${formatDuration(durationMs)}`));
+  // Public: the whole channel should see who was muted, for how long and why.
+  await interaction.reply({
+    embeds: [modAction({
+      kind: 'timeout',
+      target: `${userTag(target.user)} (\`${target.user.id}\`)`,
+      actor: userTag(interaction.user),
+      reason,
+      fields: extra,
+    })],
+  });
 
   const modLogCh = await getLogChannel(interaction.guild, getConfig(interaction.guildId, 'modlog_channel'));
   if (modLogCh) {
     await modLogCh.send({
       embeds: [logEntry({
         kind: 'timeout',
-        target: `${target.user.tag} (\`${target.user.id}\`)`,
-        actor: interaction.user.tag,
+        target: `${userTag(target.user)} (\`${target.user.id}\`)`,
+        actor: userTag(interaction.user),
         reason,
         fields: extra,
       })],

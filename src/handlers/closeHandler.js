@@ -3,7 +3,7 @@ import {
   getTicket, saveTicket, getAdminStats, saveAdminStats,
   getGuildConfig, getTicketByAdminChannel, getTicketById,
 } from '../data/ticketDB.js';
-import { closeEmbed, ratingEmbed, ratingButtons, notice, C } from '../utils/embeds.js';
+import { C, closeEmbed, EPHEMERAL, notice, ratingButtons, ratingEmbed } from '../utils/embeds.js';
 import { sendOrUpdateTicketLog } from '../utils/ticketLogUtils.js';
 
 const AUTO_CLOSE_DELAY = 20 * 60 * 1000;
@@ -22,7 +22,7 @@ async function deleteChannels(client, ticket) {
 export async function handleCloseTicket(client, interaction) {
   const ticket = getTicket(interaction.channelId) ?? getTicketByAdminChannel(interaction.channelId);
   if (!ticket) {
-    return interaction.reply({ content: '❌ This channel is not a ticket.', flags: 64 });
+    return interaction.reply({ content: '❌ This channel is not a ticket.', flags: EPHEMERAL });
   }
 
   const config = getGuildConfig(interaction.guildId);
@@ -33,13 +33,13 @@ export async function handleCloseTicket(client, interaction) {
   if (!isAdmin && ticket.userId !== interaction.user.id) {
     return interaction.reply({
       content: '❌ You do not have permission to close this ticket.',
-      flags: 64,
+      flags: EPHEMERAL,
     });
   }
 
   const isSelect = interaction.isStringSelectMenu?.() ?? false;
   if (isSelect) await interaction.deferUpdate();
-  else await interaction.deferReply({ flags: 64 });
+  else await interaction.deferReply({ flags: EPHEMERAL });
 
   ticket.status = 'closed';
   ticket.closedAt = Date.now();
@@ -94,7 +94,7 @@ export async function handleCloseTicket(client, interaction) {
   const confirmation = '✅ Ticket closed. The channel is deleted after the rating, '
     + 'or within 20 minutes.';
 
-  if (isSelect) await interaction.followUp({ content: confirmation, flags: 64 });
+  if (isSelect) await interaction.followUp({ content: confirmation, flags: EPHEMERAL });
   else await interaction.editReply({ content: confirmation });
 
   // Restarts the countdown rather than stacking a second timer.
@@ -118,12 +118,12 @@ export async function handleRatingButton(client, interaction) {
 
   const ticket = getTicketById(ticketId);
   if (!ticket) {
-    try { await interaction.reply({ content: '❌ That ticket does not exist.', flags: 64 }); } catch { /* expired */ }
+    try { await interaction.reply({ content: '❌ That ticket does not exist.', flags: EPHEMERAL }); } catch { /* expired */ }
     return;
   }
 
   if (ticket.rating !== undefined) {
-    try { await interaction.reply({ content: '✅ You have already rated this ticket. Thank you.', flags: 64 }); } catch { /* expired */ }
+    try { await interaction.reply({ content: '✅ You have already rated this ticket. Thank you.', flags: EPHEMERAL }); } catch { /* expired */ }
     return;
   }
 
@@ -157,7 +157,7 @@ export async function handleRatingButton(client, interaction) {
     await interaction.update({ embeds: [confirmation], components: [] });
   } catch {
     try {
-      await interaction.reply({ embeds: [confirmation], flags: 64 });
+      await interaction.reply({ embeds: [confirmation], flags: EPHEMERAL });
     } catch { /* the interaction is already gone */ }
   }
 

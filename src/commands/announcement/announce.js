@@ -1,4 +1,22 @@
 import { SlashCommandBuilder, PermissionsBitField, ChannelType, EmbedBuilder } from 'discord.js';
+import { EPHEMERAL, fail } from '../../utils/embeds.js';
+
+/**
+ * Discord silently drops an image whose URL it cannot resolve, and `setImage` /
+ * `setThumbnail` *throw* on anything that is not an absolute http(s) URL. Since
+ * these two options are free text, a typo used to crash the command after it had
+ * already deferred - the moderator saw "this interaction failed" and no
+ * announcement. Validating up front turns that into a readable error.
+ */
+function badUrl(value) {
+  if (!value) return false;
+  try {
+    const { protocol } = new URL(value);
+    return protocol !== 'http:' && protocol !== 'https:';
+  } catch {
+    return true;
+  }
+}
 
 const ANNOUNCE_COLORS = {
   blue:   0x3b82f6,
@@ -67,7 +85,7 @@ export const data = new SlashCommandBuilder()
   .addBooleanOption((o) => o.setName('timestamp').setDescription('⏰ Show the time? (default: yes)').setRequired(false));
 
 export async function execute(interaction) {
-  await interaction.deferReply({ flags: 64 });
+  await interaction.deferReply({ flags: EPHEMERAL });
 
   const title       = interaction.options.getString('title', true);
   const message     = interaction.options.getString('message', true);
@@ -80,6 +98,16 @@ export async function execute(interaction) {
   const footerText  = interaction.options.getString('footer');
   const type        = interaction.options.getString('type') ?? 'general';
   const showTime    = interaction.options.getBoolean('timestamp') ?? true;
+
+  const broken = [];
+  if (badUrl(image))     broken.push('`image`');
+  if (badUrl(thumbnail)) broken.push('`thumbnail`');
+  if (broken.length) {
+    return interaction.editReply(
+      fail(`${broken.join(' and ')} ${broken.length === 1 ? 'is' : 'are'} not a valid link. `
+        + 'Paste a full image address, for example `https://example.com/banner.png`.'),
+    );
+  }
 
   const typeInfo   = ANNOUNCE_TYPES[type] ?? ANNOUNCE_TYPES.general;
   const finalColor = colorKey ? ANNOUNCE_COLORS[colorKey] : typeInfo.color;

@@ -1,5 +1,5 @@
 import { getAllOpenTickets, getTicket, saveTicket } from '../data/ticketDB.js';
-import { logEmbed, inactivityEmbed, ratingEmbed, ratingButtons, field, C } from '../utils/embeds.js';
+import { logEntry, inactivityEmbed, ratingEmbed, ratingButtons, field } from '../utils/embeds.js';
 import { sendOrUpdateTicketLog } from '../utils/ticketLogUtils.js';
 
 const WARN_MS  = 24 * 60 * 60 * 1000;
@@ -59,11 +59,12 @@ async function autoClose(client, ticket) {
     ticket.closedAt = Date.now();
     await saveTicket(ticket);
 
-    const embed = logEmbed('🔒 Ticket auto-closed', C.error, [
-      field('Ticket', ticket.ticketId),
-      field('Member', `<@${ticket.userId}>`),
-      field('Reason', 'No activity for 36 hours', false),
-    ]);
+    const embed = logEntry({
+      kind: 'ticket_autoclose',
+      target: `<@${ticket.userId}>`,
+      reason: 'No activity for 36 hours',
+      fields: [field('Ticket', ticket.ticketId)],
+    });
 
     const ratingData = {
       embeds:     [ratingEmbed(ticket.ticketId, ticket.claimedByUsername)],

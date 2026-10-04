@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
 import { requireRole, getLogChannel } from '../../utils/permissions.js';
-import { notice, logEntry, field, C } from '../../utils/embeds.js';
+import { EPHEMERAL, field, logEntry, modAction, userTag } from '../../utils/embeds.js';
 import { getConfig } from '../../database.js';
 import { COMMAND_ROLES, grantAdminAccess } from '../../config/roles.js';
 
@@ -25,25 +25,34 @@ export async function execute(interaction) {
   const currentPermissions = channel.permissionOverwrites.cache.get(everyoneRole.id);
 
   if (currentPermissions && currentPermissions.deny.has(PermissionFlagsBits.SendMessages)) {
-    return interaction.reply({ content: `⚠️ ${channel} is already locked.`, flags: 64 });
+    return interaction.reply({ content: `⚠️ ${channel} is already locked.`, flags: EPHEMERAL });
   }
 
   await channel.permissionOverwrites.edit(everyoneRole, { SendMessages: false });
   await grantAdminAccess(channel, interaction.guild, { ViewChannel: true, SendMessages: true });
 
-  await interaction.reply({ content: `🔒 Locked ${channel} · ${reason}`, flags: 64 });
+  // Public in the channel the command ran in. Members and other staff both see
+  // that the channel went down and why.
+  await interaction.reply({
+    embeds: [modAction({
+      kind: 'lock',
+      description: 'Members can no longer send messages here. Staff roles are unaffected.',
+      target: channel.toString(),
+      actor: userTag(interaction.user),
+      reason,
+      fields: [field('Channel', `<#${channel.id}>`, true)],
+    })],
+  });
 
-  // Public notice in the channel itself — this one earns an embed, because
-  // everyone in the channel needs to understand why they can no longer post.
+  // And again in the locked channel itself, when that is a different channel,
+  // so the people who lost the ability to post are told instead of guessing.
   if (channel.id !== interaction.channel.id) {
     await channel.send({
-      embeds: [notice({
-        title: '🔒 This channel is locked',
+      embeds: [modAction({
+        kind: 'lock',
         description: 'Members can no longer send messages here. Staff roles are unaffected.',
-        color: C.error,
-        fields: [field('Reason', reason, false)],
-        footer: 'Kratos System',
-        timestamp: true,
+        reason,
+        fields: [field('Locked by', userTag(interaction.user), true)],
       })],
     }).catch(() => {});
   }
@@ -54,7 +63,7 @@ export async function execute(interaction) {
       embeds: [logEntry({
         kind: 'lock',
         target: channel.toString(),
-        actor: interaction.user.tag,
+        actor: userTag(interaction.user),
         reason,
       })],
     }).catch(() => {});

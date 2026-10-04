@@ -136,6 +136,7 @@ const LOG_TITLES = {
   slowmode: '🐌 Slowmode changed',
   role_create: '🎖️ Role created',
   role_delete: '🗑️ Role deleted',
+  role_update: '🎖️ Role updated',
   channel_create: '📁 Channel created',
   channel_delete: '🗑️ Channel deleted',
   channel_update: '📁 Channel updated',
@@ -157,28 +158,46 @@ const LOG_TITLES = {
   automod_spam: '🤖 Auto-mod — spam',
   automod_links: '🔗 Auto-mod — link removed',
   automod_mentions: '💬 Auto-mod — mass mentions',
+  maintenance_start: '🛠️ Maintenance started',
+  maintenance_stop: '🛠️ Maintenance ended',
+  ticket_claimed: '📩 Ticket claimed',
+  ticket_released: '📤 Ticket released',
+  ticket_autoclose: '🔒 Ticket auto-closed',
+  ticket_member_add: '➕ Member added to ticket',
+  ticket_member_remove: '➖ Member removed from ticket',
+  ticket_priority: '🎯 Ticket priority changed',
 };
 
 const LOG_COLORS = {
+  // Colour carries the severity of the action, and members read this in the
+  // channel - so a mute or a channel lock must not come out green. Any kind
+  // absent here falls back to C.ok and would look like good news.
   ban: C.error, kick: C.error, member_ban: C.error,
-  warn_clear: C.ok, clear: C.ok, role_remove: C.warn,
+  timeout: C.warn, warn: C.warn, lock: C.warn, hide: C.warn, slowmode: C.warn,
+  unlock: C.ok, unhide: C.ok, clear: C.ok, warn_clear: C.ok,
+  nick: C.info, role_add: C.info, role_remove: C.warn, role_update: C.info,
   raid: C.error, member_unban: C.ok, member_join: C.ok,
   voice_join: C.ok, voice_leave: C.neutral, voice_switch: C.info,
   tempvc_created: C.info, tempvc_deleted: C.neutral,
   restricted_channel: C.error,
   automod_spam: C.error, automod_links: C.warn, automod_mentions: C.warn,
+  maintenance_start: C.warn, maintenance_stop: C.ok,
+  ticket_claimed: C.info, ticket_released: C.neutral, ticket_autoclose: C.error,
+  ticket_member_add: C.ok, ticket_member_remove: C.warn,
 };
 
 /**
- * @param {object} opts
- * @param {string} opts.kind       key of LOG_TITLES
- * @param {string} [opts.actor]    who performed it
- * @param {string} [opts.target]   who/what it happened to
- * @param {string} [opts.reason]
- * @param {Array}  [opts.fields]   extra fields
- * @param {string} [opts.footer]
+ * @param {object}  opts
+ * @param {string}  opts.kind       key of LOG_TITLES
+ * @param {string}  [opts.actor]    who performed it
+ * @param {string}  [opts.target]   who/what it happened to
+ * @param {string}  [opts.reason]
+ * @param {Array}   [opts.fields]   extra fields
+ * @param {string}  [opts.footer]
+ * @param {number}  [opts.color]    override the table
+ * @param {string}  [opts.description]
  */
-export function logEntry({ kind, actor, target, reason, fields, footer: footerText = 'Kratos System' }) {
+export function logEntry({ kind, actor, target, reason, fields, color, description, footer: footerText = 'Kratos System' }) {
   const rows = [];
   if (target) rows.push(field('Target', target));
   if (actor) rows.push(field('Moderator', actor));
@@ -187,11 +206,45 @@ export function logEntry({ kind, actor, target, reason, fields, footer: footerTe
 
   return notice({
     title: LOG_TITLES[kind] ?? '📋 Log',
-    color: LOG_COLORS[kind] ?? C.neutral,
+    description,
+    color: color ?? LOG_COLORS[kind] ?? C.neutral,
     fields: rows,
     footer: footerText,
     timestamp: true,
   });
+}
+
+// ─── modAction(): the public confirmation, posted in the channel ─────────────
+//
+// Every moderation command used to confirm with `ok()`, which is ephemeral — so
+// the only person who learned that a member had been muted, a channel locked or
+// a role granted was the moderator who ran the command. The channel itself
+// showed nothing.
+//
+// This is the public counterpart to `logEntry()`, and it deliberately reuses the
+// same LOG_TITLES and LOG_COLORS tables so the notice in the channel and the
+// entry in the modlog are word-for-word identical. One vocabulary, two
+// destinations.
+//
+// Errors stay ephemeral: a moderator who lacks permission does not need the
+// whole channel to know it.
+
+/**
+ * @param {object}  opts
+ * @param {string}  opts.kind          key of LOG_TITLES
+ * @param {string} [opts.description]  one line explaining the effect on members
+ * @param {string} [opts.actor]        who performed it
+ * @param {string} [opts.target]       who/what it happened to
+ * @param {string} [opts.reason]
+ * @param {Array}  [opts.fields]       extra fields
+ * @param {number} [opts.color]        override the table
+ * @param {string} [opts.footer]
+ */
+export function modAction(opts) {
+  // Delegates rather than repeating the layout, so the two can never drift.
+  // The only difference is the fallback colour: an unrecognised kind reads as
+  // a completed action in a channel, and as a neutral record in the modlog.
+  return logEntry({ ...opts, color: opts.color ?? LOG_COLORS[opts.kind] ?? C.ok });
 }
 
 // ─── Ticket panel ──────────────────────────────────────────────────────────
@@ -377,10 +430,6 @@ export function closeEmbed(ticket, closedBy) {
 }
 
 // ─── Logs ──────────────────────────────────────────────────────────────────
-
-export function logEmbed(title, color, fields) {
-  return notice({ title, color, fields, footer: 'Kratos System', timestamp: true });
-}
 
 /** Inactivity nudge. One sentence — it was an ANSI block with two dividers. */
 export function inactivityEmbed(ticketId) {

@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionsBitField } from 'discord.js';
 import { getAllTickets, getTicketById, getGuildConfig } from '../../data/ticketDB.js';
-import { fail, notice, field, C } from '../../utils/embeds.js';
+import { C, EPHEMERAL, fail, field, notice } from '../../utils/embeds.js';
 import { CATEGORY_LABEL } from '../../data/ticketTypes.js';
 
 export const data = new SlashCommandBuilder()
@@ -25,7 +25,7 @@ export async function execute(interaction) {
     return interaction.reply(fail('This command only works inside a server.'));
   }
 
-  await interaction.deferReply({ flags: 64 });
+  await interaction.deferReply({ flags: EPHEMERAL });
 
   try {
     const input  = interaction.options.getString('ticket_id').trim();

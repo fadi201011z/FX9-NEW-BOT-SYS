@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { requireRole, canModerate, getLogChannel } from '../../utils/permissions.js';
-import { ok, fail, notice, logEntry, field, C } from '../../utils/embeds.js';
+import { fail, notice, modAction, logEntry, field, C, userTag } from '../../utils/embeds.js';
 import { getConfig } from '../../database.js';
 import { COMMAND_ROLES } from '../../config/roles.js';
 
@@ -27,24 +27,33 @@ export async function execute(interaction) {
     await target.send({
       embeds: [notice({
         title: `You have been banned from ${interaction.guild.name}`,
-        description: `**Reason:** ${reason}\n**Moderator:** ${interaction.user.tag}`,
+        description: `**Reason:** ${reason}\n**Moderator:** ${userTag(interaction.user)}`,
         color: C.error,
         thumbnail: interaction.guild.iconURL({ dynamic: true }),
       })],
     });
   } catch { /* DMs are closed */ }
 
-  await target.ban({ reason: `${interaction.user.tag}: ${reason}`, deleteMessageDays: days });
+  await target.ban({ reason: `${userTag(interaction.user)}: ${reason}`, deleteMessageDays: days });
 
-  await interaction.reply(ok(`Banned ${target.user.tag}${days > 0 ? ` · deleted ${days} day${days > 1 ? 's' : ''} of messages` : ''}`));
+  // Public: the ban is a channel-wide fact, not a private note to the moderator.
+  await interaction.reply({
+    embeds: [modAction({
+      kind: 'ban',
+      target: `${userTag(target.user)} (\`${target.user.id}\`)`,
+      actor: userTag(interaction.user),
+      reason,
+      fields: days > 0 ? [field('Messages deleted', `${days} day${days === 1 ? '' : 's'}`)] : [],
+    })],
+  });
 
   const modLogCh = await getLogChannel(interaction.guild, getConfig(interaction.guildId, 'modlog_channel'));
   if (modLogCh) {
     await modLogCh.send({
       embeds: [logEntry({
         kind: 'ban',
-        target: `${target.user.tag} (\`${target.user.id}\`)`,
-        actor: interaction.user.tag,
+        target: `${userTag(target.user)} (\`${target.user.id}\`)`,
+        actor: userTag(interaction.user),
         reason,
         fields: [field('Messages deleted', `${days} day${days === 1 ? '' : 's'}`)],
       })],

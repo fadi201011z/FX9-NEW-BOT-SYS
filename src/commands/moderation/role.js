@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { requireRole, getLogChannel } from '../../utils/permissions.js';
-import { ok, fail, logEntry } from '../../utils/embeds.js';
+import { fail, modAction, logEntry, field, userTag } from '../../utils/embeds.js';
 import { getConfig } from '../../database.js';
 import { COMMAND_ROLES } from '../../config/roles.js';
 
@@ -22,7 +22,11 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction) {
-  if (!await requireRole(interaction, COMMAND_ROLES.role)) return;
+  // `COMMAND_ROLES.role` does not exist — passing it undefined made
+  // requireRole() crash on `allowedRoles.filter(...)` for everyone who was
+  // neither the guild owner nor an Administrator, so /role 500'd for ordinary
+  // moderators. The allow-list key for this command is `manage_roles`.
+  if (!await requireRole(interaction, COMMAND_ROLES.manage_roles)) return;
 
   const sub    = interaction.options.getSubcommand();
   const target = interaction.options.getMember('user');
@@ -37,18 +41,25 @@ export async function execute(interaction) {
 
   if (sub === 'add') {
     if (target.roles.cache.has(role.id)) {
-      return interaction.reply(fail(`${target.user.tag} already has ${role}`));
+      return interaction.reply(fail(`${userTag(target.user)} already has ${role}`));
     }
-    await target.roles.add(role, `added by ${interaction.user.tag}`);
-    await interaction.reply(ok(`Gave ${role} to ${target.user.tag}`));
+    await target.roles.add(role, `added by ${userTag(interaction.user)}`);
+    await interaction.reply({
+      embeds: [modAction({
+        kind: 'role_add',
+        target: `${userTag(target.user)} (\`${target.user.id}\`)`,
+        actor: userTag(interaction.user),
+        fields: [field('Role', role.toString())],
+      })],
+    });
 
     if (modLogCh) {
       await modLogCh.send({
         embeds: [logEntry({
           kind: 'role_add',
-          target: `${target.user.tag} (\`${target.user.id}\`)`,
-          actor: interaction.user.tag,
-          fields: [{ name: 'Role', value: role.toString(), inline: true }],
+          target: `${userTag(target.user)} (\`${target.user.id}\`)`,
+          actor: userTag(interaction.user),
+          fields: [field('Role', role.toString())],
         })],
       }).catch(() => {});
     }
@@ -57,18 +68,25 @@ export async function execute(interaction) {
 
   if (sub === 'remove') {
     if (!target.roles.cache.has(role.id)) {
-      return interaction.reply(fail(`${target.user.tag} does not have ${role}`));
+      return interaction.reply(fail(`${userTag(target.user)} does not have ${role}`));
     }
-    await target.roles.remove(role, `removed by ${interaction.user.tag}`);
-    await interaction.reply(ok(`Removed ${role} from ${target.user.tag}`));
+    await target.roles.remove(role, `removed by ${userTag(interaction.user)}`);
+    await interaction.reply({
+      embeds: [modAction({
+        kind: 'role_remove',
+        target: `${userTag(target.user)} (\`${target.user.id}\`)`,
+        actor: userTag(interaction.user),
+        fields: [field('Role', role.toString())],
+      })],
+    });
 
     if (modLogCh) {
       await modLogCh.send({
         embeds: [logEntry({
           kind: 'role_remove',
-          target: `${target.user.tag} (\`${target.user.id}\`)`,
-          actor: interaction.user.tag,
-          fields: [{ name: 'Role', value: role.toString(), inline: true }],
+          target: `${userTag(target.user)} (\`${target.user.id}\`)`,
+          actor: userTag(interaction.user),
+          fields: [field('Role', role.toString())],
         })],
       }).catch(() => {});
     }

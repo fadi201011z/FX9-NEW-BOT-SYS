@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
 import { requireRole, getLogChannel } from '../../utils/permissions.js';
-import { ok, logEntry } from '../../utils/embeds.js';
+import { modAction, logEntry, userTag } from '../../utils/embeds.js';
 import { getConfig } from '../../database.js';
 import { COMMAND_ROLES, grantAdminAccess } from '../../config/roles.js';
 
@@ -31,7 +31,14 @@ export async function execute(interaction) {
     SendMessages: true,
   });
 
-  await interaction.reply(ok(`Hidden ${channel} — regular members can no longer see it, staff roles still can.`));
+  await interaction.reply({
+    embeds: [modAction({
+      kind: 'hide',
+      description: 'Regular members can no longer see this channel. Staff roles still can.',
+      target: channel.toString(),
+      actor: userTag(interaction.user),
+    })],
+  });
 
   const modLogCh = await getLogChannel(interaction.guild, getConfig(interaction.guildId, 'modlog_channel'));
   if (modLogCh) {
@@ -39,7 +46,7 @@ export async function execute(interaction) {
       embeds: [logEntry({
         kind: 'hide',
         target: channel.toString(),
-        actor: interaction.user.tag,
+        actor: userTag(interaction.user),
       })],
     }).catch(() => {});
   }
