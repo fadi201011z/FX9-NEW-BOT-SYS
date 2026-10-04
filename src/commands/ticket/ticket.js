@@ -1,133 +1,214 @@
-import {
-  ChatInputCommandInteraction, SlashCommandBuilder,
-  PermissionsBitField, EmbedBuilder, TextChannel,
-} from "discord.js";
-import { getTicket, saveTicket, getGuildConfig, getAllOpenTickets } from "../../data/ticketDB.js";
-import { logEmbed, COLOR } from "../../utils/embeds.js";
-import { CATEGORY_LABEL, PRIORITY_LABEL } from "../../data/ticketTypes.js";
+import { SlashCommandBuilder, PermissionsBitField } from 'discord.js';
+import { getTicket, saveTicket, getGuildConfig, getAllOpenTickets } from '../../data/ticketDB.js';
+import { ok, fail, notice, logEmbed, field, C } from '../../utils/embeds.js';
+import { CATEGORY_LABEL, PRIORITY_LABEL, CATEGORY_EMOJI } from '../../data/ticketTypes.js';
+import { formatDuration } from '../../utils/parseDuration.js';
 
 export const data = new SlashCommandBuilder()
-  .setName("ticket")
-  .setDescription("🎫 أدوات إدارة التكتات")
+  .setName('ticket')
+  .setDescription('🎫 Manage tickets in this channel')
   .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageChannels)
-  .addSubcommand((s) => s.setName("info").setDescription("معلومات التكت الحالي"))
+  .addSubcommand((s) => s.setName('info').setDescription('Show the current ticket’s details'))
   .addSubcommand((s) =>
-    s.setName("add").setDescription("إضافة عضو إلى التكت")
-     .addUserOption((o) => o.setName("user").setDescription("العضو").setRequired(true))
-  )
+    s.setName('add').setDescription('Give a member access to this ticket')
+      .addUserOption((o) => o.setName('user').setDescription('Member').setRequired(true)))
   .addSubcommand((s) =>
-    s.setName("remove").setDescription("إزالة عضو من التكت")
-     .addUserOption((o) => o.setName("user").setDescription("العضو").setRequired(true))
-  )
-  .addSubcommand((s) => s.setName("transcript").setDescription("📄 سجل المحادثة كملف نصي"))
-  .addSubcommand((s) => s.setName("list").setDescription("📋 جميع التكتات المفتوحة"))
+    s.setName('remove').setDescription('Revoke a member’s access to this ticket')
+      .addUserOption((o) => o.setName('user').setDescription('Member').setRequired(true)))
+  .addSubcommand((s) => s.setName('transcript').setDescription('📄 Save the conversation as a text file'))
+  .addSubcommand((s) => s.setName('list').setDescription('📋 Every open ticket in this server'))
   .addSubcommand((s) =>
-    s.setName("priority").setDescription("🎯 تغيير الأولوية")
-     .addStringOption((o) =>
-       o.setName("level").setDescription("المستوى").setRequired(true)
-        .addChoices({ name: "🔴 عالية", value: "high" }, { name: "🟡 متوسطة", value: "medium" }, { name: "🟢 منخفضة", value: "low" })
-     )
-  );
+    s.setName('priority').setDescription('🎯 Change the ticket priority')
+      .addStringOption((o) =>
+        o.setName('level').setDescription('Level').setRequired(true)
+          .addChoices(
+            { name: '🔴 High', value: 'high' },
+            { name: '🟡 Medium', value: 'medium' },
+            { name: '🟢 Low', value: 'low' },
+          )));
+
+const NOT_A_TICKET = 'This channel is not a ticket.';
+const STATUS_LABEL = { open: '🟢 Open', claimed: '📩 Claimed', closed: '🔒 Closed' };
 
 export async function execute(interaction) {
   const sub = interaction.options.getSubcommand();
 
-  if (sub === "info") {
-    await interaction.deferReply({ ephemeral: true });
+  // ── info ────────────────────────────────────────────────────────────────
+  // This earns its embed: the moderator is reading a record, not a result.
+  if (sub === 'info') {
+    await interaction.deferReply({ flags: 64 });
+
     const t = getTicket(interaction.channelId);
-    if (!t) { await interaction.editReply({ content: "❌ هذه القناة ليست تكتاً." }); return; }
+    if (!t) return interaction.editReply({ content: `❌ ${NOT_A_TICKET}` });
 
-    const elapsed = Date.now() - t.openedAt;
-    const h = Math.floor(elapsed / 3600000);
-    const m = Math.floor((elapsed % 3600000) / 60000);
-    const statusMap = { open: "🟢 مفتوح", claimed: "📩 مستلم", closed: "🔒 مغلق" };
+    const fields = [
+      field('Member', `<@${t.userId}>`),
+      field('Category', CATEGORY_LABEL[t.category] ?? t.category ?? '—'),
+      field('Status', STATUS_LABEL[t.status] ?? t.status ?? '—'),
+      field('Priority', PRIORITY_LABEL[t.priority] ?? t.priority ?? '—'),
+      field('Claimed by', t.claimedBy ? `<@${t.claimedBy}>` : 'Nobody'),
+      field('Age', formatDuration(Date.now() - t.openedAt)),
+      field('Summary', (t.title ?? '—').slice(0, 1024), false),
+      field('Details', (t.description ?? '—').slice(0, 1024), false),
+    ];
 
-    const embed = new EmbedBuilder().setColor(COLOR.blue).setTitle(`📋 معلومات — ${t.ticketId}`)
-      .setDescription("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-      .addFields(
-        { name: "👤 العضو",       value: `<@${t.userId}>`, inline: true },
-        { name: "📂 القسم",       value: CATEGORY_LABEL[t.category] ?? t.category, inline: true },
-        { name: "📊 الحالة",      value: statusMap[t.status] ?? t.status, inline: true },
-        { name: "🎯 الأولوية",   value: PRIORITY_LABEL[t.priority] ?? "🟡 متوسطة", inline: true },
-        { name: "📩 الإداري",     value: t.claimedBy ? `<@${t.claimedBy}>` : "لا أحد", inline: true },
-        { name: "⏰ مدة التكت",  value: `${h}س ${m}د`, inline: true },
-        { name: "📌 العنوان",     value: t.title },
-        { name: "📝 الوصف",       value: t.description },
-        ...(t.evidence ? [{ name: "🔗 الأدلة", value: t.evidence }] : []),
-        ...(Array.isArray(t.extra) && t.extra.length
-          ? t.extra.map((e) => ({ name: `⚙️ ${e.label}`, value: e.value }))
-          : []),
-      ).setFooter({ text: "KRS • Ticket Info" }).setTimestamp();
-    await interaction.editReply({ embeds: [embed] });
+    if (t.evidence) fields.push(field('Evidence', t.evidence.slice(0, 1024), false));
+    if (Array.isArray(t.extra)) {
+      for (const item of t.extra) fields.push(field(item.label, String(item.value).slice(0, 1024), false));
+    }
 
-  } else if (sub === "add") {
-    await interaction.deferReply({ ephemeral: true });
+    return interaction.editReply({
+      embeds: [notice({
+        title: `📋 Ticket — ${t.ticketId}`,
+        color: C.info,
+        fields,
+        footer: `Kratos System • ${t.ticketId}`,
+        timestamp: true,
+      })],
+    });
+  }
+
+  // ── add ─────────────────────────────────────────────────────────────────
+  if (sub === 'add') {
+    await interaction.deferReply({ flags: 64 });
+
     const t = getTicket(interaction.channelId);
-    if (!t) { await interaction.editReply({ content: "❌ هذه القناة ليست تكتاً." }); return; }
-    const user = interaction.options.getUser("user", true);
-    await interaction.channel.permissionOverwrites.edit(user.id, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true });
-    t.lastActivity = Date.now(); await saveTicket(t);
-    await interaction.channel.send({ embeds: [logEmbed("➕ تمت إضافة عضو", COLOR.green, [{ name: "العضو", value: `<@${user.id}>`, inline: true }, { name: "بواسطة", value: `<@${interaction.user.id}>`, inline: true }])] });
-    await interaction.editReply({ content: `✅ تم إضافة <@${user.id}>.` });
+    if (!t) return interaction.editReply({ content: `❌ ${NOT_A_TICKET}` });
 
-  } else if (sub === "remove") {
-    await interaction.deferReply({ ephemeral: true });
+    const user = interaction.options.getUser('user', true);
+    await interaction.channel.permissionOverwrites.edit(user.id, {
+      ViewChannel: true, SendMessages: true, ReadMessageHistory: true,
+    });
+
+    t.lastActivity = Date.now();
+    await saveTicket(t);
+
+    // The channel is public, so this one is logged where staff will see it.
+    await interaction.channel.send({
+      embeds: [logEmbed('➕ Member added', C.ok, [
+        field('Member', `<@${user.id}>`),
+        field('Added by', `<@${interaction.user.id}>`),
+      ])],
+    });
+
+    return interaction.editReply(ok(`<@${user.id}> can now see this ticket.`));
+  }
+
+  // ── remove ──────────────────────────────────────────────────────────────
+  if (sub === 'remove') {
+    await interaction.deferReply({ flags: 64 });
+
     const t = getTicket(interaction.channelId);
-    if (!t) { await interaction.editReply({ content: "❌ هذه القناة ليست تكتاً." }); return; }
-    const user = interaction.options.getUser("user", true);
-    if (user.id === t.userId) { await interaction.editReply({ content: "❌ لا يمكن إزالة صاحب التكت." }); return; }
+    if (!t) return interaction.editReply({ content: `❌ ${NOT_A_TICKET}` });
+
+    const user = interaction.options.getUser('user', true);
+    if (user.id === t.userId) {
+      return interaction.editReply(fail('The member who opened the ticket cannot be removed.'));
+    }
+
     await interaction.channel.permissionOverwrites.edit(user.id, { ViewChannel: false });
-    t.lastActivity = Date.now(); await saveTicket(t);
-    await interaction.channel.send({ embeds: [logEmbed("➖ تمت إزالة عضو", COLOR.red, [{ name: "العضو", value: `<@${user.id}>`, inline: true }, { name: "بواسطة", value: `<@${interaction.user.id}>`, inline: true }])] });
-    await interaction.editReply({ content: `✅ تم إزالة <@${user.id}>.` });
 
-  } else if (sub === "transcript") {
-    await interaction.deferReply({ ephemeral: true });
+    t.lastActivity = Date.now();
+    await saveTicket(t);
+
+    await interaction.channel.send({
+      embeds: [logEmbed('➖ Member removed', C.warn, [
+        field('Member', `<@${user.id}>`),
+        field('Removed by', `<@${interaction.user.id}>`),
+      ])],
+    });
+
+    return interaction.editReply(ok(`<@${user.id}> can no longer see this ticket.`));
+  }
+
+  // ── transcript ──────────────────────────────────────────────────────────
+  if (sub === 'transcript') {
+    await interaction.deferReply({ flags: 64 });
+
     const t = getTicket(interaction.channelId);
-    if (!t) { await interaction.editReply({ content: "❌ هذه القناة ليست تكتاً." }); return; }
+    if (!t) return interaction.editReply({ content: `❌ ${NOT_A_TICKET}` });
 
     const msgs   = await interaction.channel.messages.fetch({ limit: 100 });
     const sorted = [...msgs.values()].reverse();
-    const lines  = [
-      `╔══════════════════════════════════════╗`,
-      `║    KRS Support — Ticket Transcript   ║`,
-      `╚══════════════════════════════════════╝`,
-      `رقم التكت : ${t.ticketId}`,
-      `العضو     : ${t.username} (${t.userId})`,
-      `القسم     : ${CATEGORY_LABEL[t.category] ?? t.category}`,
-      `العنوان   : ${t.title}`,
-      `فُتح في   : ${new Date(t.openedAt).toLocaleString("ar-SA")}`,
-      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-      ...sorted.map((m) => `[${new Date(m.createdTimestamp).toLocaleString("ar-SA")}] ${m.author.username}: ${m.content || (m.embeds.length ? "[Embed]" : "[Attachment]")}`),
-      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-      `KRS Support System — ${new Date().toLocaleString("ar-SA")}`,
+    const stamp  = (ts) => new Date(ts).toISOString().replace('T', ' ').slice(0, 19);
+
+    const lines = [
+      '==================================================',
+      '   Kratos System — Ticket Transcript',
+      '==================================================',
+      `Ticket   : ${t.ticketId}`,
+      `Member   : ${t.username ?? 'unknown'} (${t.userId})`,
+      `Category : ${CATEGORY_LABEL[t.category] ?? t.category ?? '—'}`,
+      `Summary  : ${t.title ?? '—'}`,
+      `Opened   : ${stamp(t.openedAt)}`,
+      '--------------------------------------------------',
+      ...sorted.map((m) => `[${stamp(m.createdTimestamp)}] ${m.author.username}: `
+        + (m.content || (m.embeds.length ? '[embed]' : '[attachment]'))),
+      '--------------------------------------------------',
+      `Generated: ${stamp(Date.now())}`,
+      '',
     ];
-    const buf = Buffer.from(lines.join("\n"), "utf-8");
+
+    const buf  = Buffer.from(lines.join('\n'), 'utf-8');
+    const file = { attachment: buf, name: `transcript-${t.ticketId}.txt` };
 
     const config = getGuildConfig(interaction.guildId);
     if (config.logChannelId) {
       const logCh = interaction.guild.channels.cache.get(config.logChannelId);
-      await logCh?.send({ content: `📄 Transcript: \`${t.ticketId}\` — بواسطة <@${interaction.user.id}>`, files: [{ attachment: buf, name: `transcript-${t.ticketId}.txt` }] });
+      await logCh?.send({
+        content: `📄 Transcript for \`${t.ticketId}\` · requested by <@${interaction.user.id}>`,
+        files: [file],
+      }).catch(() => {});
     }
-    await interaction.editReply({ content: "✅ تم إنشاء الـ Transcript.", files: [{ attachment: buf, name: `transcript-${t.ticketId}.txt` }] });
 
-  } else if (sub === "list") {
-    await interaction.deferReply({ ephemeral: true });
+    return interaction.editReply({ content: '✅ Transcript ready.', files: [file] });
+  }
+
+  // ── list ────────────────────────────────────────────────────────────────
+  // A queue the moderator has to scan, so this is a table, not a sentence.
+  if (sub === 'list') {
+    await interaction.deferReply({ flags: 64 });
+
     const open = getAllOpenTickets(interaction.guildId);
-    if (!open.length) { await interaction.editReply({ content: "✅ لا توجد تكتات مفتوحة حالياً." }); return; }
+    if (open.length === 0) {
+      return interaction.editReply({ content: '✅ No open tickets right now.' });
+    }
 
-    const catIcon = { technical: "🛠️", complaint: "🚫", partnership: "🤝", other: "❓" };
-    const rows = open.map((t) => `${catIcon[t.category] ?? "📋"} \`${t.ticketId}\` <#${t.channelId}> — ${t.claimedBy ? `📩 <@${t.claimedBy}>` : "⏳ غير مستلم"}`);
-    await interaction.editReply({ embeds: [new EmbedBuilder().setColor(COLOR.blue).setTitle(`📋 التكتات المفتوحة — ${open.length}`).setDescription("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" + rows.join("\n") + "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━").setFooter({ text: "KRS • Open Tickets" }).setTimestamp()] });
+    const rows = open
+      .slice(0, 20)
+      .map((t) => `${CATEGORY_EMOJI[t.category] ?? '📋'} \`${t.ticketId}\` <#${t.channelId}> — `
+        + (t.claimedBy ? `📩 <@${t.claimedBy}>` : '⏳ unclaimed'));
 
-  } else if (sub === "priority") {
-    await interaction.deferReply({ ephemeral: true });
+    return interaction.editReply({
+      embeds: [notice({
+        title: `📋 Open tickets — ${open.length}`,
+        color: C.info,
+        fields: [field('Queue', rows.join('\n'), false)],
+        footer: open.length > 20 ? 'Kratos System • showing the first 20' : 'Kratos System',
+        timestamp: true,
+      })],
+    });
+  }
+
+  // ── priority ────────────────────────────────────────────────────────────
+  if (sub === 'priority') {
+    await interaction.deferReply({ flags: 64 });
+
     const t = getTicket(interaction.channelId);
-    if (!t) { await interaction.editReply({ content: "❌ هذه القناة ليست تكتاً." }); return; }
-    const level = interaction.options.getString("level", true);
-    t.priority = level; t.lastActivity = Date.now(); await saveTicket(t);
-    const pColor = { high: COLOR.red, medium: COLOR.blue, low: COLOR.green };
-    await interaction.channel.send({ embeds: [new EmbedBuilder().setColor(pColor[level]).setTitle("🎯 تم تغيير الأولوية").setDescription(`الأولوية الجديدة: **${PRIORITY_LABEL[level]}**`).setFooter({ text: `بواسطة: ${interaction.user.username}` }).setTimestamp()] });
-    await interaction.editReply({ content: `✅ الأولوية: **${PRIORITY_LABEL[level]}**` });
+    if (!t) return interaction.editReply({ content: `❌ ${NOT_A_TICKET}` });
+
+    const level = interaction.options.getString('level', true);
+    t.priority = level;
+    t.lastActivity = Date.now();
+    await saveTicket(t);
+
+    await interaction.channel.send({
+      embeds: [logEmbed('🎯 Priority changed', { high: C.error, medium: C.info, low: C.ok }[level] ?? C.info, [
+        field('New priority', PRIORITY_LABEL[level] ?? level),
+        field('Changed by', `<@${interaction.user.id}>`),
+      ])],
+    });
+
+    return interaction.editReply(ok(`Priority set to **${PRIORITY_LABEL[level] ?? level}**.`));
   }
 }

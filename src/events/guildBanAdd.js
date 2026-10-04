@@ -2,7 +2,7 @@ import { Events, AuditLogEvent } from 'discord.js';
 import { getNukeData, upsertNukeData, getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
 import { getAuditEntry } from '../utils/audit.js';
-import { alertEmbed, userTag } from '../utils/embeds.js';
+import { notice, field, userTag, C } from '../utils/embeds.js';
 
 export const name = Events.GuildBanAdd;
 export const once = false;
@@ -17,7 +17,7 @@ export async function execute(ban) {
   try {
     const entry = await getAuditEntry(guild, AuditLogEvent.MemberBanAdd);
     if (entry && Date.now() - entry.createdTimestamp < 5000) executor = entry.executor;
-  } catch {}
+  } catch { /* audit log unavailable */ }
 
   if (!executor || executor.bot || executor.id === guild.ownerId) return;
 
@@ -33,33 +33,42 @@ export async function execute(ban) {
   }
   await upsertNukeData(guild.id, executor.id, action, count, lastReset);
 
-  if (count >= NUKE_THRESHOLD) {
-    await upsertNukeData(guild.id, executor.id, action, 0, now);
+  if (count < NUKE_THRESHOLD) return;
 
-    try {
-      const member = await guild.members.fetch(executor.id);
-      if (member) await member.roles.set([], 'Anti-Nuke: حظر جماعي');
-    } catch { /* لا يمكن التعديل */ }
+  // Threshold reached — reset the counter so one raid produces one alert.
+  await upsertNukeData(guild.id, executor.id, action, 0, now);
 
-    const modLogCh = await getLogChannel(guild, getConfig(guild.id, 'modlog_channel'));
-    const logCh    = await getLogChannel(guild, getConfig(guild.id, 'log_channel'));
-    const alertCh  = modLogCh ?? logCh;
-
-    if (alertCh) {
-      await alertCh.send({
-        embeds: [
-          alertEmbed('تحذير Anti-Nuke — حظر جماعي مُكتشَف!')
-            .setDescription(
-              `> ⚠️ **${userTag(executor)}** نفّذ **${count}** حظر في أقل من 10 ثوانٍ!\n` +
-              `> تم **سحب جميع أدواره** تلقائياً. راجع الأمر وتصرف فوراً.`
-            )
-            .addFields(
-              { name: '👤  المنفّذ',           value: `<@${executor.id}> (${userTag(executor)})`, inline: true },
-              { name: '🆔  المعرّف',           value: `\`${executor.id}\``,                 inline: true },
-              { name: '🚫  آخر محظور',         value: `${userTag(ban.user)} \`${ban.user.id}\``, inline: true },
-            )
-        ],
-      }).catch(() => {});
+  let stripped = false;
+  try {
+    const member = await guild.members.fetch(executor.id);
+    // Administrators are left alone: stripping every role from an admin would
+    // lock the server out of its own moderation.
+    if (member && !member.permissions.has('Administrator')) {
+      await member.roles.set([], 'Anti-nuke: mass ban');
+      stripped = true;
     }
+  } catch { /* cannot modify */ }
+
+  const alertCh = await getLogChannel(guild, getConfig(guild.id, 'modlog_channel'))
+    ?? await getLogChannel(guild, getConfig(guild.id, 'log_channel'));
+
+  if (alertCh) {
+    await alertCh.send({
+      embeds: [notice({
+        title: '🚨 Anti-nuke — mass ban detected',
+        description: `<@${executor.id}> issued **${count}** bans in under 10 seconds.\n`
+          + (stripped
+            ? 'All of their roles have been removed automatically.'
+            : 'Their roles were **not** removed (Administrator or missing permissions).'),
+        color: C.error,
+        fields: [
+          field('Executor', `<@${executor.id}> (${userTag(executor)})`),
+          field('User ID', `\`${executor.id}\``),
+          field('Last user banned', `${userTag(ban.user)} \`${ban.user.id}\``),
+        ],
+        footer: 'Kratos System • Anti-nuke',
+        timestamp: true,
+      })],
+    }).catch(() => {});
   }
 }

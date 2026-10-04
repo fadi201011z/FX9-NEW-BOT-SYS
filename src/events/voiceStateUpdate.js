@@ -1,7 +1,7 @@
-import { Events, EmbedBuilder, ChannelType, PermissionFlagsBits } from 'discord.js';
+import { Events, ChannelType, PermissionFlagsBits } from 'discord.js';
 import { getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
-import { Colors, userTag } from '../utils/embeds.js';
+import { logEntry, field, userTag } from '../utils/embeds.js';
 import { updateStatusChannels } from '../utils/statusUpdater.js';
 import Maintenance from '../models/Maintenance.js';
 
@@ -115,13 +115,9 @@ export async function execute(oldState, newState) {
             chData.ownerId = newOwner.id;
             const textCh = guild.channels.cache.get(chData.textChannelId);
             if (textCh) {
+              // One sentence, so plain text — an embed would be noise here.
               const msg = await textCh.send({
-                embeds: [
-                  new EmbedBuilder()
-                    .setDescription(`👑 انتقلت ملكية **${vc.name}** إلى <@${newOwner.id}> تلقائياً`)
-                    .setColor(0xfee75c)
-                    .setFooter({ text: 'تُحذف هذه الرسالة خلال 20 ثانية' }),
-                ],
+                content: `👑 <@${newOwner.id}> is now the owner of **${vc.name}** · *this message deletes itself in 20 seconds*`,
               }).catch(() => null);
               const { default: autoDelete } = await import('../utils/autoDelete.js');
               if (msg && autoDelete) autoDelete(msg, 20);
@@ -145,35 +141,27 @@ export async function execute(oldState, newState) {
 
   if (!joined && !left && !switched) return;
 
-  let title, description, color;
+  let kind, detail;
 
   if (joined) {
-    title       = '🎤  دخل قناة صوتية';
-    description = `${member} انضم إلى **${newState.channel.name}**`;
-    color       = Colors.VOICE;
+    kind   = 'voice_join';
+    detail = `Joined **${newState.channel.name}**`;
   } else if (left) {
-    title       = '🔇  غادر قناة صوتية';
-    description = `${member} غادر **${oldState.channel.name}**`;
-    color       = Colors.LEAVE;
+    kind   = 'voice_leave';
+    detail = `Left **${oldState.channel.name}**`;
   } else {
-    title       = '🔀  تنقّل بين القنوات';
-    description = `${member} انتقل من **${oldState.channel.name}** ← **${newState.channel.name}**`;
-    color       = Colors.EDIT;
+    kind   = 'voice_switch';
+    detail = `Moved from **${oldState.channel.name}** to **${newState.channel.name}**`;
   }
 
   if (logCh) {
-    const safeClient = newState.client || oldState.client;
     void logCh.send({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(color)
-          .setTitle(title)
-          .setDescription(description)
-          .setThumbnail(member?.user.displayAvatarURL({ dynamic: true }) ?? null)
-          .addFields({ name: '🆔  المعرّف', value: `\`${member?.user.id ?? 'N/A'}\``, inline: true })
-          .setTimestamp()
-          .setFooter({ text: '⚔️ KRS-SYS  •  السجلات العامة' })
-      ],
+      embeds: [logEntry({
+        kind,
+        target: `${member} (\`${member?.user.id ?? 'N/A'}\`)`,
+        fields: [field('Channel', detail, false)],
+        footer: 'Kratos System • Server log',
+      })],
     }).catch(() => {});
   }
 

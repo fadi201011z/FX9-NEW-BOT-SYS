@@ -1,65 +1,53 @@
-import { errorEmbed, EPHEMERAL } from './embeds.js';
+import { PermissionFlagsBits } from 'discord.js';
+import { fail } from './embeds.js';
 import { getConfig } from '../database.js';
 
 /**
- * التحقق من صلاحية Discord التقليدية
- * (لا تزال تُستخدم داخلياً في بعض الأماكن)
+ * Plain Discord permission check. Still used internally in a few places.
  */
 export async function requirePermission(interaction, permission) {
   if (!interaction.member.permissions.has(permission)) {
-    await interaction.reply({
-      embeds: [errorEmbed('صلاحيات غير كافية', 'ليس لديك الصلاحية الكافية لاستخدام هذا الأمر.')],
-      flags: EPHEMERAL,
-    });
+    await interaction.reply(fail('You do not have permission to use this command.'));
     return false;
   }
   return true;
 }
 
 /**
- * التحقق من رتبة العضو حسب قائمة معرّفات الرتب المسموح بها
+ * Role-based check against the allow-list in config/roles.js.
  *
- * - مالك السيرفر: مسموح تلقائياً
- * - أعضاء بصلاحية Administrator: مسموح تلقائياً
- * - باقي الأعضاء: يجب امتلاك رتبة من القائمة المحددة
+ * Allowed automatically:
+ *   - the server owner
+ *   - anyone holding Discord's Administrator permission
+ * Everyone else needs a role from the list.
  *
  * @param {Interaction} interaction
- * @param {string[]}    allowedRoles - قائمة معرّفات الرتب المسموح بها
+ * @param {string[]}    allowedRoles  role IDs permitted to run the command
  */
 export async function requireRole(interaction, allowedRoles) {
-  // مالك السيرفر → مسموح دائماً
   if (interaction.guild.ownerId === interaction.user.id) return true;
+  if (interaction.member.permissions.has(PermissionFlagsBits.Administrator)) return true;
 
-  // صلاحية Administrator في Discord → مسموح دائماً
-  if (interaction.member.permissions.has(0x8n)) return true;
-
-  // تحقق من الرتب المُعدَّة في config/roles.js
-  const memberRoles = interaction.member.roles.cache;
-
-  // إذا كانت القائمة فارغة أو تحتوي فقط على القيمة الافتراضية
-  const validRoles = allowedRoles.filter(id => id && id !== 'ROLE_ID_HERE');
+  // Drop placeholders and empty entries, so an unconfigured list is detected
+  // rather than silently treated as "allow nobody".
+  const validRoles = allowedRoles.filter((id) => id && id !== 'ROLE_ID_HERE');
 
   if (validRoles.length === 0) {
-    // لم تُعدَّ الرتب بعد → أبلغ المستخدم
-    await interaction.reply({
-      embeds: [
-        errorEmbed(
-          'الرتب غير مُعدَّة',
-          'لم يتم تعيين رتب الصلاحيات بعد.\nيرجى تعديل ملف `config/roles.js` وإضافة معرّفات الرتب.'
-        )
-      ],
-      flags: EPHEMERAL,
-    });
+    // The allow-list lives in the bot's own source, which a server admin
+    // cannot edit — so telling them to go edit it was never actionable. Point
+    // them at what the bot developer has to do instead.
+    await interaction.reply(fail(
+      'No moderation roles are configured for this command yet. '
+      + 'The bot developer needs to add role IDs to config/roles.js.'
+    ));
     return false;
   }
 
-  const hasRole = validRoles.some(roleId => memberRoles.has(roleId));
+  const memberRoles = interaction.member.roles.cache;
+  const hasRole = validRoles.some((roleId) => memberRoles.has(roleId));
 
   if (!hasRole) {
-    await interaction.reply({
-      embeds: [errorEmbed('رتبة غير كافية', 'لا تملك الرتبة المطلوبة لاستخدام هذا الأمر.')],
-      flags: EPHEMERAL,
-    });
+    await interaction.reply(fail('You do not have a role that is allowed to use this command.'));
     return false;
   }
 
@@ -67,23 +55,24 @@ export async function requireRole(interaction, allowedRoles) {
 }
 
 /**
- * التحقق من إمكانية إجراء عملية إشراف على عضو (ترتيب الأدوار)
+ * Whether a moderation action is possible against this member, by role
+ * hierarchy. Takes a guild rather than an interaction, so it stays reusable
+ * from both a slash command and an HTTP endpoint.
  */
 export function canModerate(guild, target) {
   const botMember = guild.members.me;
-  if (!botMember)  return false;
+  if (!botMember) return false;
   if (target.id === guild.ownerId) return false;
   if (target.roles.highest.position >= botMember.roles.highest.position) return false;
   return true;
 }
 
-/**
- * جلب قناة بمعرّفها من السيرفر — يعيد null إذا لم تُوجد
- * مع كاش داخلي قصير المدى لتجنّب استعلامات القنوات المتكررة
- */
+// ─── Channel lookup ────────────────────────────────────────────────────────
+
 const channelCache = new Map();
 const CHANNEL_CACHE_TTL_MS = 15_000;
 
+/** Fetch a log channel by ID, or null. Short-lived cache avoids refetching. */
 export async function getLogChannel(guild, channelId) {
   if (!channelId) return null;
 
@@ -98,9 +87,7 @@ export async function getLogChannel(guild, channelId) {
   } catch { return null; }
 }
 
-/**
- * جلب القنوات الثلاث دفعة واحدة
- */
+/** All three configured log channels in one pass. */
 export async function getChannels(guild) {
   const [logCh, modLogCh, botLogCh] = await Promise.all([
     getLogChannel(guild, getConfig(guild.id, 'log_channel')),

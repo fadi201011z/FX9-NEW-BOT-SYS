@@ -1,8 +1,8 @@
-import { Events, AuditLogEvent, EmbedBuilder } from 'discord.js';
+import { Events, AuditLogEvent } from 'discord.js';
 import { getNukeData, upsertNukeData, getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
 import { getAuditEntry } from '../utils/audit.js';
-import { Colors, alertEmbed, userTag } from '../utils/embeds.js';
+import { logEntry, notice, field, userTag, C } from '../utils/embeds.js';
 
 export const name = Events.RoleDelete;
 export const once = false;
@@ -23,26 +23,27 @@ export async function execute(role) {
     if (entry && Date.now() - entry.createdTimestamp < 5000) {
       executor = entry.executor;
     }
-  } catch {}
+  } catch { /* audit log unavailable */ }
 
-  // ─── سجل الحذف في قناة الإشراف ────────────────────────────────────────
+  // ─── Deletion log ────────────────────────────────────────────────────────
   const targetCh = modLogCh ?? logCh;
   if (targetCh && executor) {
-    const embed = new EmbedBuilder()
-      .setColor(Colors.ERROR)
-      .setTitle('🗑️  حذف رتبة')
-      .addFields(
-        { name: '🏷️  الرتبة',    value: `\`${role.name}\``,                  inline: true },
-        { name: '🆔  المعرّف',    value: `\`${role.id}\``,                    inline: true },
-        { name: '🎨  اللون',      value: `\`#${role.color.toString(16).padStart(6, '0')}\``, inline: true },
-        { name: '👤  المنفّذ',    value: `<@${executor.id}> (${userTag(executor)})`, inline: false },
-      )
-      .setTimestamp()
-      .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' });
-    await targetCh.send({ embeds: [embed] }).catch(() => {});
+    await targetCh.send({
+      embeds: [logEntry({
+        kind: 'role_delete',
+        target: `\`${role.name}\``,
+        actor: `<@${executor.id}> (${userTag(executor)})`,
+        fields: [
+          field('Role ID', `\`${role.id}\``),
+          field('Colour', `\`#${role.color.toString(16).padStart(6, '0')}\``),
+        ],
+      })],
+    }).catch(() => {});
   }
 
-  // ─── Anti-Nuke ────────────────────────────────────────────────────────────
+  // ─── Anti-nuke ───────────────────────────────────────────────────────────
+  // Three role deletions by one account inside ten seconds is a compromise
+  // pattern. Strip their roles and shout about it.
   if (!executor || executor.bot || executor.id === guild.ownerId) return;
 
   const now    = Date.now();
@@ -57,32 +58,35 @@ export async function execute(role) {
   }
   await upsertNukeData(guild.id, executor.id, action, count, lastReset);
 
-  if (count >= NUKE_THRESHOLD) {
-    await upsertNukeData(guild.id, executor.id, action, 0, now);
+  if (count < NUKE_THRESHOLD) return;
 
-    try {
-      const member = await guild.members.fetch(executor.id);
-      if (member && !member.permissions.has('Administrator')) {
-        await member.roles.set([], 'Anti-Nuke: حذف جماعي للرتب');
-      }
-    } catch { /* لا يمكن التعديل */ }
+  await upsertNukeData(guild.id, executor.id, action, 0, now);
 
-    const alertCh = modLogCh ?? logCh;
-    if (alertCh) {
-      await alertCh.send({
-        embeds: [
-          alertEmbed('تحذير Anti-Nuke — حذف جماعي للرتب!')
-            .setDescription(
-              `> ⚠️ **${userTag(executor)}** قام بحذف **${count}** رتب في أقل من 10 ثوانٍ!\n` +
-              `> تم **سحب جميع أدواره** تلقائياً. راجع الأمر وتصرف فوراً.`
-            )
-            .addFields(
-              { name: '👤  المنفّذ',      value: `<@${executor.id}> (${userTag(executor)})`, inline: true },
-              { name: '🆔  المعرّف',      value: `\`${executor.id}\``,                    inline: true },
-              { name: '🗑️  آخر رتبة محذوفة', value: `\`${role.name}\``,                  inline: true },
-            )
-        ],
-      }).catch(() => {});
+  let stripped = false;
+  try {
+    const member = await guild.members.fetch(executor.id);
+    if (member && !member.permissions.has('Administrator')) {
+      await member.roles.set([], 'Anti-nuke: mass role deletion');
+      stripped = true;
     }
+  } catch { /* cannot modify */ }
+
+  const alertCh = modLogCh ?? logCh;
+  if (alertCh) {
+    await alertCh.send({
+      embeds: [notice({
+        title: '🚨 Anti-nuke — mass role deletion',
+        description: `<@${executor.id}> (\`${executor.id}\`) deleted **${count}** roles in under 10 seconds.\n`
+          + (stripped ? 'All of their roles have been removed.' : 'Their roles were **not** removed (Administrator or missing permissions).'),
+        color: C.error,
+        fields: [
+          field('Executor', `<@${executor.id}> (${userTag(executor)})`),
+          field('User ID', `\`${executor.id}\``),
+          field('Last role deleted', `\`${role.name}\``),
+        ],
+        footer: 'Kratos System • Anti-nuke',
+        timestamp: true,
+      })],
+    }).catch(() => {});
   }
 }

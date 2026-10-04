@@ -63,19 +63,20 @@ export function getActiveCount(guildId) {
 
 export function buildStatusPanel(guildId, setup, activeCount = 0) {
   const row1 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('vc_lock').setLabel('قفل').setEmoji('🔒').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('vc_unlock').setLabel('فتح').setEmoji('🔓').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId('vc_hide').setLabel('إخفاء').setEmoji('🙈').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('vc_show').setLabel('إظهار').setEmoji('👁️').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('vc_lock').setLabel('Lock').setEmoji('🔒').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('vc_unlock').setLabel('Unlock').setEmoji('🔓').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('vc_hide').setLabel('Hide').setEmoji('🙈').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('vc_show').setLabel('Show').setEmoji('👁️').setStyle(ButtonStyle.Secondary),
   );
   const row2 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('vc_limit').setLabel('حد الأعضاء').setEmoji('👥').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('vc_rename').setLabel('تسمية').setEmoji('✏️').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('vc_kick').setLabel('طرد').setEmoji('🚪').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('vc_transfer').setLabel('نقل الملكية').setEmoji('👑').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('vc_limit').setLabel('Member limit').setEmoji('👥').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('vc_rename').setLabel('Rename').setEmoji('✏️').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('vc_kick').setLabel('Kick').setEmoji('🚪').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('vc_transfer').setLabel('Transfer').setEmoji('👑').setStyle(ButtonStyle.Secondary),
   );
 
-  // صورة بنل صوتيات مخصصة لكل سيرفر (من الداشبورد) — تُعطى الأولوية
+  // Per-server panel artwork set from the dashboard, with the bundled default
+  // as the fallback.
   const custom = guildId && resolveGuildImage(guildId, 'voice_panel_image');
   const attachment = custom ? (custom.buffer || custom.url) : VOICE_PANEL_IMAGE;
 

@@ -1,53 +1,33 @@
-import { SlashCommandBuilder, ChannelType, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
+import { SlashCommandBuilder, ChannelType, PermissionFlagsBits } from 'discord.js';
 import { setConfig } from '../../database.js';
-import { Colors, EPHEMERAL } from '../../utils/embeds.js';
 import { requireRole } from '../../utils/permissions.js';
 import { COMMAND_ROLES } from '../../config/roles.js';
+import { channelSetReply } from '../../utils/setupReply.js';
 
 export const data = new SlashCommandBuilder()
   .setName('setup-botlogs')
-  .setDescription('تعيين قناة سجل البوت — تُرسَل فيها إشعارات التشغيل والإيقاف والأخطاء والحالة')
+  .setDescription('Set the bot log channel — startup, shutdown, errors, status reports')
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-  .addChannelOption(opt =>
+  .addChannelOption((opt) =>
     opt.setName('channel')
-      .setDescription('القناة التي ستصلها إشعارات البوت')
+      .setDescription('Channel that receives bot notifications')
       .addChannelTypes(ChannelType.GuildText)
-      .setRequired(true)
-  );
+      .setRequired(true));
 
 export async function execute(interaction) {
   if (!await requireRole(interaction, COMMAND_ROLES.setup)) return;
 
-  const channel = interaction.options.getChannel('channel');
+  const channel = interaction.options.getChannel('channel', true);
   setConfig(interaction.guildId, 'botlog_channel', channel.id);
 
-  await interaction.reply({
-    embeds: [
-      new EmbedBuilder()
-        .setColor(Colors.WHITE)
-        .setTitle('🤖  تم تعيين قناة سجل البوت')
-        .setDescription(`سيتم إرسال جميع إشعارات البوت إلى ${channel}`)
-        .addFields(
-          {
-            name: '📋  ما يُرسَل هنا',
-            value: [
-              '🟢 **البوت أونلاين** — عند بدء التشغيل مع إحصائيات كاملة',
-              '🔴 **البوت أوفلاين** — عند الإيقاف المنظّم (SIGTERM/SIGINT)',
-              '🚨 **خطأ غير متوقع** — عند حدوث استثناء مع تفاصيل الخطأ',
-              '📊 **تقرير الحالة** — كل 10 دقائق (ping، ذاكرة، أعضاء، وقت التشغيل)',
-            ].join('\n'),
-            inline: false,
-          },
-          {
-            name: '💡  نصيحة',
-            value: 'استخدم قناة خاصة لمشرفي البوت فقط.',
-            inline: false,
-          }
-        )
-        .setThumbnail(interaction.guild.iconURL({ dynamic: true }))
-        .setTimestamp()
-        .setFooter({ text: '⚔️ KRS-SYS  •  الإعداد' })
-    ],
-    flags: EPHEMERAL,
-  });
+  await interaction.reply(channelSetReply({
+    title: 'Bot log channel set',
+    emoji: '🤖',
+    channels: [{ label: '📢 Channel', mention: channel.toString(), id: channel.id }],
+    records: '🟢 **Online** — on startup, with full statistics\n'
+      + '🔴 **Offline** — on a clean shutdown (SIGTERM/SIGINT)\n'
+      + '🚨 **Error** — any unhandled exception, with its details\n'
+      + '📊 **Status report** — every 10 minutes: latency, memory, members, uptime',
+    tip: 'Keep this channel private — it is for bot administrators, not the whole staff team.',
+  }));
 }

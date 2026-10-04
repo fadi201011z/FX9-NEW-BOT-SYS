@@ -1,11 +1,13 @@
 import { Client, Collection, GatewayIntentBits, Partials, EmbedBuilder, ChannelType, PermissionFlagsBits } from 'discord.js';
 import { readdir } from 'fs/promises';
-import { readFileSync, statSync, readdirSync, existsSync, writeFileSync, createReadStream } from 'fs';
+import { existsSync, writeFileSync, createReadStream } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 import path from 'path';
 import 'dotenv/config';
+import { commandModules } from './config/commandLoader.js';
+import { notice, field, C } from './utils/embeds.js';
 import { initBotLogger, sendOnlineLog, sendOfflineLog, sendErrorLog, startHeartbeat } from './utils/botLogger.js';
-import { startPresenceRotation, setMaintenancePresence, clearMaintenancePresence } from './utils/presence.js';
+import { setMaintenancePresence, clearMaintenancePresence } from './utils/presence.js';
 import { sendMaintenanceStart, sendMaintenanceEnd } from './utils/maintenanceEmbed.js';
 import express from 'express';
 import { loadFromDisk, cleanStaleChannels } from './handlers/tempVoice.js';
@@ -165,8 +167,9 @@ app.post('/api/sync-config', async (_req, res) => {
   }
 });
 
-// يعيد الصور الافتراضية الثلاث (ترحيب / بنل تذاكر / بنل صوتيات) ليستعرضها الداشبورد
-// عبر زر «عرض الصورة الحالية» عندما لا تكون هناك صورة مخصصة للسيرفر.
+// Returns the three default images (welcome / ticket panel / voice panel) so the
+// dashboard can preview them via "view current image" when a guild has no
+// custom artwork set.
 app.get('/api/default-images/:type', async (req, res) => {
   try {
     const { type } = req.params;
@@ -179,7 +182,7 @@ app.get('/api/default-images/:type', async (req, res) => {
     } else if (type === 'welcome') {
       filePath = path.join(root, 'data', 'welcome_bg.png');
       if (!existsSync(filePath)) {
-        // جلب صورة الترحيب الافتراضية من الرابط الأصل وتخزينها مؤقتاً
+        // Fetch the default welcome artwork once and cache it on disk
         const bgURL = 'https://i.ibb.co/pvYMQfxt/Gemini-Generated-Image-gimcq9gimcq9gimc-clean.png';
         const resp = await fetch(bgURL);
         if (!resp.ok) return res.status(502).json({ error: 'Failed to fetch welcome bg' });
@@ -247,7 +250,8 @@ app.get('/api/stats', (req, res) => {
     : 0;
 
   // ws.ping is 0 until the first heartbeat round-trip completes. Report null
-  // rather than 0 so the UI can say "غير متاح" instead of claiming "0ms".
+  // rather than 0 so the dashboard can show "unavailable" instead of a false
+  // "0ms".
   const wsPing = client.ws?.ping;
   const ping = ready && Number.isFinite(wsPing) && wsPing > 0 ? Math.round(wsPing) : null;
 
@@ -260,25 +264,15 @@ app.get('/api/guilds', (req, res) => {
   res.json({ guilds: guildIds, count: guildIds.length });
 });
 
-// Command statistics for dashboard (real count from source folders)
-app.get('/api/commands/stats', (req, res) => {
-  const commandsDir = path.join(__dirname, 'commands');
+// Command statistics for dashboard (real count, from the loaded modules)
+app.get('/api/commands/stats', async (req, res) => {
   const perCategory = {};
   let total = 0;
   try {
-    const cats = readdirSync(commandsDir);
-    for (const cat of cats) {
-      const catPath = path.join(commandsDir, cat);
-      if (!statSync(catPath).isDirectory()) continue;
-      const files = readdirSync(catPath).filter(f => f.endsWith('.js'));
-      let count = 0;
-      for (const file of files) {
-        try {
-          const content = readFileSync(path.join(catPath, file), 'utf-8');
-          if (/\.setName\(['"`]/.test(content)) count++;
-        } catch {}
-      }
-      if (count > 0) { perCategory[cat] = count; total += count; }
+    for (const { folder, mod } of await commandModules()) {
+      if (typeof mod.execute !== 'function') continue;
+      perCategory[folder] = (perCategory[folder] ?? 0) + 1;
+      total++;
     }
   } catch {}
   res.json({ total, categories: Object.keys(perCategory), perCategory });
@@ -286,28 +280,18 @@ app.get('/api/commands/stats', (req, res) => {
 
 client.commands = new Collection();
 
-// ─── Load Commands from ALL directories ───────────────────────────────────
-const commandDirs = [
-  path.join(__dirname, 'commands', 'setup'),
-  path.join(__dirname, 'commands', 'moderation'),
-  path.join(__dirname, 'commands', 'info'),
-  path.join(__dirname, 'commands', 'members'),
-  path.join(__dirname, 'commands', 'ticket'),
-  path.join(__dirname, 'commands', 'voice'),
-  path.join(__dirname, 'commands', 'notifications'),
-];
+// ─── Load Commands ─────────────────────────────────────────────────────────
+// Folders are discovered from disk by the shared loader, so a new command
+// folder can never be registered with Discord but left without a handler here.
+const loadedCommands = await commandModules();
 
-for (const dir of commandDirs) {
-  let files;
-  try { files = (await readdir(dir)).filter(f => f.endsWith('.js') || f.endsWith('.ts')); }
-  catch { continue; }
-  for (const file of files) {
-    const mod = await import(pathToFileURL(path.join(dir, file)).href);
-    if (mod.data && mod.execute) {
-      client.commands.set(mod.data.name, mod);
-      console.log(`  [CMD] /${mod.data.name}`);
-    }
+for (const { name: commandName, folder, mod } of loadedCommands) {
+  if (typeof mod.execute !== 'function') {
+    console.warn(`  [CMD] /${commandName} (${folder}) has no execute() — not dispatchable, not registered`);
+    continue;
   }
+  client.commands.set(commandName, mod);
+  console.log(`  [CMD] /${commandName}`);
 }
 
 // ─── Load Events ──────────────────────────────────────────────────────────
@@ -353,29 +337,15 @@ client.once('ready', async () => {
 
   // Full command list for dashboard (live source of truth)
   app.get('/api/commands', async (req, res) => {
-    const commandsDir = path.join(__dirname, 'commands');
-    const list = [];
+    let list = [];
     try {
-      const cats = readdirSync(commandsDir);
-      for (const cat of cats) {
-        const catPath = path.join(commandsDir, cat);
-        if (!statSync(catPath).isDirectory()) continue;
-        const files = readdirSync(catPath).filter(f => f.endsWith('.js'));
-        for (const file of files) {
-          try {
-            const mod = await import(pathToFileURL(path.join(catPath, file)).href);
-            if (mod.data && mod.data.name) {
-              list.push({
-                name: mod.data.name,
-                description: mod.data.description || '',
-                category: cat,
-                file,
-                options: mod.data.options || [],
-              });
-            }
-          } catch {}
-        }
-      }
+      list = (await commandModules()).map(({ name, folder, file, mod }) => ({
+        name,
+        description: mod.data.description || '',
+        category: folder,
+        file,
+        options: mod.data.options || [],
+      }));
     } catch {}
     res.json(list);
   });
@@ -405,13 +375,13 @@ client.once('ready', async () => {
       const channel = guild.channels.cache
         .filter(c => c.type === ChannelType.GuildText)
         .find(c => c.permissionsFor(botId)?.has(PermissionFlagsBits.CreateInstantInvite));
-      if (!channel) return res.status(403).json({ error: 'لا يوجد روم نصي يمكن إنشاء دعوة فيه' });
+      if (!channel) return res.status(403).json({ error: 'No text channel is available to create an invite in' });
       const invite = await channel.createInvite({ maxAge: 0, maxUses: 0, reason: 'Kratos Dashboard — dev page join link' });
       const url = `https://discord.gg/${invite.code}`;
       inviteCache.set(guild.id, { url, code: invite.code, channelId: channel.id, ts: Date.now() });
       res.json({ url, code: invite.code, channelId: channel.id, cached: false });
     } catch (e) {
-      res.status(500).json({ error: e?.message || 'فشل إنشاء الدعوة' });
+      res.status(500).json({ error: e?.message || 'Failed to create the invite' });
     }
   });
 
@@ -521,7 +491,7 @@ client.once('ready', async () => {
     if (!channelId) return res.status(400).json({ error: 'Could not resolve channel ID from URL' });
     // Never store a raw URL as a usable channelId (would silently break the monitor)
     if (platform === 'youtube' && /^https?:\/\//i.test(channelId)) {
-      return res.status(400).json({ error: 'تعذر التعرف على قناة يوتيوب من هذا الرابط — تأكد من صحة الرابط (مثال: https://youtube.com/@username)' });
+      return res.status(400).json({ error: 'Could not resolve a YouTube channel from that link — check the URL (e.g. https://youtube.com/@username)' });
     }
     try {
       const doc = await addSubscription({ guildId, platform, channelUrl: url, channelId, discordChannelId, customMessage });
@@ -546,28 +516,28 @@ client.once('ready', async () => {
 
     if (sub.platform === 'youtube') {
       const video = await fetchLatestYouTubeVideo(sub.channelId);
-      if (!video) return res.json({ found: false, error: 'تعذر جلب الفيديو من RSS' });
+      if (!video) return res.json({ found: false, error: 'Could not read the YouTube RSS feed' });
       const lastAt = Number(sub.lastVideoAt) || 0;
       if (lastAt > 0 && Number(video.publishedAt) <= lastAt) {
-        return res.json({ found: false, message: 'لا يوجد فيديو جديد أحدث من الفيديو المُرسل مسبقاً' });
+        return res.json({ found: false, message: 'No video newer than the last one sent.' });
       }
       const prevId = sub.lastVideoId;
       const claimed = await claimYouTubeVideo(sub._id.toString(), video);
-      if (!claimed) return res.json({ found: false, message: 'هذا الفيديو تم إرساله مسبقاً (بدون تكرار)' });
+      if (!claimed) return res.json({ found: false, message: 'This video was already sent (no duplicates).' });
       const sent = await sendNotification(client, sub, youtubeEmbed(video));
       if (!sent) {
         await updateSubscription(sub._id.toString(), { lastVideoId: prevId || '', lastVideoAt: lastAt }).catch(() => {});
-        return res.json({ found: false, error: 'فشل الإرسال إلى ديسكورد' });
+        return res.json({ found: false, error: 'Sending to Discord failed.' });
       }
       return res.json({ found: true, sent, platform: 'youtube', title: video.title, url: video.url });
     }
 
     if (sub.platform === 'kick') {
       const result = await fetchKickStream(sub.channelId);
-      if (result.status === 'error') return res.json({ found: false, error: 'تعذر جلب البث من Kick: ' + result.message });
-      if (result.status === 'offline') return res.json({ found: false, offline: true, message: 'القناة غير متصلة حالياً — لا يوجد بث مباشر. سيرسل إشعار تلقائياً عند دخولها للبث' });
+      if (result.status === 'error') return res.json({ found: false, error: 'Could not read the Kick stream: ' + result.message });
+      if (result.status === 'offline') return res.json({ found: false, offline: true, message: 'The channel is offline right now — no live stream. A notification will be sent automatically when it goes live.' });
       const stream = result.stream;
-      if (sub.lastStreamId === stream.id) return res.json({ found: false, message: 'لا يوجد بث جديد' });
+      if (sub.lastStreamId === stream.id) return res.json({ found: false, message: 'No new stream.' });
       const sent = await sendNotification(client, sub, kickEmbed(stream));
       if (sent) await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id });
       return res.json({ found: true, sent, platform: 'kick', title: stream.title, url: stream.url });
@@ -575,14 +545,14 @@ client.once('ready', async () => {
 
     if (sub.platform === 'twitter') {
       const tweet = await fetchLatestTweet(sub.channelId);
-      if (!tweet) return res.json({ found: false, error: 'تعذر جلب التغريدة' });
-      if (sub.lastVideoId === tweet.tweetId) return res.json({ found: false, message: 'لا يوجد تغريدة جديدة' });
+      if (!tweet) return res.json({ found: false, error: 'Could not read the latest post.' });
+      if (sub.lastVideoId === tweet.tweetId) return res.json({ found: false, message: 'No new post.' });
       const sent = await sendNotification(client, sub, twitterEmbed(tweet));
       if (sent) await updateSubscription(sub._id.toString(), { lastVideoId: tweet.tweetId });
       return res.json({ found: true, sent, platform: 'twitter', text: tweet.text?.slice(0, 100), url: tweet.url });
     }
 
-    res.json({ error: 'منصة غير مدعومة' });
+    res.json({ error: 'Unsupported platform' });
   });
 
   app.post('/api/notifications/resend/:id', async (req, res) => {
@@ -594,7 +564,7 @@ client.once('ready', async () => {
 
     if (sub.platform === 'youtube') {
       const video = await fetchLatestYouTubeVideo(sub.channelId);
-      if (!video) return res.json({ sent: false, error: 'تعذر جلب الفيديو من RSS' });
+      if (!video) return res.json({ sent: false, error: 'Could not read the YouTube RSS feed' });
       const sent = await sendNotification(client, sub, youtubeEmbed(video));
       if (sent) await updateSubscription(sub._id.toString(), { lastVideoId: video.videoId, channelName: video.channelName || sub.channelName });
       return res.json({ sent, platform: 'youtube', title: video.title, url: video.url });
@@ -602,8 +572,8 @@ client.once('ready', async () => {
 
     if (sub.platform === 'kick') {
       const result = await fetchKickStream(sub.channelId);
-      if (result.status === 'error') return res.json({ sent: false, error: 'تعذر جلب البث من Kick: ' + result.message });
-      if (result.status === 'offline') return res.json({ sent: false, offline: true, message: 'القناة غير متصلة حالياً — سيرسل إشعار تلقائياً عند دخولها للبث' });
+      if (result.status === 'error') return res.json({ sent: false, error: 'Could not read the Kick stream: ' + result.message });
+      if (result.status === 'offline') return res.json({ sent: false, offline: true, message: 'The channel is offline right now — a notification will be sent automatically when it goes live.' });
       const stream = result.stream;
       const sent = await sendNotification(client, sub, kickEmbed(stream));
       if (sent) await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id });
@@ -612,13 +582,13 @@ client.once('ready', async () => {
 
     if (sub.platform === 'twitter') {
       const tweet = await fetchLatestTweet(sub.channelId);
-      if (!tweet) return res.json({ sent: false, error: 'تعذر جلب التغريدة' });
+      if (!tweet) return res.json({ sent: false, error: 'Could not read the latest post.' });
       const sent = await sendNotification(client, sub, twitterEmbed(tweet));
       if (sent) await updateSubscription(sub._id.toString(), { lastVideoId: tweet.tweetId });
       return res.json({ sent, platform: 'twitter', text: tweet.text?.slice(0, 100), url: tweet.url });
     }
 
-    res.json({ error: 'منصة غير مدعومة' });
+    res.json({ error: 'Unsupported platform' });
   });
 
   app.get('/api/notifications/debug/:guildId', async (req, res) => {
@@ -659,11 +629,11 @@ client.once('ready', async () => {
     if (!ch) return res.status(404).json({ error: 'Channel not found' });
 
     const ANNOUNCE_TYPES = {
-      general:     { emoji: "📢", label: "إعلان عام",     color: 0x1a6fff },
-      maintenance: { emoji: "🔧", label: "صيانة",          color: 0xff9800 },
-      update:      { emoji: "✅", label: "تحديث/إصدار",    color: 0x00c853 },
-      warning:     { emoji: "🚨", label: "تحذير",          color: 0xe53935 },
-      rules:       { emoji: "📋", label: "قواعد",          color: 0x7c4dff },
+      general:     { emoji: '📢', label: 'Announcement', color: 0x1a6fff },
+      maintenance: { emoji: '🔧', label: 'Maintenance',  color: 0xff9800 },
+      update:      { emoji: '✅', label: 'Update',       color: 0x00c853 },
+      warning:     { emoji: '🚨', label: 'Warning',      color: 0xe53935 },
+      rules:       { emoji: '📋', label: 'Rules',        color: 0x7c4dff },
     };
     const ANNOUNCE_COLORS = { blue: 0x1a6fff, red: 0xe53935, gold: 0xffd700, green: 0x00c853, black: 0x0d0d0d, purple: 0x7c4dff, orange: 0xff9800 };
     const typeInfo = ANNOUNCE_TYPES[type] ?? ANNOUNCE_TYPES.general;
@@ -673,10 +643,10 @@ client.once('ready', async () => {
       .setColor(finalColor)
       .setAuthor({ name: `${guild.name} • ${typeInfo.label}`, iconURL: guild.iconURL() || undefined })
       .setTitle(`${typeInfo.emoji}  ${title}`)
-      .setDescription([`> ${typeInfo.label} رسمي من إدارة **${guild.name}**`, '', '━━━━━━━━━━━━━━━━━━━━━━━━━━', '', message, '', '━━━━━━━━━━━━━━━━━━━━━━━━━━'].join("\n"))
+      .setDescription(`> Official ${typeInfo.label.toLowerCase()} from the **${guild.name}** team\n\n${message}`)
       .addFields(
-        { name: '📋 النوع', value: typeInfo.label, inline: true },
-        { name: '📅 التاريخ', value: `<t:${Math.floor(Date.now() / 1000)}:D>`, inline: true },
+        { name: '📋 Type', value: typeInfo.label, inline: true },
+        { name: '📅 Date', value: `<t:${Math.floor(Date.now() / 1000)}:D>`, inline: true },
       );
     if (thumbnail) embed.setThumbnail(thumbnail);
     if (image) embed.setImage(image);
@@ -719,8 +689,8 @@ client.once('ready', async () => {
       }
 
       if (changelog) {
-        const botUpdates = (changelog.botUpdates || '').trim() || 'لم يتم إضافة تحديثات';
-        const siteUpdates = (changelog.siteUpdates || '').trim() || 'لم يتم إضافة تحديثات';
+        const botUpdates = (changelog.botUpdates || '').trim() || 'No updates recorded';
+        const siteUpdates = (changelog.siteUpdates || '').trim() || 'No updates recorded';
         await Maintenance.updateOne({}, { $set: { changelog: { botUpdates, siteUpdates } } }, { upsert: true });
       }
 
@@ -733,20 +703,20 @@ client.once('ready', async () => {
       if (action === 'start') {
         lastStopTime = 0;
         await Maintenance.updateOne({}, { $set: { changelog: { botUpdates: '', siteUpdates: '' } } }, { upsert: true });
-        setMaintenancePresence(client, doc.message || 'البوت تحت الصيانة');
+        setMaintenancePresence(client, doc.message || 'The bot is under maintenance');
         const target = channelId || doc.channelId || '';
-        console.log(`[Maintenance/Sync] إرسال إشعار البدء إلى ${target}`);
+        console.log(`[Maintenance/Sync] Sending the start notice to ${target}`);
         if (target) await sendMaintenanceStart(client, target, doc.message, doc.endTime);
       } else if (action === 'stop') {
         clearMaintenancePresence(client);
         const now = Date.now();
         if (now - lastStopTime < 15000) {
-          console.log(`[Maintenance/Sync] تخطي إشعار الانتهاء — تم إرساله قبل ${(now - lastStopTime) / 1000} ث`);
+          console.log(`[Maintenance/Sync] Skipping the end notice — already sent ${Math.round((now - lastStopTime) / 1000)}s ago`);
         } else {
           lastStopTime = now;
           const target = channelId || doc.channelId || '';
-          const cl = doc.changelog || { botUpdates: 'لم يتم إضافة تحديثات', siteUpdates: 'لم يتم إضافة تحديثات' };
-          console.log(`[Maintenance/Sync] إرسال إشعار الانتهاء إلى ${target}`);
+          const cl = doc.changelog || { botUpdates: 'No updates recorded', siteUpdates: 'No updates recorded' };
+          console.log(`[Maintenance/Sync] Sending the end notice to ${target}`);
           if (target) await sendMaintenanceEnd(client, target, doc.durationMinutes || 0, cl);
         }
       } else {
@@ -761,14 +731,14 @@ client.once('ready', async () => {
               if (target) await sendMaintenanceEnd(client, target, doc.durationMinutes || 0);
             }
           } else {
-            setMaintenancePresence(client, doc.message || 'البوت تحت الصيانة');
+            setMaintenancePresence(client, doc.message || 'The bot is under maintenance');
           }
         } else {
           clearMaintenancePresence(client);
         }
       }
     } catch (err) {
-      console.error('[Maintenance/Sync] خطأ:', err.message);
+      console.error('[Maintenance/Sync] Error:', err.message);
     }
     res.json({ synced: true });
   });
@@ -795,36 +765,28 @@ client.once('ready', async () => {
     try {
       const ch = await guild.channels.fetch(channelId).catch(() => null);
       if (!ch) return res.status(404).json({ error: 'Channel not found' });
-      const setupEmbed = new EmbedBuilder()
-        .setColor(0x8b0000)
-        .setTitle('🚫 تم تفعيل نظام الرومات المحضورة')
-        .setDescription([
-          '### ⚠️ هذه القناة مصنفة كـ **روم محضور**',
-          '',
-          '> **ما معنى روم محضور؟**',
-          '> أي شخص يرسل رسالة في هذه القناة سيتم **حظره تلقائياً**',
-          '> من السيرفر لمدة **24 ساعة** دون استثناء (عدا المالك والبوت).',
-          '',
-          '> **لماذا هذه القناة محضورة؟**',
-          '> • لحماية الأعضاء من الروابط الضارة والاحتيال',
-          '> • منع نشر محتوى غير لائق',
-          '> • حفظ خصوصية السيرفر وأعضائه',
-          '> • للتحكم في القنوات الحساسة',
-          '',
-          '> **ماذا يحدث عند المخالفة؟**',
-          '> • يتم حذف الرسالة فوراً',
-          '> • حظر العضو لمدة 24 ساعة مع مسح رسائله',
-          '> • إرسال إشعار للإدارة',
-          '> • إرسال رسالة خاصة للعضو توضيحاً للسبب',
-          '',
-          '```diff',
-          '- يرجى احترام هذه القناة وعدم الكتابة فيها',
-          '```',
-          '',
-          '> 🛡️ *نظام الحماية التلقائية — KRS-SYS*',
-        ].join('\n'))
-        .setTimestamp()
-        .setFooter({ text: '⚔️ KRS-SYS  •  الحماية التلقائية' });
+      const setupEmbed = notice({
+        title: '🚫 This channel is restricted',
+        color: C.error,
+        description: 'Anyone who sends a message here is **banned from the server for 24 hours**, '
+          + 'with no exceptions (the owner and the bot are exempt).',
+        fields: [
+          field('Why it is restricted', [
+            '• Protects members from malicious links and scams',
+            '• Prevents inappropriate content',
+            '• Keeps the server and its members private',
+            '• Keeps sensitive channels under control',
+          ].join('\n'), false),
+          field('What happens on a violation', [
+            '• The message is deleted immediately',
+            '• The member is banned for 24 hours and their messages are removed',
+            '• The staff team is notified',
+            '• The member receives a DM explaining why',
+          ].join('\n'), false),
+        ],
+        footer: '⚔️ KRS-SYS • Automatic protection',
+        timestamp: true,
+      });
       await ch.send({ embeds: [setupEmbed] });
       res.json({ success: true, message: 'Setup message sent' });
     } catch (err) {
@@ -881,7 +843,7 @@ client.once('ready', async () => {
   async function gracefulShutdown(signal) {
     console.log(`\n[${signal}] Shutting down…`);
     try {
-      await sendOfflineLog(`إشارة ${signal}`);
+      await sendOfflineLog(`Signal ${signal}`);
     } catch (e) {
       console.error('Failed to send offline log');
     }
@@ -894,11 +856,11 @@ client.once('ready', async () => {
 
   process.on('unhandledRejection', (err) => {
     console.error('[UnhandledRejection]', err);
-    sendErrorLog('Promise مرفوضة', err).catch(() => {});
+    sendErrorLog('Unhandled promise rejection', err).catch(() => {});
   });
   process.on('uncaughtException', (err) => {
     console.error('[UncaughtException]', err);
-    sendErrorLog('استثناء غير محلول', err).catch(() => {});
+    sendErrorLog('Uncaught exception', err).catch(() => {});
   });
   // ── Periodic maintenance expiry check (every 15 seconds) ─────────────
   setInterval(async () => {
@@ -910,10 +872,10 @@ client.once('ready', async () => {
         clearMaintenancePresence(client);
         const target = doc.channelId || '';
         if (target) await sendMaintenanceEnd(client, target, doc.durationMinutes || 0);
-        console.log('[Maintenance] انتهت مدة الصيانة تلقائياً — تم إيقافها');
+        console.log('[Maintenance] Duration elapsed automatically — maintenance disabled');
       }
     } catch (err) {
-      console.error('[Maintenance] خطأ في التحقق الدوري:', err.message);
+      console.error('[Maintenance] Error during the periodic check:', err.message);
     }
   }, 15_000);
 });

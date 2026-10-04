@@ -1,73 +1,50 @@
-import { EmbedBuilder } from 'discord.js';
+import { notice, field, C } from './embeds.js';
+import { formatDuration } from './parseDuration.js';
 
-const DIV = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
 const NOTIFY_ROLE_ID = '1499393262476329020';
-
-function formatDuration(ms) {
-  const totalSec = Math.floor(ms / 1000);
-  const days = Math.floor(totalSec / 86400);
-  const hours = Math.floor((totalSec % 86400) / 3600);
-  const minutes = Math.floor((totalSec % 3600) / 60);
-  const parts = [];
-  if (days > 0) parts.push(`**${days}** يوم`);
-  if (hours > 0) parts.push(`**${hours}** ساعة`);
-  if (minutes > 0) parts.push(`**${minutes}** دقيقة`);
-  if (parts.length === 0) parts.push('**أقل من دقيقة**');
-  return parts.join(' و ');
-}
 
 async function resolveChannel(client, channelId) {
   if (!channelId) return null;
-  let ch = client.channels.cache.get(channelId);
-  if (!ch) { try { ch = await client.channels.fetch(channelId); } catch { return null; } }
-  return ch;
+  return client.channels.cache.get(channelId)
+    ?? client.channels.fetch(channelId).catch(() => null);
 }
+
+/** Turns a newline list from the dashboard into a quote block. */
+const quoteLines = (text) => String(text)
+  .split('\n')
+  .map((line) => line.trim())
+  .filter(Boolean)
+  .map((line) => `> ${line}`)
+  .join('\n');
 
 export async function sendMaintenanceStart(client, channelId, message, endTime) {
   const channel = await resolveChannel(client, channelId);
   if (!channel) return;
 
-  const now = Date.now();
-  const remainMs = endTime ? Math.max(0, endTime - now) : 0;
-
-  const embed = new EmbedBuilder()
-    .setColor(0xBF360C)
-    .setTitle('🛠️  إشعار صيانة — البوت قيد الصيانة')
-    .setDescription([
-      '```ansi',
-      '\u001b[1;31m🔴  SYSTEM MAINTENANCE  │  جميع الخدمات متوقفة مؤقتاً\u001b[0m',
-      '```',
-      `${DIV}`,
-      '',
-      `**📝 البيان**  ─  ${message || 'نظام البوت قيد الصيانة والتطوير حالياً'}`,
-      '',
-      `${DIV}`,
-      '',
-      '**🔹 ما الذي يحدث؟**',
-      '> يتم تحديث وتحسين النظام لضمان أفضل أداء وثبات للخدمة.',
-      '',
-      '**🔹 هل تتأثر الخدمات؟**',
-      '> نعم، جميع أوامر البوت وأنظمة الحماية قد لا تعمل بشكل مؤقت.',
-      '',
-      '**🔹 متى سيعود العمل؟**',
-      endTime
-        ? `> بعد ${formatDuration(remainMs)} — سيتم استئناف الخدمات تلقائياً.`
-        : '> لم تحدد مدة زمنية — سنعلمكم فور الانتهاء.',
-      '',
-      `${DIV}`,
-      '',
-      '> ⚠️ سيتم استئناف جميع الخدمات تلقائياً بمجرد انتهاء الصيانة',
-    ].join('\n'))
-    .setThumbnail(client.user.displayAvatarURL({ size: 1024 }))
-    .setFooter({ text: 'KRS System — شكراً لتفهمكم', iconURL: client.user.displayAvatarURL() });
+  const remaining = endTime ? Math.max(0, endTime - Date.now()) : 0;
 
   try {
     await channel.send({
-      content: `<@&${NOTIFY_ROLE_ID}> 🔔 **إشعار صيانة** — البوت قيد الصيانة حالياً`,
-      embeds: [embed],
+      content: `<@&${NOTIFY_ROLE_ID}> 🔔 **Maintenance started** — the bot is unavailable for now`,
+      embeds: [notice({
+        title: '🛠️ Maintenance in progress',
+        color: 0xbf360c,
+        thumbnail: client.user.displayAvatarURL({ size: 512 }),
+        description: `🔴 **All services are temporarily unavailable.**\n\n`
+          + `**📝 Notice** — ${message || 'The bot is under maintenance and development.'}`,
+        fields: [
+          field('🔹 What is happening?', 'The system is being updated and improved for better performance and reliability.', false),
+          field('🔹 What is affected?', 'Yes — bot commands and protection systems may not work for a while.', false),
+          field('🔹 When does it come back?', endTime
+            ? `In **${formatDuration(remaining)}** — services resume automatically.`
+            : 'No fixed end time was set. We will announce it as soon as it is done.', false),
+        ],
+        footer: 'Kratos System • Thanks for your patience',
+        timestamp: true,
+      })],
     });
   } catch (err) {
-    console.error(`[MaintenanceEmbed] فشل إرسال إشعار البدء إلى ${channelId}:`, err.message);
+    console.error(`[MaintenanceEmbed] Could not send the start notice to ${channelId}:`, err.message);
   }
 }
 
@@ -75,66 +52,43 @@ export async function sendMaintenanceEnd(client, channelId, durationMinutes, cha
   const channel = await resolveChannel(client, channelId);
   if (!channel) return;
 
-  const durationStr = durationMinutes > 0
-    ? (() => {
-        const h = Math.floor(durationMinutes / 60);
-        const m = durationMinutes % 60;
-        const p = [];
-        if (h > 0) p.push(`**${h}** ساعة`);
-        if (m > 0) p.push(`**${m}** دقيقة`);
-        return p.join(' و ') || 'أقل من دقيقة';
-      })()
-    : null;
-
-  const desc = [
-    '```ansi',
-    '\u001b[1;32m✅  MAINTENANCE COMPLETE  │  جميع الخدمات متاحة الآن\u001b[0m',
-    '```',
-    `${DIV}`,
-    '',
-    '**🔹 الخدمات المستعادة:**',
-    '> ✅ جميع أوامر البوت — تعمل بكامل طاقتها',
-    '> ✅ أنظمة الحماية — نشطة وجاهزة',
-    '> ✅ التكتات والتذاكر — متاحة',
-    '> ✅ الرومات المؤقتة — مفعلة',
-    '> ✅ التنبيهات والإشعارات — تعمل',
-    '> ✅ لوحة التحكم — متصلة ومتزامنة',
-    '',
-    `${DIV}`,
-    durationStr ? `\n**⏱ المدة الإجمالية**  ─  ${durationStr}\n` : '',
-    '> إذا واجهت أي مشكلة بعد الصيانة، يرجى التواصل مع فريق الدعم.',
-  ].join('\n');
-
-  const embed = new EmbedBuilder()
-    .setColor(0x1B5E20)
-    .setTitle('✅  تم الانتهاء من الصيانة')
-    .setDescription(desc)
-    .setThumbnail(client.user.displayAvatarURL({ size: 1024 }))
-    .setFooter({ text: 'KRS System — نعتذر عن أي إزعاج، وشكراً لثقتكم', iconURL: client.user.displayAvatarURL() });
-
+  const duration = durationMinutes > 0 ? `**${formatDuration(durationMinutes * 60_000)}**` : null;
   const cl = changelog || {};
-  const botText = (cl.botUpdates || '').trim();
-  const siteText = (cl.siteUpdates || '').trim();
+  const botUpdates = (cl.botUpdates || '').trim();
+  const siteUpdates = (cl.siteUpdates || '').trim();
 
-  if (botText) {
-    embed.addFields({
-      name: '📦 تحديثات البوت',
-      value: botText.split('\n').map(l => l.trim() ? `> ${l.trim()}` : '').filter(Boolean).join('\n'),
-    });
-  }
-  if (siteText) {
-    embed.addFields({
-      name: '🌐 تحديثات الموقع',
-      value: siteText.split('\n').map(l => l.trim() ? `> ${l.trim()}` : '').filter(Boolean).join('\n'),
-    });
-  }
+  const fields = [
+    field('🔹 Restored', [
+      '✅ All bot commands — fully working',
+      '✅ Protection systems — active',
+      '✅ Ticket system — available',
+      '✅ Temporary voice channels — enabled',
+      '✅ Alerts and notifications — working',
+      '✅ Dashboard — connected and in sync',
+    ].join('\n'), false),
+  ];
+
+  if (duration) fields.push(field('⏱ Total downtime', duration, false));
+
+  if (botUpdates) fields.push(field('📦 Bot updates', quoteLines(botUpdates).slice(0, 1024), false));
+  if (siteUpdates) fields.push(field('🌐 Website updates', quoteLines(siteUpdates).slice(0, 1024), false));
+
+  fields.push(field('📞 Problems?', 'If something still looks wrong, contact the support team.', false));
 
   try {
     await channel.send({
-      content: `<@&${NOTIFY_ROLE_ID}> ✅ **انتهاء الصيانة** — جميع الخدمات متاحة الآن`,
-      embeds: [embed],
+      content: `<@&${NOTIFY_ROLE_ID}> ✅ **Maintenance finished** — all services are available again`,
+      embeds: [notice({
+        title: '✅ Maintenance complete',
+        color: C.ok,
+        thumbnail: client.user.displayAvatarURL({ size: 512 }),
+        description: '🟢 **All services are available again.**',
+        fields,
+        footer: 'Kratos System • Sorry for the interruption, and thanks for your patience',
+        timestamp: true,
+      })],
     });
   } catch (err) {
-    console.error(`[MaintenanceEmbed] فشل إرسال إشعار الانتهاء إلى ${channelId}:`, err.message);
+    console.error(`[MaintenanceEmbed] Could not send the end notice to ${channelId}:`, err.message);
   }
 }

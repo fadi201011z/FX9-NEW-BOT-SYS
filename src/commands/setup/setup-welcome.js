@@ -1,49 +1,31 @@
-import { SlashCommandBuilder, ChannelType, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
+import { SlashCommandBuilder, ChannelType, PermissionFlagsBits } from 'discord.js';
 import { setConfig } from '../../database.js';
-import { Colors, EPHEMERAL } from '../../utils/embeds.js';
 import { requireRole } from '../../utils/permissions.js';
 import { COMMAND_ROLES } from '../../config/roles.js';
+import { channelSetReply } from '../../utils/setupReply.js';
 
 export const data = new SlashCommandBuilder()
   .setName('setup-welcome')
-  .setDescription('تعيين قناة الترحيب — تُرسَل فيها بطاقة ترحيب عند انضمام كل عضو')
+  .setDescription('Set the welcome channel — a card is posted for every new member')
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-  .addChannelOption(opt =>
+  .addChannelOption((opt) =>
     opt.setName('channel')
-      .setDescription('القناة التي ستُرسَل فيها رسائل الترحيب')
+      .setDescription('Channel that receives welcome messages')
       .addChannelTypes(ChannelType.GuildText)
-      .setRequired(true)
-  );
+      .setRequired(true));
 
 export async function execute(interaction) {
   if (!await requireRole(interaction, COMMAND_ROLES.setup)) return;
 
-  const channel = interaction.options.getChannel('channel');
+  const channel = interaction.options.getChannel('channel', true);
   setConfig(interaction.guildId, 'welcome_channel', channel.id);
 
-  await interaction.reply({
-    embeds: [
-      new EmbedBuilder()
-        .setColor(Colors.WHITE)
-        .setTitle('👋  تم تعيين قناة الترحيب')
-        .setDescription(`رسائل الترحيب ستُرسَل إلى ${channel}`)
-        .addFields(
-          {
-            name: '🎨  محتوى بطاقة الترحيب',
-            value: [
-              '> 🖼️ صورة العضو الشخصية',
-              '> 👋 منشن ترحيب باسم العضو',
-              '> 📊 رقم العضو في السيرفر',
-              '> ⚠️ تنبيه تلقائي إذا كان الحساب جديداً (أقل من 7 أيام)',
-            ].join('\n'),
-            inline: false,
-          },
-          { name: '📢  القناة المحددة', value: `${channel} (\`${channel.id}\`)`, inline: true }
-        )
-        .setThumbnail(interaction.guild.iconURL({ dynamic: true }))
-        .setTimestamp()
-        .setFooter({ text: '⚔️ KRS-SYS  •  الإعداد' })
-    ],
-    flags: EPHEMERAL,
-  });
+  await interaction.reply(channelSetReply({
+    title: 'Welcome channel set',
+    emoji: '👋',
+    channels: [{ label: '📢 Channel', mention: channel.toString(), id: channel.id }],
+    records: 'the member’s avatar · a welcome ping by name · their member number · '
+      + 'an automatic warning when the account is less than 7 days old',
+    tip: 'The auto-role is configured from the dashboard, under server settings.',
+  }));
 }

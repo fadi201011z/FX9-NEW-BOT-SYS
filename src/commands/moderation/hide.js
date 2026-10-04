@@ -1,16 +1,16 @@
-import { SlashCommandBuilder, PermissionFlagsBits, ChannelType, EmbedBuilder } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
 import { requireRole, getLogChannel } from '../../utils/permissions.js';
-import { Colors, EPHEMERAL } from '../../utils/embeds.js';
+import { ok, logEntry } from '../../utils/embeds.js';
 import { getConfig } from '../../database.js';
 import { COMMAND_ROLES, grantAdminAccess } from '../../config/roles.js';
 
 export const data = new SlashCommandBuilder()
   .setName('hide')
-  .setDescription('إخفاء قناة عن الأعضاء العاديين')
+  .setDescription('Hide a channel from regular members')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
   .addChannelOption(opt =>
     opt.setName('channel')
-      .setDescription('القناة المراد إخفاؤها (الافتراضي: الحالية)')
+      .setDescription('Channel to hide (defaults to this one)')
       .addChannelTypes(ChannelType.GuildText)
   );
 
@@ -19,47 +19,28 @@ export async function execute(interaction) {
 
   const channel = interaction.options.getChannel('channel') ?? interaction.channel;
 
-  // 1) إخفاء القناة عن @everyone
+  // 1) Hide it from @everyone
   await channel.permissionOverwrites.edit(interaction.guild.roles.everyone, {
     ViewChannel: false,
   });
 
-  // 2) منح جميع الرتب الإدارية رؤية وإرسال صريحَين حتى لا تختفي عنهم
+  // 2) Explicitly grant every admin role View + Send, so hiding a channel can
+  //    never lock the staff out of their own server.
   await grantAdminAccess(channel, interaction.guild, {
     ViewChannel:  true,
     SendMessages: true,
   });
 
-  await interaction.reply({
-    embeds: [
-      new EmbedBuilder()
-        .setColor(Colors.DARK)
-        .setTitle('👁️  تم إخفاء القناة')
-        .setDescription('> الأعضاء العاديون لا يرون القناة.\n> الرتب الإدارية لا تزال ترى القناة وتكتب فيها.')
-        .addFields(
-          { name: '📢  القناة',  value: `${channel}`,          inline: true },
-          { name: '🛡️  بواسطة', value: `${interaction.user}`, inline: true },
-        )
-        .setTimestamp()
-        .setFooter({ text: '⚔️ KRS-SYS  •  إدارة القنوات' }),
-    ],
-    flags: EPHEMERAL,
-  });
+  await interaction.reply(ok(`Hidden ${channel} — regular members can no longer see it, staff roles still can.`));
 
   const modLogCh = await getLogChannel(interaction.guild, getConfig(interaction.guildId, 'modlog_channel'));
   if (modLogCh) {
     await modLogCh.send({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(Colors.DARK)
-          .setTitle('👁️  إخفاء قناة')
-          .addFields(
-            { name: '📢  القناة',  value: `${channel}`,          inline: true },
-            { name: '🛡️  المشرف', value: `${interaction.user}`, inline: true },
-          )
-          .setTimestamp()
-          .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' }),
-      ],
+      embeds: [logEntry({
+        kind: 'hide',
+        target: channel.toString(),
+        actor: interaction.user.tag,
+      })],
     }).catch(() => {});
   }
 }

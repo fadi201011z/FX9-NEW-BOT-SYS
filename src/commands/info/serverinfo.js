@@ -1,47 +1,61 @@
-import { SlashCommandBuilder, EmbedBuilder, ChannelType } from 'discord.js';
-import { Colors } from '../../utils/embeds.js';
+import { SlashCommandBuilder, ChannelType } from 'discord.js';
+import { notice, field, userTag, C } from '../../utils/embeds.js';
 
 export const data = new SlashCommandBuilder()
   .setName('serverinfo')
-  .setDescription('معلومات تفصيلية عن السيرفر الحالي');
+  .setDescription('Detailed information about this server');
+
+const VERIFICATION = ['None', 'Low', 'Medium', 'High', 'Highest'];
+const FEATURES = [
+  ['ANIMATED_ICON', 'Animated icon'],
+  ['BANNER', 'Banner'],
+  ['COMMUNITY', 'Community'],
+  ['DISCOVERABLE', 'Discoverable'],
+  ['FEATURABLE', 'Featured'],
+  ['INVITE_SPLASH', 'Invite splash'],
+  ['NEWS', 'News'],
+  ['PARTNERED', 'Partnered'],
+  ['VANITY_URL', 'Custom URL'],
+  ['VERIFIED', 'Verified'],
+  ['WELCOME_SCREEN_ENABLED', 'Welcome screen'],
+];
 
 export async function execute(interaction) {
   await interaction.deferReply();
+
   const guild = interaction.guild;
+  // Without this the human/bot split below is just the cached subset.
   await guild.members.fetch().catch(() => {});
 
-  const owner      = await guild.fetchOwner().catch(() => null);
-  const humans     = guild.members.cache.filter(m => !m.user.bot).size;
-  const bots       = guild.members.cache.filter(m => m.user.bot).size;
-  const textCh     = guild.channels.cache.filter(c => c.type === ChannelType.GuildText).size;
-  const voiceCh    = guild.channels.cache.filter(c => c.type === ChannelType.GuildVoice).size;
-  const categories = guild.channels.cache.filter(c => c.type === ChannelType.GuildCategory).size;
-  const roles      = guild.roles.cache.size - 1;
-  const boosters   = guild.premiumSubscriptionCount ?? 0;
-  const boostTier  = guild.premiumTier;
+  const owner    = await guild.fetchOwner().catch(() => null);
+  const members  = guild.members.cache;
+  const channels = guild.channels.cache;
 
-  const verificationLevels = { 0: 'بدون', 1: 'منخفض', 2: 'متوسط', 3: 'عالي', 4: 'أعلى' };
+  const count = (type) => channels.filter((c) => c.type === type).size;
+  const features = FEATURES.filter(([f]) => guild.features.has(f)).map(([, label]) => label);
 
-  const embed = new EmbedBuilder()
-    .setColor(Colors.DARK)
-    .setTitle(`🏠  ${guild.name}`)
-    .setThumbnail(guild.iconURL({ dynamic: true, size: 256 }))
-    .addFields(
-      { name: '👑  المالك',          value: owner ? `${owner.user.tag}` : 'غير معروف',                              inline: true },
-      { name: '🆔  معرّف السيرفر',   value: `\`${guild.id}\``,                                                      inline: true },
-      { name: '📅  تاريخ الإنشاء',   value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:D>`,                   inline: true },
-      { name: '👥  إجمالي الأعضاء',  value: `${guild.memberCount}`,                                                  inline: true },
-      { name: '🧑  بشر',             value: `${humans}`,                                                             inline: true },
-      { name: '🤖  بوتات',           value: `${bots}`,                                                              inline: true },
-      { name: '💬  قنوات نصية',      value: `${textCh}`,                                                            inline: true },
-      { name: '🎤  قنوات صوتية',     value: `${voiceCh}`,                                                           inline: true },
-      { name: '📁  تصنيفات',         value: `${categories}`,                                                         inline: true },
-      { name: '🏷️  أدوار',           value: `${roles}`,                                                             inline: true },
-      { name: '🔐  مستوى التحقق',    value: verificationLevels[guild.verificationLevel] ?? 'غير معروف',             inline: true },
-      { name: '✨  مستوى البوست',    value: `المستوى ${boostTier} (${boosters} بوست)`,                             inline: true },
-    )
-    .setTimestamp()
-    .setFooter({ text: '⚔️ KRS-SYS  •  معلومات السيرفر' });
+  const embed = notice({
+    title: `🏠 ${guild.name}`,
+    color: C.info,
+    thumbnail: guild.iconURL({ dynamic: true, size: 512 }),
+    fields: [
+      field('👑 Owner', owner ? userTag(owner.user) : 'Unknown'),
+      field('🆔 Server ID', `\`${guild.id}\``),
+      field('📅 Created', `<t:${Math.floor(guild.createdTimestamp / 1000)}:D>`),
+      field('👥 Members', `${guild.memberCount}`),
+      field('🧑 Humans', `${members.filter((m) => !m.user.bot).size}`),
+      field('🤖 Bots', `${members.filter((m) => m.user.bot).size}`),
+      field('💬 Text channels', `${count(ChannelType.GuildText)}`),
+      field('🎤 Voice channels', `${count(ChannelType.GuildVoice)}`),
+      field('📁 Categories', `${count(ChannelType.GuildCategory)}`),
+      field('🏷️ Roles', `${guild.roles.cache.size - 1}`),
+      field('🔐 Verification', VERIFICATION[guild.verificationLevel] ?? 'Unknown'),
+      field('✨ Boosts', `Tier ${guild.premiumTier ?? 0} · ${guild.premiumSubscriptionCount ?? 0}`),
+      field('🎁 Features', features.length ? features.join(' · ') : 'None', false),
+    ],
+    footer: 'Kratos System • Server information',
+    timestamp: true,
+  });
 
   if (guild.bannerURL()) embed.setImage(guild.bannerURL({ size: 1024 }));
 

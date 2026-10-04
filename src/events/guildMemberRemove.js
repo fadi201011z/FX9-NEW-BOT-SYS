@@ -1,7 +1,7 @@
-import { Events, EmbedBuilder } from 'discord.js';
+import { Events } from 'discord.js';
 import { getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
-import { Colors, userTag } from '../utils/embeds.js';
+import { logEntry, field, userTag } from '../utils/embeds.js';
 import { updateStatusChannels } from '../utils/statusUpdater.js';
 
 export const name = Events.GuildMemberRemove;
@@ -14,27 +14,23 @@ export async function execute(member) {
   if (!logCh) return;
 
   const roles = member.roles.cache
-    .filter(r => r.id !== guild.id)
-    .map(r => r.toString())
-    .join(', ') || 'لا توجد';
+    .filter((r) => r.id !== guild.id)
+    .map((r) => r.toString())
+    .join(', ') || 'None';
 
-  const joinedAgo = member.joinedTimestamp
-    ? `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>`
-    : 'غير معروف';
+  await logCh.send({
+    embeds: [logEntry({
+      kind: 'member_remove',
+      target: `${userTag(member.user)} (\`${member.user.id}\`)`,
+      fields: [
+        field('Joined', member.joinedTimestamp
+          ? `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>`
+          : 'Unknown'),
+        field('Roles at departure', roles.slice(0, 1024), false),
+      ],
+      footer: 'Kratos System • Server log',
+    })],
+  }).catch(() => {});
 
-  const embed = new EmbedBuilder()
-    .setColor(Colors.LEAVE)
-    .setTitle('📤  مغادرة عضو')
-    .addFields(
-      { name: '👤  العضو',        value: `${userTag(member.user)}`,   inline: true },
-      { name: '🆔  المعرّف',      value: `\`${member.user.id}\``,     inline: true },
-      { name: '📅  انضم منذ',     value: joinedAgo,                    inline: true },
-      { name: '🏷️  الأدوار',      value: roles.slice(0, 1024),        inline: false },
-    )
-    .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-    .setTimestamp()
-    .setFooter({ text: '⚔️ KRS-SYS  •  السجلات العامة' });
-
-  await logCh.send({ embeds: [embed] }).catch(() => {});
   updateStatusChannels(guild, { fetchMembers: false }).catch(() => {});
 }

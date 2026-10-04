@@ -1,16 +1,16 @@
-import { SlashCommandBuilder, PermissionFlagsBits, ChannelType, EmbedBuilder } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
 import { requireRole, getLogChannel } from '../../utils/permissions.js';
-import { Colors, EPHEMERAL } from '../../utils/embeds.js';
+import { ok, logEntry } from '../../utils/embeds.js';
 import { getConfig } from '../../database.js';
 import { COMMAND_ROLES, clearAdminOverwrites } from '../../config/roles.js';
 
 export const data = new SlashCommandBuilder()
   .setName('unhide')
-  .setDescription('إظهار قناة مخفية للأعضاء العاديين')
+  .setDescription('Make a hidden channel visible to regular members again')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
   .addChannelOption(opt =>
     opt.setName('channel')
-      .setDescription('القناة المراد إظهارها (الافتراضي: الحالية)')
+      .setDescription('Channel to show (defaults to this one)')
       .addChannelTypes(ChannelType.GuildText)
   );
 
@@ -19,43 +19,24 @@ export async function execute(interaction) {
 
   const channel = interaction.options.getChannel('channel') ?? interaction.channel;
 
-  // 1) إعادة @everyone لوضعه الافتراضي (null = وراثة من التصنيف/السيرفر)
+  // 1) Reset @everyone (null = inherit from the category or server)
   await channel.permissionOverwrites.edit(interaction.guild.roles.everyone, {
     ViewChannel: null,
   });
 
-  // 2) مسح الـ overrides الصريحة التي أضافها /hide للرتب الإدارية
+  // 2) Drop the explicit overwrites /hide added for admin roles
   await clearAdminOverwrites(channel, interaction.guild);
 
-  await interaction.reply({
-    embeds: [
-      new EmbedBuilder()
-        .setColor(Colors.WHITE)
-        .setTitle('✅  تم إظهار القناة')
-        .addFields(
-          { name: '📢  القناة',  value: `${channel}`,          inline: true },
-          { name: '🛡️  بواسطة', value: `${interaction.user}`, inline: true },
-        )
-        .setTimestamp()
-        .setFooter({ text: '⚔️ KRS-SYS  •  إدارة القنوات' }),
-    ],
-    flags: EPHEMERAL,
-  });
+  await interaction.reply(ok(`Unhid ${channel} — regular members can see it again.`));
 
   const modLogCh = await getLogChannel(interaction.guild, getConfig(interaction.guildId, 'modlog_channel'));
   if (modLogCh) {
     await modLogCh.send({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(Colors.WHITE)
-          .setTitle('✅  إظهار قناة')
-          .addFields(
-            { name: '📢  القناة',  value: `${channel}`,          inline: true },
-            { name: '🛡️  المشرف', value: `${interaction.user}`, inline: true },
-          )
-          .setTimestamp()
-          .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' }),
-      ],
+      embeds: [logEntry({
+        kind: 'unhide',
+        target: channel.toString(),
+        actor: interaction.user.tag,
+      })],
     }).catch(() => {});
   }
 }

@@ -1,8 +1,8 @@
-import { Events, AuditLogEvent, EmbedBuilder } from 'discord.js';
+import { Events, AuditLogEvent } from 'discord.js';
 import { getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
 import { getAuditEntry } from '../utils/audit.js';
-import { Colors, userTag } from '../utils/embeds.js';
+import { logEntry, notice, C } from '../utils/embeds.js';
 import { getGuildInvite } from '../utils/invite.js';
 
 export const name = Events.GuildBanRemove;
@@ -12,51 +12,44 @@ export async function execute(ban, client) {
   const { guild, user } = ban;
   if (!guild || user.bot) return;
 
+  // The bot's own /unban path already logs this — don't double-report.
   const key = `${guild.id}:${user.id}`;
   if (client.pendingAutoUnbans?.has(key)) return;
 
-  // ─── سجل فك الحظر في قناة الإشراف ──────────────────────────────────────
-  let executor = 'غير معروف';
+  let executor = null;
   try {
     const entry = await getAuditEntry(guild, AuditLogEvent.MemberBanRemove);
     if (entry && entry.target?.id === user.id && Date.now() - entry.createdTimestamp < 5000) {
       executor = `<@${entry.executor.id}> (${userTag(entry.executor)})`;
     }
-  } catch {}
+  } catch { /* audit log unavailable */ }
 
   const modLogCh = await getLogChannel(guild, getConfig(guild.id, 'modlog_channel'));
   if (modLogCh) {
     await modLogCh.send({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(Colors.SUCCESS)
-          .setTitle('✅  تم فك الحظر')
-          .addFields(
-            { name: '👤  العضو',    value: `${user} \`${user.id}\``, inline: true },
-            { name: '🛡️  بواسطة',  value: executor,                  inline: true },
-          )
-          .setTimestamp()
-          .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' })
-      ],
+      embeds: [logEntry({
+        kind: 'member_unban',
+        target: `${user} \`${user.id}\``,
+        actor: executor,
+        footer: 'Kratos System • Modlog',
+      })],
     }).catch(() => {});
   }
 
-  // ─── إرسال DM للعضو ────────────────────────────────────────────────────
+  // ─── Tell the member ─────────────────────────────────────────────────────
   const inviteLink = await getGuildInvite(guild);
   try {
-    const embed = new EmbedBuilder()
-      .setColor(Colors.SUCCESS)
-      .setTitle('✅ تم فك الحظر بواسطة الإدارة')
-      .setDescription([
-        `**السيرفر:** ${guild.name}`,
-        'تم إلغاء الحظر يدوياً من قبل أحد المشرفين.',
-        '',
-        inviteLink
-          ? `يمكنك العودة إلى السيرفر عبر الرابط:\n${inviteLink}`
-          : 'يمكنك العودة إلى السيرفر الآن.',
-      ].join('\n'))
-      .setTimestamp()
-      .setFooter({ text: '⚔️ KRS-SYS  •  الحماية التلقائية' });
-    await user.send({ embeds: [embed] }).catch(() => {});
-  } catch {}
+    await user.send({
+      embeds: [notice({
+        title: `✅ You have been unbanned from ${guild.name}`,
+        description: inviteLink
+          ? 'A staff member lifted your ban manually. You can rejoin here:\n'
+            + inviteLink
+          : 'A staff member lifted your ban manually. You can rejoin now.',
+        color: C.ok,
+        footer: 'Kratos System • Protection',
+        timestamp: true,
+      })],
+    }).catch(() => {});
+  } catch { /* DMs are closed */ }
 }

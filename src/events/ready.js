@@ -1,12 +1,10 @@
-import { Events, ActivityType, REST, Routes } from 'discord.js';
-import { readdir } from 'fs/promises';
-import { fileURLToPath, pathToFileURL } from 'url';
-import path from 'path';
+import { Events, REST, Routes } from 'discord.js';
 import { updateStatusChannels } from '../utils/statusUpdater.js';
-import { startPresenceRotation, setMaintenancePresence, clearMaintenancePresence } from '../utils/presence.js';
+import { startPresenceRotation, setMaintenancePresence } from '../utils/presence.js';
 import { sendMaintenanceStart } from '../utils/maintenanceEmbed.js';
 import Maintenance from '../models/Maintenance.js';
 import { sendOnlineLog, startHeartbeat } from '../utils/botLogger.js';
+import { commandPayloads } from '../config/commandLoader.js';
 
 export const name = Events.ClientReady;
 export const once = true;
@@ -23,35 +21,17 @@ export async function execute(client) {
   console.log(`╚════════════════════════════════════════╝\n`);
 
   // ── Auto-register slash commands globally ────────────────────────────
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const commandDirs = [
-    path.join(__dirname, '..', 'commands', 'setup'),
-    path.join(__dirname, '..', 'commands', 'moderation'),
-    path.join(__dirname, '..', 'commands', 'info'),
-    path.join(__dirname, '..', 'commands', 'members'),
-    path.join(__dirname, '..', 'commands', 'ticket'),
-    path.join(__dirname, '..', 'commands', 'voice'),
-    path.join(__dirname, '..', 'commands', 'notifications'),
-    path.join(__dirname, '..', 'commands', 'announcement'),
-  ];
-  const cmdData = [];
-  for (const dir of commandDirs) {
-    let files;
-    try { files = (await readdir(dir)).filter(f => f.endsWith('.js') || f.endsWith('.ts')); }
-    catch { continue; }
-    for (const file of files) {
-      const mod = await import(pathToFileURL(path.join(dir, file)).href);
-      if (mod?.data) cmdData.push(mod.data.toJSON());
-    }
-  }
+  // Shared loader: same folder discovery as the runtime handler loader, so a
+  // command can never be registered with Discord but left without a handler.
+  const cmdData = await commandPayloads();
   if (cmdData.length > 0) {
     try {
       const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
 
-      // مسح الأوامر العالمية عشان تظهر فقط في السيرفرات اللي فيها البوت
+      // Clear the global commands so they only show in the guilds the bot is in.
       await rest.put(Routes.applicationCommands(client.user.id), { body: [] }).catch(() => {});
 
-      // تسجيل الأوامر في كل سيرفر على حدة
+      // Register per-guild so the commands propagate immediately.
       let updated = 0;
       for (const [guildId] of client.guilds.cache) {
         try {
@@ -75,7 +55,7 @@ export async function execute(client) {
       if (doc.endTime && Date.now() >= doc.endTime) {
         await Maintenance.updateOne({ _id: doc._id }, { $set: { enabled: false, endTime: null, durationMinutes: 0 } });
       } else {
-        setMaintenancePresence(client, doc.message || 'البوت تحت الصيانة');
+        setMaintenancePresence(client, doc.message || 'The bot is under maintenance');
         if (doc.channelId && !process.env.SUPPRESS_MAINTENANCE_EMBED) {
           await sendMaintenanceStart(client, doc.channelId, doc.message, doc.endTime);
         }
@@ -171,7 +151,7 @@ export async function execute(client) {
     console.log(`\n[${signal}] Shutting down…`);
     try {
       const { sendOfflineLog, sendErrorLog } = await import('../utils/botLogger.js');
-      await sendOfflineLog(`إشارة ${signal}`);
+      await sendOfflineLog(`Signal ${signal}`);
     } catch (e) {
       console.error('Failed to send offline log');
     }
@@ -186,16 +166,16 @@ export async function execute(client) {
     console.error('[UnhandledRejection]', err);
     try {
       const { sendErrorLog } = await import('../utils/botLogger.js');
-      await sendErrorLog('Promise مرفوضة', err);
+      await sendErrorLog('Unhandled promise rejection', err);
     } catch {}
   });
   process.on('uncaughtException', async (err) => {
     console.error('[UncaughtException]', err);
     try {
       const { sendErrorLog } = await import('../utils/botLogger.js');
-      await sendErrorLog('استثناء غير محلول', err);
+      await sendErrorLog('Uncaught exception', err);
     } catch {}
   });
 
-  console.log('📊 الإحصائيات: كل دقيقة | 📋 تقرير الحالة: كل 10 دقائق | 🔄 TempVC: كل 30د');
+  console.log('📊 Stats: every minute | 📋 Status report: every 10 minutes | 🔄 TempVC: every 30 min');
 }

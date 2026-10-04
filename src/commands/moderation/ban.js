@@ -1,51 +1,53 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { requireRole, canModerate, getLogChannel } from '../../utils/permissions.js';
-import { errorEmbed, modEmbed, EPHEMERAL } from '../../utils/embeds.js';
+import { ok, fail, notice, logEntry, field, C } from '../../utils/embeds.js';
 import { getConfig } from '../../database.js';
 import { COMMAND_ROLES } from '../../config/roles.js';
 
 export const data = new SlashCommandBuilder()
   .setName('ban')
-  .setDescription('حظر عضو من السيرفر مع إرسال إشعار له')
+  .setDescription('Ban a member and notify them')
   .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
-  .addUserOption(opt => opt.setName('user').setDescription('العضو المراد حظره').setRequired(true))
-  .addStringOption(opt => opt.setName('reason').setDescription('سبب الحظر'))
-  .addIntegerOption(opt => opt.setName('delete_days').setDescription('حذف رسائله (0-7 أيام)').setMinValue(0).setMaxValue(7));
+  .addUserOption(opt => opt.setName('user').setDescription('Member to ban').setRequired(true))
+  .addStringOption(opt => opt.setName('reason').setDescription('Reason for the ban'))
+  .addIntegerOption(opt => opt.setName('delete_days').setDescription('Days of their messages to delete (0-7)').setMinValue(0).setMaxValue(7));
 
 export async function execute(interaction) {
   if (!await requireRole(interaction, COMMAND_ROLES.ban)) return;
 
   const target = interaction.options.getMember('user');
-  const reason = interaction.options.getString('reason') ?? 'لم يُذكر سبب';
+  const reason = interaction.options.getString('reason') ?? 'No reason given';
   const days   = interaction.options.getInteger('delete_days') ?? 0;
 
-  if (!target) return interaction.reply({ embeds: [errorEmbed('العضو غير موجود', 'هذا العضو ليس في السيرفر.')], flags: EPHEMERAL });
-  if (!canModerate(interaction.guild, target)) return interaction.reply({ embeds: [errorEmbed('لا يمكن حظره', 'لا أستطيع حظر هذا العضو بسبب ترتيب الأدوار.')], flags: EPHEMERAL });
+  if (!target) return interaction.reply(fail('That member is not in this server.'));
+  if (!canModerate(interaction.guild, target)) return interaction.reply(fail('I cannot ban this member — their role is above mine.'));
 
+  // Tell them first, while they can still read it.
   try {
     await target.send({
-      embeds: [errorEmbed(`تم حظرك من ${interaction.guild.name}`, `**السبب:** ${reason}\n**المشرف:** ${interaction.user.tag}`).setThumbnail(interaction.guild.iconURL({ dynamic: true }))],
+      embeds: [notice({
+        title: `You have been banned from ${interaction.guild.name}`,
+        description: `**Reason:** ${reason}\n**Moderator:** ${interaction.user.tag}`,
+        color: C.error,
+        thumbnail: interaction.guild.iconURL({ dynamic: true }),
+      })],
     });
-  } catch { /* DMs مغلقة */ }
+  } catch { /* DMs are closed */ }
 
   await target.ban({ reason: `${interaction.user.tag}: ${reason}`, deleteMessageDays: days });
 
-  await interaction.reply({
-    embeds: [
-      modEmbed('تم حظر العضو', target.user, interaction.user, reason, { '📅  الرسائل المحذوفة': `${days} أيام` })
-        .setColor(0xe74c3c).setThumbnail(target.user.displayAvatarURL({ dynamic: true }))
-    ],
-  });
+  await interaction.reply(ok(`Banned ${target.user.tag}${days > 0 ? ` · deleted ${days} day${days > 1 ? 's' : ''} of messages` : ''}`));
 
   const modLogCh = await getLogChannel(interaction.guild, getConfig(interaction.guildId, 'modlog_channel'));
   if (modLogCh) {
     await modLogCh.send({
-      embeds: [
-        modEmbed('🔨 تنفيذ الحظر', target.user, interaction.user, reason, {
-          '🆔  معرّف العضو': target.user.id,
-          '📅  الرسائل المحذوفة': `${days} أيام`,
-        }).setColor(0xe74c3c).setThumbnail(target.user.displayAvatarURL({ dynamic: true }))
-      ],
+      embeds: [logEntry({
+        kind: 'ban',
+        target: `${target.user.tag} (\`${target.user.id}\`)`,
+        actor: interaction.user.tag,
+        reason,
+        fields: [field('Messages deleted', `${days} day${days === 1 ? '' : 's'}`)],
+      })],
     }).catch(() => {});
   }
 }

@@ -1,8 +1,8 @@
-import { Events, EmbedBuilder, AuditLogEvent, ChannelType } from 'discord.js';
+import { Events, AuditLogEvent, ChannelType } from 'discord.js';
 import { getNukeData, upsertNukeData, getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
 import { getAuditEntry } from '../utils/audit.js';
-import { Colors, alertEmbed, userTag } from '../utils/embeds.js';
+import { logEntry, notice, field, userTag, C } from '../utils/embeds.js';
 
 export const name = Events.ChannelDelete;
 export const once = false;
@@ -10,11 +10,11 @@ export const once = false;
 const NUKE_THRESHOLD = 3;
 const NUKE_WINDOW_MS = 10_000;
 
-const CHANNEL_TYPE_AR = {
-  [ChannelType.GuildText]:        '💬 نصي',
-  [ChannelType.GuildVoice]:       '🔊 صوتي',
-  [ChannelType.GuildCategory]:    '📁 تصنيف',
-  [ChannelType.GuildAnnouncement]:'📢 إعلانات',
+const CHANNEL_TYPE_LABEL = {
+  [ChannelType.GuildText]:         '💬 Text',
+  [ChannelType.GuildVoice]:        '🔊 Voice',
+  [ChannelType.GuildCategory]:     '📁 Category',
+  [ChannelType.GuildAnnouncement]: '📢 Announcement',
 };
 
 export async function execute(channel) {
@@ -30,27 +30,27 @@ export async function execute(channel) {
     if (entry && Date.now() - entry.createdTimestamp < 5000) {
       executor = entry.executor;
     }
-  } catch {}
+  } catch { /* audit log unavailable */ }
 
-  // ─── سجل الحذف في قناة الإشراف ────────────────────────────────────────
+  // ─── Deletion log ────────────────────────────────────────────────────────
   const targetCh = modLogCh ?? logCh;
   if (targetCh && executor) {
-    const typeLabel = CHANNEL_TYPE_AR[channel.type] ?? 'غير معروف';
-    const embed = new EmbedBuilder()
-      .setColor(Colors.ERROR)
-      .setTitle('🗑️  حذف قناة')
-      .addFields(
-        { name: '📋  اسم القناة', value: `\`${channel.name}\``,                       inline: true },
-        { name: '🗂️  النوع',      value: typeLabel,                                    inline: true },
-        { name: '🆔  معرّف القناة', value: `\`${channel.id}\``,                       inline: true },
-        { name: '👤  المنفّذ',     value: `<@${executor.id}> (${userTag(executor)})`,       inline: false },
-      )
-      .setTimestamp()
-      .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' });
-    await targetCh.send({ embeds: [embed] }).catch(() => {});
+    await targetCh.send({
+      embeds: [logEntry({
+        kind: 'channel_delete',
+        target: `\`${channel.name}\``,
+        actor: `<@${executor.id}> (${userTag(executor)})`,
+        fields: [
+          field('Type', CHANNEL_TYPE_LABEL[channel.type] ?? 'Unknown'),
+          field('Channel ID', `\`${channel.id}\``),
+        ],
+      })],
+    }).catch(() => {});
   }
 
-  // ─── Anti-Nuke ────────────────────────────────────────────────────────────
+  // ─── Anti-nuke ───────────────────────────────────────────────────────────
+  // Three channel deletions by one account inside ten seconds is a compromise
+  // pattern, not admin activity. Strip their roles and shout about it.
   if (!executor || executor.bot || executor.id === guild.ownerId) return;
 
   const now    = Date.now();
@@ -65,33 +65,37 @@ export async function execute(channel) {
   }
   await upsertNukeData(guild.id, executor.id, action, count, lastReset);
 
-  if (count >= NUKE_THRESHOLD) {
-    await upsertNukeData(guild.id, executor.id, action, 0, now);
+  if (count < NUKE_THRESHOLD) return;
 
-    // سحب الأدوار من المنفّذ
-    try {
-      const member = await guild.members.fetch(executor.id);
-      if (member && !member.permissions.has('Administrator')) {
-        await member.roles.set([], 'Anti-Nuke: حذف جماعي للقنوات');
-      }
-    } catch { /* لا يمكن التعديل */ }
+  await upsertNukeData(guild.id, executor.id, action, 0, now);
 
-    const alertCh = modLogCh ?? logCh;
-    if (alertCh) {
-      await alertCh.send({
-        embeds: [
-          alertEmbed('تحذير Anti-Nuke — حذف جماعي للقنوات!')
-            .setDescription(
-              `> ⚠️ **${userTag(executor)}** قام بحذف **${count}** قنوات في أقل من 10 ثوانٍ!\n` +
-              `> تم **سحب جميع أدواره** تلقائياً. راجع الأمر وتصرف فوراً.`
-            )
-            .addFields(
-              { name: '👤  المنفّذ',      value: `<@${executor.id}> (${userTag(executor)})`, inline: true },
-              { name: '🆔  المعرّف',      value: `\`${executor.id}\``,                 inline: true },
-              { name: '🗑️  آخر قناة محذوفة', value: `\`${channel.name}\``,           inline: true },
-            )
-        ],
-      }).catch(() => {});
+  // Strip their roles. Skipped for Administrators — removing every role from
+  // an admin would lock the server out of its own moderation.
+  let stripped = false;
+  try {
+    const member = await guild.members.fetch(executor.id);
+    if (member && !member.permissions.has('Administrator')) {
+      await member.roles.set([], 'Anti-nuke: mass channel deletion');
+      stripped = true;
     }
+  } catch { /* cannot modify */ }
+
+  const alertCh = modLogCh ?? logCh;
+  if (alertCh) {
+    await alertCh.send({
+      embeds: [notice({
+        title: '🚨 Anti-nuke — mass channel deletion',
+        description: `<@${executor.id}> (\`${executor.id}\`) deleted **${count}** channels in under 10 seconds.\n`
+          + (stripped ? 'All of their roles have been removed.' : 'Their roles were **not** removed (Administrator or missing permissions).'),
+        color: C.error,
+        fields: [
+          field('Executor', `<@${executor.id}> (${userTag(executor)})`),
+          field('User ID', `\`${executor.id}\``),
+          field('Last channel deleted', `\`${channel.name}\``),
+        ],
+        footer: 'Kratos System • Anti-nuke',
+        timestamp: true,
+      })],
+    }).catch(() => {});
   }
 }

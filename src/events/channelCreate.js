@@ -1,19 +1,19 @@
-import { Events, EmbedBuilder, AuditLogEvent, ChannelType } from 'discord.js';
+import { Events, AuditLogEvent, ChannelType } from 'discord.js';
 import { getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
 import { getAuditEntry } from '../utils/audit.js';
-import { Colors, userTag } from '../utils/embeds.js';
+import { logEntry, field, userTag } from '../utils/embeds.js';
 
 export const name = Events.ChannelCreate;
 export const once = false;
 
-const CHANNEL_TYPE_AR = {
-  [ChannelType.GuildText]:        '💬 نصي',
-  [ChannelType.GuildVoice]:       '🔊 صوتي',
-  [ChannelType.GuildCategory]:    '📁 تصنيف',
-  [ChannelType.GuildAnnouncement]:'📢 إعلانات',
-  [ChannelType.GuildForum]:       '💭 منتدى',
-  [ChannelType.GuildStageVoice]:  '🎙️ مسرح',
+const CHANNEL_TYPE_LABEL = {
+  [ChannelType.GuildText]:         '💬 Text',
+  [ChannelType.GuildVoice]:        '🔊 Voice',
+  [ChannelType.GuildCategory]:     '📁 Category',
+  [ChannelType.GuildAnnouncement]: '📢 Announcement',
+  [ChannelType.GuildForum]:        '💭 Forum',
+  [ChannelType.GuildStageVoice]:   '🎙️ Stage',
 };
 
 export async function execute(channel) {
@@ -23,29 +23,24 @@ export async function execute(channel) {
   const modLogCh = await getLogChannel(guild, getConfig(guild.id, 'modlog_channel'));
   if (!modLogCh) return;
 
-  let creator = 'غير معروف';
+  let creator = null;
   try {
     const entry = await getAuditEntry(guild, AuditLogEvent.ChannelCreate);
     if (entry && Date.now() - entry.createdTimestamp < 5000) {
       creator = `<@${entry.executor.id}> (${userTag(entry.executor)})`;
     }
-  } catch { /* audit log غير متاح */ }
+  } catch { /* audit log unavailable */ }
 
-  const typeLabel = CHANNEL_TYPE_AR[channel.type] ?? 'غير معروف';
-  const parent    = channel.parent ? `${channel.parent.name}` : 'لا يوجد';
-
-  const embed = new EmbedBuilder()
-    .setColor(Colors.SUCCESS)
-    .setTitle('📌  إنشاء قناة جديدة')
-    .addFields(
-      { name: '📋  اسم القناة', value: `${channel} (\`${channel.name}\`)`,   inline: true },
-      { name: '🆔  المعرّف',    value: `\`${channel.id}\``,                   inline: true },
-      { name: '🗂️  النوع',      value: typeLabel,                              inline: true },
-      { name: '📁  التصنيف',    value: parent,                                 inline: true },
-      { name: '👤  المنشئ',     value: creator,                                inline: true },
-    )
-    .setTimestamp()
-    .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' });
-
-  await modLogCh.send({ embeds: [embed] }).catch(() => {});
+  await modLogCh.send({
+    embeds: [logEntry({
+      kind: 'channel_create',
+      target: `${channel} (\`${channel.name}\`)`,
+      actor: creator,
+      fields: [
+        field('Channel ID', `\`${channel.id}\``),
+        field('Type', CHANNEL_TYPE_LABEL[channel.type] ?? 'Unknown'),
+        field('Category', channel.parent ? channel.parent.name : 'None'),
+      ],
+    })],
+  }).catch(() => {});
 }

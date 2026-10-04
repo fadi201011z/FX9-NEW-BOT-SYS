@@ -1,13 +1,13 @@
-import { Events, AuditLogEvent, EmbedBuilder } from 'discord.js';
+import { Events, AuditLogEvent } from 'discord.js';
 import { getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
 import { getAuditEntry } from '../utils/audit.js';
-import { Colors, userTag } from '../utils/embeds.js';
+import { logEntry, field, userTag } from '../utils/embeds.js';
 
 export const name = Events.RoleUpdate;
 export const once = false;
 
-const hex = c => `\`#${c.toString(16).padStart(6, '0')}\``;
+const hex = (c) => `\`#${c.toString(16).padStart(6, '0')}\``;
 
 export async function execute(oldRole, newRole) {
   const guild = newRole.guild;
@@ -21,32 +21,41 @@ export async function execute(oldRole, newRole) {
   const modLogCh = await getLogChannel(guild, getConfig(guild.id, 'modlog_channel'));
   if (!modLogCh) return;
 
-  let modifiedBy = 'غير معروف';
+  let modifiedBy = null;
   try {
     const entry = await getAuditEntry(guild, AuditLogEvent.RoleUpdate);
     if (entry && Date.now() - entry.createdTimestamp < 5000) {
       modifiedBy = `<@${entry.executor.id}> (${userTag(entry.executor)})`;
     }
-  } catch {}
+  } catch { /* audit log unavailable */ }
 
-  const embed = new EmbedBuilder()
-    .setColor(Colors.ROLE)
-    .setTitle('✏️  تعديل رتبة')
-    .addFields(
-      { name: '🏷️  الرتبة',  value: `${newRole} \`${newRole.id}\``, inline: true },
-      ...(nameChanged ? [
-        { name: '📝  الاسم قبل', value: oldRole.name.slice(0, 1024), inline: true },
-        { name: '📝  الاسم بعد', value: newRole.name.slice(0, 1024), inline: true },
-      ] : []),
-      ...(colorChanged ? [
-        { name: '🎨  اللون قبل', value: hex(oldRole.color), inline: true },
-        { name: '🎨  اللون بعد', value: hex(newRole.color), inline: true },
-      ] : []),
-      ...(permsChanged ? [{ name: '🔒  الصلاحيات', value: 'تم تغيير صلاحيات الرتبة', inline: false }] : []),
-      { name: '🛡️  بواسطة', value: modifiedBy, inline: true },
-    )
-    .setTimestamp()
-    .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' });
+  const fields = [];
 
-  await modLogCh.send({ embeds: [embed] }).catch(() => {});
+  if (nameChanged) {
+    fields.push(field('Name before', oldRole.name.slice(0, 1024)));
+    fields.push(field('Name after', newRole.name.slice(0, 1024)));
+  }
+
+  if (colorChanged) {
+    fields.push(field('Colour before', hex(oldRole.color)));
+    fields.push(field('Colour after', hex(newRole.color)));
+  }
+
+  // Permission changes get a named field rather than a raw bitfield, which
+  // would be unreadable and is the single most security-relevant edit here.
+  if (permsChanged) {
+    const added   = newRole.permissions.subtract(oldRole.permissions);
+    const removed = oldRole.permissions.subtract(newRole.permissions);
+    if (added.size)   fields.push(field('Permissions added', [...added.toArray()].join(', '), false));
+    if (removed.size) fields.push(field('Permissions removed', [...removed.toArray()].join(', '), false));
+  }
+
+  await modLogCh.send({
+    embeds: [logEntry({
+      kind: 'role_update',
+      target: `${newRole} \`${newRole.id}\``,
+      actor: modifiedBy,
+      fields,
+    })],
+  }).catch(() => {});
 }

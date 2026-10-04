@@ -1,13 +1,13 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder, PermissionsBitField, TextChannel } from "discord.js";
+import { SlashCommandBuilder, PermissionsBitField } from "discord.js";
 import { panelPayload } from "../../utils/embeds.js";
 
 export const data = new SlashCommandBuilder()
   .setName("panel")
-  .setDescription("📋 إرسال بنل التكتات في القناة الحالية")
+  .setDescription("📋 Post the ticket panel in this channel")
   .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator);
 
 export async function execute(interaction) {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: 64 });
   await interaction.channel.send(panelPayload(interaction.guildId));
-  await interaction.editReply({ content: "✅ تم إرسال البنل بنجاح!" });
+  await interaction.editReply({ content: "✅ Ticket panel posted." });
 }

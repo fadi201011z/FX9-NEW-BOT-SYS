@@ -1,72 +1,54 @@
-import {
-  ChatInputCommandInteraction, SlashCommandBuilder, EmbedBuilder,
-  version as djsVersion,
-} from "discord.js";
-import { getAllTickets, getAllAdminStats } from "../../data/ticketDB.js";
-import { COLOR } from "../../utils/embeds.js";
+import { SlashCommandBuilder, version as djsVersion } from 'discord.js';
+import { getAllTickets, getAllOpenTickets, getAllAdminStats } from '../../data/ticketDB.js';
+import { notice, field, C } from '../../utils/embeds.js';
 
 export const data = new SlashCommandBuilder()
-  .setName("botinfo")
-  .setDescription("ℹ️ معلومات حول بوت KRS Ticket System");
+  .setName('botinfo')
+  .setDescription('ℹ️ Uptime, memory and ticket counts for this server');
+
+const uptime = (ms) => {
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return `${h}h ${m}m ${s % 60}s`;
+};
 
 export async function execute(interaction) {
-  await interaction.deferReply();
+  await interaction.deferReply({ flags: 64 });
 
-  const client = interaction.client;
-  const uptime = process.uptime();
-  const h = Math.floor(uptime / 3600);
-  const m = Math.floor((uptime % 3600) / 60);
-  const s = Math.floor(uptime % 60);
+  const client  = interaction.client;
+  const guildId = interaction.guildId;
 
-  const totalTickets = interaction.guildId
-    ? getAllTickets(interaction.guildId).length
-    : 0;
-  const admins = getAllAdminStats().length;
+  const total = guildId ? getAllTickets(guildId) : [];
+  const open  = guildId ? getAllOpenTickets(guildId) : [];
 
-  const memMB = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1);
+  // Staff are counted from this guild's tickets only — admin stats carry no
+  // guild column, so the raw list spans every server the bot is in.
+  const staffHere = new Set(total.map((t) => t.claimedBy).filter(Boolean));
+  const staff     = getAllAdminStats().filter((s) => staffHere.has(s.adminId));
 
-  const embed = new EmbedBuilder()
-    .setColor(COLOR.blue)
-    .setTitle("ℹ️ KRS Ticket System — معلومات البوت")
-    .setThumbnail(client.user.displayAvatarURL({ size: 256 }))
-    .setDescription(
-      [
-        "```",
-        "  ███████╗██╗  ██╗ █████╗ ",
-        "  ██╔════╝╚██╗██╔╝██╔══██╗",
-        "  █████╗   ╚███╔╝ ╚██████║",
-        "  ██╔══╝   ██╔██╗ ██╔══██║",
-        "  ██║     ██╔╝ ██╗╚█████╔╝",
-        "  ╚═╝     ╚═╝  ╚═╝ ╚════╝ ",
-        "```",
-        "> نظام تكتات متكامل مع دعم متعدد الرتب وقنوات الريلاي",
-      ].join("\n")
-    )
-    .addFields(
-      { name: "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🤖 اسم البوت",       value: `**${client.user.tag}**`, inline: true },
-      { name: "📌 الإصدار",           value: "**v2.0.0**", inline: true },
-      { name: "📡 السيرفرات",         value: `**${client.guilds.cache.size}**`, inline: true },
-      { name: "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n👨‍💻 مطور البوت",       value: "**KRS**", inline: true },
-      { name: "🏷️ Framework",         value: `**discord.js v${djsVersion}**`, inline: true },
-      { name: "🖥️ Runtime",           value: `**Node.js ${process.version}**`, inline: true },
-      { name: "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n⏰ وقت التشغيل",      value: `**${h}س ${m}د ${s}ث**`, inline: true },
-      { name: "💾 الذاكرة",           value: `**${memMB} MB**`, inline: true },
-      { name: "🎫 التكتات",           value: `**${totalTickets}**`, inline: true },
-      { name: "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✨ المميزات",         value: [
-        "🎫 نظام تكتات متكامل بـ 4 أقسام",
-        "🔐 قنوات مزدوجة (نظام الريلاي)",
-        "🛡️ دعم رتب متعددة",
-        "⭐ نظام تقييم ذكي (DM / في القناة)",
-        "📩 Claim / Unclaim / Quick Reply",
-        "⏰ مراقبة الخمول التلقائي",
-        "📊 إحصائيات وتقارير كاملة",
-        "📢 نظام إعلانات متقدم",
-        "⏰ تذكير الأعضاء بالرد",
-      ].join("\n"), },
-      { name: "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🔗 الأوامر",          value: "`/helpt` للمشرفين | `/botinfo` | `/ticket` | `/panel`" },
-    )
-    .setFooter({ text: `KRS Ticket System v2 • طُلب بواسطة ${interaction.user.username}` })
-    .setTimestamp();
+  const rated = total.filter((t) => t.rating !== undefined);
+  const avg   = rated.length
+    ? (rated.reduce((sum, t) => sum + (t.rating ?? 0), 0) / rated.length).toFixed(2)
+    : '—';
 
-  await interaction.editReply({ embeds: [embed] });
+  await interaction.editReply({
+    embeds: [notice({
+      title: 'ℹ️ Ticket system — runtime status',
+      color: C.info,
+      thumbnail: client.user.displayAvatarURL({ size: 512 }),
+      fields: [
+        field('Uptime', uptime(process.uptime())),
+        field('Memory', `${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1)} MB`),
+        field('discord.js', `v${djsVersion}`),
+        field('Node.js', process.version),
+        field('Tickets — all', `${total.length}`),
+        field('Tickets — open', `${open.length}`),
+        field('Staff involved', `${staff.length}`),
+        field('Average rating', avg === '—' ? '—' : `⭐ **${avg}/5** (${rated.length})`),
+      ],
+      footer: guildId ? `Kratos System • ${client.guilds.cache.get(guildId)?.name ?? 'this server'}` : 'Kratos System',
+      timestamp: true,
+    })],
+  });
 }

@@ -43,7 +43,8 @@ function withTimeout(promise, ms) {
 }
 
 async function loadBg(guildId) {
-  // صورة ترحيب مخصصة لكل سيرفر (من الداشبورد) — تُعطى الأولوية
+  // Per-server welcome artwork set from the dashboard, with the bundled default
+  // as the fallback.
   if (guildId) {
     const custom = resolveGuildImage(guildId, 'welcome_image');
     if (custom) {

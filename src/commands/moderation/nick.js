@@ -1,15 +1,15 @@
-import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { requireRole, canModerate, getLogChannel } from '../../utils/permissions.js';
-import { errorEmbed, Colors, EPHEMERAL } from '../../utils/embeds.js';
+import { ok, fail, logEntry, field } from '../../utils/embeds.js';
 import { getConfig } from '../../database.js';
 import { COMMAND_ROLES } from '../../config/roles.js';
 
 export const data = new SlashCommandBuilder()
   .setName('nick')
-  .setDescription('تغيير أو إعادة ضبط لقب عضو')
+  .setDescription("Change or reset a member's nickname")
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageNicknames)
-  .addUserOption(opt => opt.setName('user').setDescription('العضو المستهدف').setRequired(true))
-  .addStringOption(opt => opt.setName('nickname').setDescription('اللقب الجديد (اتركه فارغاً لإعادة الضبط)'));
+  .addUserOption(opt => opt.setName('user').setDescription('Member to rename').setRequired(true))
+  .addStringOption(opt => opt.setName('nickname').setDescription('New nickname (leave empty to reset)'));
 
 export async function execute(interaction) {
   if (!await requireRole(interaction, COMMAND_ROLES.nick)) return;
@@ -17,47 +17,24 @@ export async function execute(interaction) {
   const target   = interaction.options.getMember('user');
   const nickname = interaction.options.getString('nickname') ?? null;
 
-  if (!target)                              return interaction.reply({ embeds: [errorEmbed('غير موجود', 'هذا العضو ليس في السيرفر.')],        flags: EPHEMERAL });
-  if (!canModerate(interaction.guild, target)) return interaction.reply({ embeds: [errorEmbed('لا يمكن التعديل', 'لا أستطيع تعديل لقب هذا العضو.')], flags: EPHEMERAL });
+  if (!target) return interaction.reply(fail('That member is not in this server.'));
+  if (!canModerate(interaction.guild, target)) return interaction.reply(fail('I cannot rename this member.'));
 
-  const oldNick = target.nickname ?? target.user.username;
-  await target.setNickname(nickname, `بواسطة ${interaction.user.tag}`);
+  const oldNick  = target.nickname ?? target.user.username;
+  const newNick  = nickname ?? target.user.username;
+  await target.setNickname(nickname, `by ${interaction.user.tag}`);
 
-  await interaction.reply({
-    embeds: [
-      new EmbedBuilder()
-        .setColor(Colors.WHITE)
-        .setTitle('✏️  تم تغيير اللقب')
-        .addFields(
-          { name: '👤 العضو',   value: `${target}`,                       inline: false },
-          { name: '📝 قبل',    value: oldNick,                            inline: true  },
-          { name: '📝 بعد',    value: nickname ?? target.user.username,   inline: true  },
-          { name: '🛡️ بواسطة', value: `${interaction.user}`,             inline: true  },
-        )
-        .setThumbnail(target.user.displayAvatarURL({ dynamic: true }))
-        .setTimestamp()
-        .setFooter({ text: '⚔️ KRS-SYS  •  إدارة الأعضاء' })
-    ],
-    flags: EPHEMERAL,
-  });
+  await interaction.reply(ok(`Nickname for ${target.user.tag} changed to **${newNick}**`));
 
   const modLogCh = await getLogChannel(interaction.guild, getConfig(interaction.guildId, 'modlog_channel'));
   if (modLogCh) {
     await modLogCh.send({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(Colors.EDIT)
-          .setTitle('✏️  تغيير لقب')
-          .addFields(
-            { name: '👤 العضو',   value: `${target} \`${target.user.id}\``, inline: false },
-            { name: '📝 قبل',    value: oldNick,                            inline: true  },
-            { name: '📝 بعد',    value: nickname ?? target.user.username,   inline: true  },
-            { name: '🛡️ المشرف', value: `${interaction.user}`,             inline: true  },
-          )
-          .setThumbnail(target.user.displayAvatarURL({ dynamic: true }))
-          .setTimestamp()
-          .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' })
-      ],
+      embeds: [logEntry({
+        kind: 'nick',
+        target: `${target.user.tag} (\`${target.user.id}\`)`,
+        actor: interaction.user.tag,
+        fields: [field('Before', oldNick), field('After', newNick)],
+      })],
     }).catch(() => {});
   }
 }

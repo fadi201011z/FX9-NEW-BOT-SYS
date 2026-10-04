@@ -1,18 +1,21 @@
-import { getAllOpenTickets, getTicket, saveTicket, getGuildConfig } from "../data/ticketDB.js";
-import { logEmbed, inactivityEmbed, ratingEmbed, ratingButtons } from "../utils/embeds.js";
-import { sendOrUpdateTicketLog } from "../utils/ticketLogUtils.js";
+import { getAllOpenTickets, getTicket, saveTicket } from '../data/ticketDB.js';
+import { logEmbed, inactivityEmbed, ratingEmbed, ratingButtons, field, C } from '../utils/embeds.js';
+import { sendOrUpdateTicketLog } from '../utils/ticketLogUtils.js';
 
 const WARN_MS  = 24 * 60 * 60 * 1000;
 const CLOSE_MS = 36 * 60 * 60 * 1000;
 
+/** How long the channels stay up after an auto-close, per delivery path. */
+const DELETE_DELAY = { rated: 8_000, unrated: 30_000 };
+
 export function startInactivityMonitor(client) {
   setInterval(() => checkAll(client), 30 * 60 * 1000);
-  console.log("  ⏰  مراقب الخمول يعمل (فحص كل 30 دقيقة)");
+  console.log('  ⏰  Inactivity monitor active (checked every 30 minutes)');
 }
 
 export async function updateTicketActivity(channelId) {
   const t = getTicket(channelId);
-  if (t && t.status !== "closed") {
+  if (t && t.status !== 'closed') {
     t.lastActivity     = Date.now();
     t.inactivityWarned = false;
     await saveTicket(t);
@@ -24,7 +27,7 @@ async function checkAll(client) {
   for (const guild of client.guilds.cache.values()) {
     for (const ticket of getAllOpenTickets(guild.id)) {
       const elapsed = now - ticket.lastActivity;
-      if      (elapsed >= CLOSE_MS)                            await autoClose(client, ticket);
+      if (elapsed >= CLOSE_MS) await autoClose(client, ticket);
       else if (elapsed >= WARN_MS && !ticket.inactivityWarned) await warn(client, ticket);
     }
   }
@@ -34,28 +37,32 @@ async function warn(client, ticket) {
   try {
     const ch = client.channels.cache.get(ticket.channelId);
     if (!ch) return;
+
     ticket.inactivityWarned = true;
     await saveTicket(ticket);
-    await ch.send({ content: `<@${ticket.userId}>`, embeds: [inactivityEmbed(ticket.ticketId)] });
+
+    await ch.send({
+      content: `<@${ticket.userId}>`,
+      embeds: [inactivityEmbed(ticket.ticketId)],
+    });
 
     if (ticket.adminChannelId) {
       const adminCh = client.channels.cache.get(ticket.adminChannelId);
       await adminCh?.send({ embeds: [inactivityEmbed(ticket.ticketId)] });
     }
-  } catch {}
+  } catch { /* the channel may already be gone */ }
 }
 
 async function autoClose(client, ticket) {
   try {
-    ticket.status   = "closed";
+    ticket.status   = 'closed';
     ticket.closedAt = Date.now();
     await saveTicket(ticket);
 
-    const config = getGuildConfig(ticket.guildId);
-    const embed  = logEmbed("🔒 إغلاق تلقائي (خمول)", COLOR.red, [
-      { name: "رقم التكت", value: ticket.ticketId, inline: true },
-      { name: "العضو",     value: `<@${ticket.userId}>`, inline: true },
-      { name: "السبب",     value: "خمول لمدة 36 ساعة" },
+    const embed = logEmbed('🔒 Ticket auto-closed', C.error, [
+      field('Ticket', ticket.ticketId),
+      field('Member', `<@${ticket.userId}>`),
+      field('Reason', 'No activity for 36 hours', false),
     ]);
 
     const ratingData = {
@@ -63,6 +70,7 @@ async function autoClose(client, ticket) {
       components: [ratingButtons(ticket.ticketId)],
     };
 
+    // Prefer the DM so the rating stays private; fall back to the channel.
     let ratingInChannel = false;
     try {
       const user = await client.users.fetch(ticket.userId);
@@ -76,7 +84,8 @@ async function autoClose(client, ticket) {
       await userCh.send({ embeds: [embed] });
       if (ratingInChannel) {
         await userCh.send({
-          content: `<@${ticket.userId}> ⭐ **قيّم تجربتك قبل إغلاق هذه القناة** — ستُحذف بعد 30 ثانية:`,
+          content: `<@${ticket.userId}> ⭐ **Rate your experience** using the buttons below — `
+            + 'this channel deletes itself in **30 seconds**.',
           ...ratingData,
         });
       }
@@ -89,7 +98,7 @@ async function autoClose(client, ticket) {
 
     await sendOrUpdateTicketLog(client, ticket);
 
-    const delay = ratingInChannel ? 30_000 : 8_000;
+    const delay = ratingInChannel ? DELETE_DELAY.unrated : DELETE_DELAY.rated;
     setTimeout(async () => {
       await userCh?.delete().catch(() => null);
       if (ticket.adminChannelId) {
@@ -98,6 +107,6 @@ async function autoClose(client, ticket) {
       }
     }, delay);
   } catch (err) {
-    console.error("[Inactivity AutoClose]", err);
+    console.error('[Inactivity AutoClose]', err);
   }
 }

@@ -1,7 +1,7 @@
-import { Events, EmbedBuilder } from 'discord.js';
+import { Events } from 'discord.js';
 import { getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
-import { Colors, userTag } from '../utils/embeds.js';
+import { logEntry, field } from '../utils/embeds.js';
 
 const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:10001';
 const API_SECRET = process.env.API_SECRET || '';
@@ -12,11 +12,12 @@ export const once = false;
 export async function execute(oldMember, newMember) {
   const { guild } = newMember;
 
-  // ─── إخطار الداشبورد بتغيير الرتب (مزامنة المدراء التلقائية) ─────────────
-  const oldRoleIds = oldMember.roles.cache.map(r => r.id);
-  const newRoleIds = newMember.roles.cache.map(r => r.id);
-  const rolesChanged = oldRoleIds.length !== newRoleIds.length ||
-    oldRoleIds.some(id => !newRoleIds.includes(id));
+  // ─── Notify the dashboard of a role change (keeps auto-admin in sync) ─────
+  const oldRoleIds = oldMember.roles.cache.map((r) => r.id);
+  const newRoleIds = newMember.roles.cache.map((r) => r.id);
+  const rolesChanged = oldRoleIds.length !== newRoleIds.length
+    || oldRoleIds.some((id) => !newRoleIds.includes(id));
+
   if (rolesChanged) {
     try {
       await fetch(`${DASHBOARD_URL}/admins/webhook/sync-member`, {
@@ -27,62 +28,48 @@ export async function execute(oldMember, newMember) {
         },
         body: JSON.stringify({ guildId: guild.id, userId: newMember.id }),
       });
-    } catch {}
+    } catch { /* dashboard unreachable — logging still proceeds */ }
   }
 
-  // تغيير الأدوار → يُسجَّل في قناة سجلات الإشراف
-  const modLogCh  = await getLogChannel(guild, getConfig(guild.id, 'modlog_channel'));
-  // تغيير اللقب  → يُسجَّل في قناة السجلات العامة
-  const logCh     = await getLogChannel(guild, getConfig(guild.id, 'log_channel'));
+  // Role changes → modlog.  Nickname changes → general log.
+  const modLogCh = await getLogChannel(guild, getConfig(guild.id, 'modlog_channel'));
+  const logCh    = await getLogChannel(guild, getConfig(guild.id, 'log_channel'));
 
-  // ─── تغيير الأدوار ────────────────────────────────────────────────────────
-  const addedRoles   = newMember.roles.cache.filter(r => !oldMember.roles.cache.has(r.id) && r.id !== guild.id);
-  const removedRoles = oldMember.roles.cache.filter(r => !newMember.roles.cache.has(r.id) && r.id !== guild.id);
+  // ─── Role change ─────────────────────────────────────────────────────────
+  const addedRoles   = newMember.roles.cache.filter((r) => !oldMember.roles.cache.has(r.id) && r.id !== guild.id);
+  const removedRoles = oldMember.roles.cache.filter((r) => !newMember.roles.cache.has(r.id) && r.id !== guild.id);
 
   if ((addedRoles.size > 0 || removedRoles.size > 0) && modLogCh) {
-    const embed = new EmbedBuilder()
-      .setColor(Colors.ROLE)
-      .setTitle('🏷️  تغيير الأدوار')
-      .addFields(
-        { name: '👤  العضو',  value: `${newMember} (${userTag(newMember.user)})`, inline: true },
-        { name: '🆔  المعرّف', value: `\`${newMember.user.id}\``,             inline: true },
-      )
-      .setThumbnail(newMember.user.displayAvatarURL({ dynamic: true }))
-      .setTimestamp()
-      .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' });
-
+    const fields = [];
     if (addedRoles.size) {
-      embed.addFields({
-        name: '✅  أدوار مُضافة',
-        value: addedRoles.map(r => r.toString()).join(', ').slice(0, 1024),
-        inline: false,
-      });
+      fields.push(field('Roles added', addedRoles.map((r) => r.toString()).join(', ').slice(0, 1024), false));
     }
     if (removedRoles.size) {
-      embed.addFields({
-        name: '❌  أدوار محذوفة',
-        value: removedRoles.map(r => r.toString()).join(', ').slice(0, 1024),
-        inline: false,
-      });
+      fields.push(field('Roles removed', removedRoles.map((r) => r.toString()).join(', ').slice(0, 1024), false));
     }
 
-    await modLogCh.send({ embeds: [embed] }).catch(() => {});
+    await modLogCh.send({
+      embeds: [logEntry({
+        kind: 'member_update',
+        target: `${newMember} (\`${newMember.user.id}\`)`,
+        fields,
+        footer: 'Kratos System • Modlog',
+      })],
+    }).catch(() => {});
   }
 
-  // ─── تغيير اللقب ──────────────────────────────────────────────────────────
+  // ─── Nickname change ─────────────────────────────────────────────────────
   if (oldMember.nickname !== newMember.nickname && logCh) {
-    const embed = new EmbedBuilder()
-      .setColor(Colors.EDIT)
-      .setTitle('✏️  تغيير اللقب')
-      .addFields(
-        { name: '👤  العضو',   value: `${newMember} (${userTag(newMember.user)})`, inline: false },
-        { name: '📝  قبل',     value: oldMember.nickname ?? oldMember.user.username, inline: true },
-        { name: '📝  بعد',     value: newMember.nickname ?? newMember.user.username, inline: true },
-      )
-      .setThumbnail(newMember.user.displayAvatarURL({ dynamic: true }))
-      .setTimestamp()
-      .setFooter({ text: '⚔️ KRS-SYS  •  السجلات العامة' });
-
-    await logCh.send({ embeds: [embed] }).catch(() => {});
+    await logCh.send({
+      embeds: [logEntry({
+        kind: 'member_update',
+        target: `${newMember} (\`${newMember.user.id}\`)`,
+        fields: [
+          field('Nickname before', oldMember.nickname ?? oldMember.user.username),
+          field('Nickname after', newMember.nickname ?? newMember.user.username),
+        ],
+        footer: 'Kratos System • Server log',
+      })],
+    }).catch(() => {});
   }
 }

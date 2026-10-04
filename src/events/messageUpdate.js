@@ -1,8 +1,8 @@
-import { Events, AuditLogEvent, EmbedBuilder } from 'discord.js';
+import { Events, AuditLogEvent } from 'discord.js';
 import { getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
 import { getAuditEntry } from '../utils/audit.js';
-import { Colors, userTag } from '../utils/embeds.js';
+import { logEntry, field, userTag } from '../utils/embeds.js';
 
 export const name = Events.MessageUpdate;
 export const once = false;
@@ -19,24 +19,25 @@ export async function execute(oldMessage, newMessage) {
   try {
     const entry = await getAuditEntry(newMessage.guild, AuditLogEvent.MessageUpdate);
     if (entry && entry.target?.id === newMessage.author?.id && Date.now() - entry.createdTimestamp < 5000) {
-      editedBy = `<@${entry.executor.id}>`;
+      editedBy = `<@${entry.executor.id}> (${userTag(entry.executor)})`;
     }
-  } catch { /* audit log غير متاح */ }
+  } catch { /* audit log unavailable */ }
 
-  const embed = new EmbedBuilder()
-    .setColor(Colors.EDIT)
-    .setTitle('✏️  رسالة مُعدَّلة')
-    .addFields(
-      { name: '👤  المرسل',       value: `${newMessage.author} (${userTag(newMessage.author)})`, inline: true },
-      { name: '💬  القناة',        value: `${newMessage.channel}`,                            inline: true },
-      { name: '🔗  الرابط المباشر', value: `[انتقل للرسالة](${newMessage.url})`,              inline: true },
-      ...(editedBy ? [{ name: '🛡️  عُدِّل بواسطة', value: editedBy, inline: true }] : []),
-      { name: '📝  قبل التعديل',    value: (oldMessage.content || '*[فارغ]*').slice(0, 1024), inline: false },
-      { name: '📝  بعد التعديل',    value: (newMessage.content || '*[فارغ]*').slice(0, 1024), inline: false },
-    )
-    .setThumbnail(newMessage.author?.displayAvatarURL({ dynamic: true }) ?? null)
-    .setTimestamp()
-    .setFooter({ text: '⚔️ KRS-SYS  •  السجلات العامة' });
+  const fields = [
+    field('Channel', newMessage.channel.toString()),
+    field('Jump', `[Go to message](${newMessage.url})`),
+    field('Before', (oldMessage.content || '*[empty]*').slice(0, 1024), false),
+    field('After', (newMessage.content || '*[empty]*').slice(0, 1024), false),
+  ];
+  // A self-edit has no audit entry — only claim an editor when one exists.
+  if (editedBy) fields.push(field('Edited by', editedBy));
 
-  await logCh.send({ embeds: [embed] }).catch(() => {});
+  await logCh.send({
+    embeds: [logEntry({
+      kind: 'message_update',
+      target: `${newMessage.author} (${userTag(newMessage.author)})`,
+      fields,
+      footer: 'Kratos System • Server log',
+    })],
+  }).catch(() => {});
 }

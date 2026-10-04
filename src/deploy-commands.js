@@ -1,58 +1,51 @@
 /**
- * تشغيل هذا الملف مرة واحدة لتسجيل جميع الأوامر في Discord:
- *   npm run deploy          ← سيرفر واحد
- *   npm run deploy:global   ← عام
+ * deploy-commands.js
+ *
+ * Run once to push the slash command list to Discord:
+ *   npm run deploy          → single guild (uses GUILD_ID from .env)
+ *   npm run deploy:global   → global
+ *
+ * Folders are discovered by the shared loader, so this can never drift out of
+ * sync with the runtime handler loader. Only commands that actually export an
+ * `execute` are sent — registering a command the bot cannot run would give the
+ * user a picker entry that answers nothing.
  */
 
 import { REST, Routes } from 'discord.js';
-import { readdir } from 'fs/promises';
-import { fileURLToPath, pathToFileURL } from 'url';
-import path from 'path';
 import 'dotenv/config';
+import { commandPayloads, findUndispatchable, commandModules } from './config/commandLoader.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const commands  = [];
+const commands = await commandPayloads();
 
-const commandDirs = [
-  path.join(__dirname, 'commands', 'setup'),
-  path.join(__dirname, 'commands', 'moderation'),
-  path.join(__dirname, 'commands', 'info'),
-  path.join(__dirname, 'commands', 'members'),
-  path.join(__dirname, 'commands', 'ticket'),
-  path.join(__dirname, 'commands', 'voice'),
-];
-
-for (const dir of commandDirs) {
-  let files;
-  try { files = (await readdir(dir)).filter(f => f.endsWith('.js') || f.endsWith('.ts')); }
-  catch { continue; }
-  for (const file of files) {
-    const mod = await import(pathToFileURL(path.join(dir, file)).href);
-    if (mod.data) commands.push(mod.data.toJSON());
-  }
+const undispatchable = findUndispatchable(await commandModules());
+if (undispatchable.length > 0) {
+  console.warn(
+    `⚠️  ${undispatchable.length} module(s) export command data but no execute() — skipped: ` +
+    undispatchable.map(({ name, folder }) => `/${name} (${folder})`).join(', ')
+  );
 }
 
 const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
 
 try {
-  console.log(`📡 جاري تسجيل ${commands.length} أمر...`);
+  console.log(`📡 Registering ${commands.length} commands…`);
 
   const isGlobal = process.argv.includes('global');
   if (isGlobal) {
     await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commands });
-    console.log(`✅ تم تسجيل ${commands.length} أمر بشكل عام`);
+    console.log(`✅ Registered ${commands.length} commands globally.`);
   } else {
     const guildId = process.env.GUILD_ID;
     if (guildId) {
       await rest.put(Routes.applicationGuildCommands(process.env.CLIENT_ID, guildId), { body: commands });
-      console.log(`✅ تم تسجيل ${commands.length} أمر في السيرفر ${guildId}`);
+      console.log(`✅ Registered ${commands.length} commands in guild ${guildId}.`);
     } else {
-      console.warn('⚠️ GUILD_ID غير مضبوط في .env — سجّل عاماً');
+      console.warn('⚠️  GUILD_ID is not set in .env — registering globally instead.');
       await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commands });
-      console.log(`✅ تم تسجيل ${commands.length} أمر بشكل عام`);
+      console.log(`✅ Registered ${commands.length} commands globally.`);
     }
   }
 } catch (error) {
-  console.error('❌ فشل التسجيل:', error);
+  console.error('❌ Registration failed:', error);
   process.exit(1);
 }

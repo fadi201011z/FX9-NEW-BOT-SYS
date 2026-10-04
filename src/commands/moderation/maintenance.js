@@ -1,10 +1,10 @@
-import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import Maintenance from '../../models/Maintenance.js';
 import { setMaintenancePresence, clearMaintenancePresence } from '../../utils/presence.js';
 import { sendMaintenanceStart, sendMaintenanceEnd } from '../../utils/maintenanceEmbed.js';
+import { ok, fail, notice, field, C, EPHEMERAL } from '../../utils/embeds.js';
 import { ROLES } from '../../config/roles.js';
 
-const DIV = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
 const DEV_ID = process.env.BOT_DEVELOPER_ID || null;
 
 function canManage(interaction) {
@@ -14,31 +14,28 @@ function canManage(interaction) {
 
 export const data = new SlashCommandBuilder()
   .setName('maintenance')
-  .setDescription('🛠️ إدارة وضع الصيانة للبوت')
+  .setDescription('🛠️ Manage maintenance mode')
   .addSubcommand(sub =>
     sub.setName('start')
-      .setDescription('تشغيل وضع الصيانة')
+      .setDescription('Turn maintenance mode on')
       .addIntegerOption(opt =>
         opt.setName('duration')
-          .setDescription('المدة بالدقائق (0 أو بدون = غير محددة)')
+          .setDescription('Minutes to stay in maintenance (0 or omit = indefinite)')
           .setMinValue(0)
       )
   )
   .addSubcommand(sub =>
     sub.setName('stop')
-      .setDescription('إيقاف وضع الصيانة')
+      .setDescription('Turn maintenance mode off')
   )
   .addSubcommand(sub =>
     sub.setName('status')
-      .setDescription('عرض حالة الصيانة الحالية')
+      .setDescription('Show the current maintenance state')
   );
 
 export async function execute(interaction) {
   if (!canManage(interaction)) {
-    return interaction.reply({
-      content: '❌ ليس لديك صلاحية استخدام هذا الأمر. فقط المطورون يمكنهم ذلك.',
-      flags: 64,
-    });
+    return interaction.reply(fail('Only bot developers can use this command.'));
   }
 
   const sub = interaction.options.getSubcommand();
@@ -53,7 +50,7 @@ export async function execute(interaction) {
 }
 
 async function handleStart(interaction) {
-  await interaction.deferReply({ flags: 64 });
+  await interaction.deferReply({ flags: EPHEMERAL });
 
   try {
     const duration = interaction.options.getInteger('duration');
@@ -81,40 +78,24 @@ async function handleStart(interaction) {
       await sendMaintenanceStart(interaction.client, doc.channelId, doc.message, doc.endTime);
     }
 
-    const embed = new EmbedBuilder()
-      .setColor(0xE65100)
-      .setTitle('🛠️  تم تفعيل الصيانة')
-      .setDescription([
-        '```ansi',
-        '\u001b[1;31m🛠️  وضع الصيانة  │  مفعّل الآن\u001b[0m',
-        '```',
-        `${DIV}`,
-        '',
-        `**🛡️ بواسطة**  ─  ${interaction.user}`,
-        doc.durationMinutes > 0
-          ? `**⏱ المدة**  ─  ${doc.durationMinutes} دقيقة`
-          : '**⏱ المدة**  ─  غير محددة',
-        '',
-        `${DIV}`,
-        '',
-        '> جميع الخدمات متوقفة مؤقتاً لحين انتهاء الصيانة',
-      ].join('\n'))
-      .setTimestamp();
-
-    await interaction.editReply({ embeds: [embed] });
+    await interaction.editReply(ok(
+      doc.durationMinutes > 0
+        ? `Maintenance is on for ${doc.durationMinutes} minute${doc.durationMinutes === 1 ? '' : 's'} — all services are paused.`
+        : 'Maintenance is on indefinitely — all services are paused.'
+    ));
   } catch (err) {
-    console.error('[MaintenanceCmd] خطأ في بدء الصيانة:', err.message);
-    await interaction.editReply({ content: `❌ فشل تشغيل الصيانة: ${err.message}` });
+    console.error('[MaintenanceCmd] Failed to start maintenance:', err.message);
+    await interaction.editReply({ content: `❌ Could not start maintenance: ${err.message}` });
   }
 }
 
 async function handleStop(interaction) {
-  await interaction.deferReply({ flags: 64 });
+  await interaction.deferReply({ flags: EPHEMERAL });
 
   try {
     const doc = await Maintenance.findOne();
     if (!doc || !doc.enabled) {
-      return interaction.editReply({ content: '⚠️ الصيانة غير مفعلة أصلاً.' });
+      return interaction.editReply({ content: '⚠️ Maintenance was not on.' });
     }
 
     const oldChannelId = doc.channelId || '';
@@ -134,27 +115,10 @@ async function handleStop(interaction) {
       await sendMaintenanceEnd(interaction.client, oldChannelId, oldDuration);
     }
 
-    const embed = new EmbedBuilder()
-      .setColor(0x1B5E20)
-      .setTitle('✅  تم إيقاف الصيانة')
-      .setDescription([
-        '```ansi',
-        '\u001b[1;32m✅  وضع الصيانة  │  متوقف — جميع الخدمات نشطة\u001b[0m',
-        '```',
-        `${DIV}`,
-        '',
-        `**🛡️ بواسطة**  ─  ${interaction.user}`,
-        '',
-        `${DIV}`,
-        '',
-        '> جميع الخدمات تعمل بكامل طاقتها الآن',
-      ].join('\n'))
-      .setTimestamp();
-
-    await interaction.editReply({ embeds: [embed] });
+    await interaction.editReply(ok('Maintenance is off — all services are live again.'));
   } catch (err) {
-    console.error('[MaintenanceCmd] خطأ في إيقاف الصيانة:', err.message);
-    await interaction.editReply({ content: `❌ فشل إيقاف الصيانة: ${err.message}` });
+    console.error('[MaintenanceCmd] Failed to stop maintenance:', err.message);
+    await interaction.editReply({ content: `❌ Could not stop maintenance: ${err.message}` });
   }
 }
 
@@ -162,53 +126,34 @@ async function handleStatus(interaction) {
   try {
     const doc = await Maintenance.findOne().lean();
 
+    // Not running: one line is the whole truth.
     if (!doc || !doc.enabled) {
-      const embed = new EmbedBuilder()
-        .setColor(0x2E7D32)
-        .setTitle('🔵  حالة الصيانة')
-        .setDescription([
-          '```ansi',
-          '\u001b[1;32m🟢  النظام  │  طبيعي — بدون صيانة\u001b[0m',
-          '```',
-          `${DIV}`,
-          '',
-          '> الصيانة **غير مفعلة**. جميع الخدمات تعمل بشكل طبيعي.',
-        ].join('\n'))
-        .setTimestamp();
-
-      return interaction.reply({ embeds: [embed], flags: 64 });
+      return interaction.reply({
+        content: '🟢 System is healthy — maintenance is not active.',
+        flags: EPHEMERAL,
+      });
     }
 
-    let timeInfo = 'غير محددة';
-    if (doc.endTime) {
-      const remain = Math.max(0, doc.endTime - Date.now());
-      const mins = Math.floor(remain / 60000);
-      const parts = [];
-      if (mins >= 60) { parts.push(`${Math.floor(mins / 60)} س`); }
-      if (mins % 60 > 0) parts.push(`${mins % 60} د`);
-      timeInfo = parts.join(' و ') || 'أقل من دقيقة';
-    }
+    // Running: state, remaining time and where the notice went. Table territory.
+    const fields = [
+      field('Message', doc.message || 'The bot is under maintenance'),
+      field('Remaining', doc.endTime ? `<t:${Math.floor(doc.endTime / 1000)}:R>` : 'No end time set'),
+    ];
+    if (doc.channelId) fields.push(field('Announcement', `<#${doc.channelId}>`));
 
-    const embed = new EmbedBuilder()
-      .setColor(0xE65100)
-      .setTitle('🔴  حالة الصيانة')
-      .setDescription([
-        '```ansi',
-        '\u001b[1;31m🔴  الصيانة  │  مفعّلة حالياً\u001b[0m',
-        '```',
-        `${DIV}`,
-        '',
-        `**📝 الرسالة**  ─  ${doc.message || 'البوت تحت الصيانة'}`,
-        `**⏱ المتبقي**  ─  ${timeInfo}`,
-        doc.channelId ? `**📢 الإشعار**  ─  <#${doc.channelId}>` : '',
-        '',
-        `${DIV}`,
-      ].join('\n'))
-      .setTimestamp();
-
-    await interaction.reply({ embeds: [embed], flags: 64 });
+    await interaction.reply({
+      embeds: [notice({
+        title: '🔴 Maintenance is active',
+        description: 'All commands and protection systems are paused until maintenance ends.',
+        color: C.warn,
+        fields,
+        footer: 'Kratos System',
+        timestamp: true,
+      })],
+      flags: EPHEMERAL,
+    });
   } catch (err) {
-    console.error('[MaintenanceCmd] خطأ في عرض الحالة:', err.message);
-    await interaction.reply({ content: '❌ فشل عرض حالة الصيانة.', flags: 64 });
+    console.error('[MaintenanceCmd] Failed to read status:', err.message);
+    await interaction.reply(fail('Could not read the maintenance status.'));
   }
 }

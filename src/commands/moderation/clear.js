@@ -1,20 +1,18 @@
-import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { requireRole, getLogChannel } from '../../utils/permissions.js';
-import { COLOR, footer } from '../../utils/embeds.js';
+import { logEntry, field } from '../../utils/embeds.js';
 import { getConfig } from '../../database.js';
 import { COMMAND_ROLES } from '../../config/roles.js';
 
-const DIV = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
-
 export const data = new SlashCommandBuilder()
   .setName('clear')
-  .setDescription('مسح رسائل بشكل جماعي مع فلاتر اختيارية')
+  .setDescription('Bulk-delete messages, with optional filters')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
   .addIntegerOption(opt =>
-    opt.setName('amount').setDescription('عدد الرسائل للمسح (1-100)').setRequired(true).setMinValue(1).setMaxValue(100)
+    opt.setName('amount').setDescription('How many messages to delete (1-100)').setRequired(true).setMinValue(1).setMaxValue(100)
   )
-  .addUserOption(opt => opt.setName('user').setDescription('مسح رسائل عضو معين فقط'))
-  .addBooleanOption(opt => opt.setName('bots_only').setDescription('مسح رسائل البوتات فقط'));
+  .addUserOption(opt => opt.setName('user').setDescription('Only delete messages from this member'))
+  .addBooleanOption(opt => opt.setName('bots_only').setDescription('Only delete bot messages'));
 
 export async function execute(interaction) {
   if (!await requireRole(interaction, COMMAND_ROLES.clear)) return;
@@ -49,18 +47,8 @@ export async function execute(interaction) {
 
   if (collected.length === 0) {
     return interaction.editReply({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(COLOR.red)
-          .setTitle('⚠️  فشل المسح')
-          .setDescription([
-            '```ansi',
-            '\u001b[1;31m✖  لا توجد رسائل مطابقة للفلتر\u001b[0m',
-            '```',
-          ].join('\n'))
-          .setFooter(footer('KRS • إدارة القنوات'))
-          .setTimestamp(),
-      ],
+      content: '❌ No messages matched that filter.',
+      flags: 64,
     });
   }
 
@@ -78,53 +66,26 @@ export async function execute(interaction) {
     deletedCount++;
   }
 
-  const filterLines = [];
-  if (filterUser) filterLines.push(`**👤 العضو**  ─  ${filterUser}`);
-  if (botsOnly)   filterLines.push(`**🤖 البوتات**  ─  تمت تصفية البوتات فقط`);
-  const filterText = filterLines.length ? `\n${filterLines.join('\n')}\n` : '';
+  const filters = [];
+  if (filterUser) filters.push(field('Member filter', filterUser.tag));
+  if (botsOnly)   filters.push(field('Message source', 'Bots only'));
+
+  const summary = deletedCount === 1 ? '1 message' : `${deletedCount} messages`;
 
   await interaction.editReply({
-    embeds: [
-      new EmbedBuilder()
-        .setColor(COLOR.green)
-        .setTitle('🧹  تم المسح')
-        .setDescription([
-          '```ansi',
-          `\u001b[1;32m✓  تم مسح ${deletedCount} رسالة  │  ${interaction.channel.name}\u001b[0m`,
-          '```',
-          `${DIV}`,
-          '',
-          `**🛡️ بواسطة**  ─  ${interaction.user}`,
-          `**📊 العدد**  ─  ${deletedCount}`,
-          filterText,
-          `${DIV}`,
-        ].join('\n'))
-        .setFooter(footer(`KRS • ${interaction.channel.name}`))
-        .setTimestamp(),
-    ],
+    content: `✅ Purged ${summary} in ${interaction.channel}.`,
+    flags: 64,
   });
 
   const modLogCh = await getLogChannel(interaction.guild, getConfig(interaction.guildId, 'modlog_channel'));
   if (modLogCh) {
     await modLogCh.send({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(COLOR.green)
-          .setTitle('🧹  سجل — مسح رسائل')
-          .setDescription([
-            '```ansi',
-            `\u001b[1;32m🧹  مسح  │  ${interaction.channel.name}\u001b[0m`,
-            '```',
-            `${DIV}`,
-            '',
-            `**📢 القناة**  ─  ${interaction.channel}`,
-            `**🛡️ المشرف**  ─  ${interaction.user}`,
-            `**📊 العدد**  ─  ${deletedCount}`,
-            filterText,
-          ].join('\n'))
-          .setFooter(footer('KRS • سجلات الإشراف'))
-          .setTimestamp(),
-      ],
+      embeds: [logEntry({
+        kind: 'clear',
+        target: interaction.channel.toString(),
+        actor: interaction.user.tag,
+        fields: [field('Deleted', summary), ...filters],
+      })],
     }).catch(() => {});
   }
 }

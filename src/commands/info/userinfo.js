@@ -1,70 +1,92 @@
-import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
-import { Colors } from '../../utils/embeds.js';
+import { SlashCommandBuilder } from 'discord.js';
+import { notice, field, userTag, C } from '../../utils/embeds.js';
 import { getWarnings } from '../../database.js';
 
 export const data = new SlashCommandBuilder()
   .setName('userinfo')
-  .setDescription('معلومات تفصيلية عن عضو في السيرفر')
-  .addUserOption(opt =>
-    opt.setName('user').setDescription('العضو المراد عرض معلوماته (افتراضي: أنت)')
-  );
+  .setDescription('Detailed information about a member')
+  .addUserOption((opt) =>
+    opt.setName('user').setDescription('Member to inspect (omit for yourself)'));
 
-const FLAG_LABELS = {
-  Staff:                  '👨‍💼 موظف Discord',
-  Partner:                '🤝 شريك',
-  Hypesquad:              '🏠 HypeSquad Events',
-  BugHunterLevel1:        '🐛 صائد أخطاء',
-  BugHunterLevel2:        '🐛 صائد أخطاء ذهبي',
-  HypeSquadOnlineHouse1:  '🏠 Bravery',
-  HypeSquadOnlineHouse2:  '🏠 Brilliance',
-  HypeSquadOnlineHouse3:  '🏠 Balance',
-  PremiumEarlySupporter:  '⭐ داعم مبكر',
-  VerifiedDeveloper:      '✅ مطور موثق',
-  ActiveDeveloper:        '👨‍💻 مطور نشط',
+const BADGES = {
+  Staff: '👨‍💼 Discord Staff',
+  Partner: '🤝 Partner',
+  Hypesquad: '🏠 HypeSquad Events',
+  BugHunterLevel1: '🐛 Bug Hunter',
+  BugHunterLevel2: '🐛 Golden Bug Hunter',
+  HypeSquadOnlineHouse1: '🏠 Bravery',
+  HypeSquadOnlineHouse2: '🏠 Brilliance',
+  HypeSquadOnlineHouse3: '🏠 Balance',
+  PremiumEarlySupporter: '⭐ Early Supporter',
+  VerifiedDeveloper: '✅ Verified Bot Developer',
+  ActiveDeveloper: '👨‍💻 Active Developer',
 };
 
 export async function execute(interaction) {
   const target = interaction.options.getMember('user') ?? interaction.member;
   const user   = target.user ?? target;
 
-  const warnings = getWarnings(interaction.guildId, user.id);
-  const roles    = target.roles?.cache
-    .filter(r => r.id !== interaction.guildId)
+  const warnings = getWarnings(interaction.guildId, user.id) ?? [];
+  const roles = (target.roles?.cache ?? new Map())
+    .filter((r) => r.id !== interaction.guildId)
     .sort((a, b) => b.position - a.position)
-    .map(r => r.toString())
-    .slice(0, 10)
-    .join(', ') || 'لا توجد';
+    .map((r) => r.toString())
+    .slice(0, 15)
+    .join(', ');
 
   const badges = (user.flags?.toArray() ?? [])
-    .map(f => FLAG_LABELS[f])
+    .map((f) => BADGES[f])
     .filter(Boolean);
 
-  const accountAge     = Math.floor((Date.now() - user.createdTimestamp) / 86_400_000);
-  const isNewAccount   = accountAge < 7;
-  const warnColor      = warnings.length >= 3 ? Colors.ERROR : warnings.length >= 1 ? Colors.WARNING : Colors.SUCCESS;
+  const accountAge   = Math.floor((Date.now() - user.createdTimestamp) / 86_400_000);
+  const isNewAccount = accountAge < 7;
 
-  const embed = new EmbedBuilder()
-    .setColor(isNewAccount ? Colors.WARNING : Colors.INFO)
-    .setTitle(`👤  ${user.tag}`)
-    .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 256 }))
-    .addFields(
-      { name: '🆔  المعرّف',          value: `\`${user.id}\``,                                            inline: true },
-      { name: '🤖  بوت؟',             value: user.bot ? 'نعم ✅' : 'لا ❌',                              inline: true },
-      { name: '🎨  لون العرض',        value: target.displayHexColor ?? '#ffffff',                         inline: true },
-      { name: '📅  إنشاء الحساب',     value: `<t:${Math.floor(user.createdTimestamp / 1000)}:R>`,        inline: true },
-      { name: '📥  انضم للسيرفر',     value: target.joinedTimestamp ? `<t:${Math.floor(target.joinedTimestamp / 1000)}:R>` : 'غير معروف', inline: true },
-      { name: '⚠️  التحذيرات',        value: `${warnings.length}`,                                       inline: true },
-      { name: '🏷️  الأدوار',          value: roles.slice(0, 1024),                                       inline: false },
-    )
-    .setTimestamp()
-    .setFooter({ text: '⚔️ KRS-SYS  •  معلومات العضو' });
+  const warnColor = warnings.length >= 3 ? C.error : warnings.length > 0 ? C.warn : C.ok;
 
-  if (badges.length > 0) {
-    embed.addFields({ name: '🏅  الشارات', value: badges.join('\n'), inline: false });
-  }
+  const fields = [
+    field('🆔 ID', `\`${user.id}\``),
+    field('🤖 Bot', user.bot ? 'Yes' : 'No'),
+    field('🎨 Role colour', target.displayHexColor ?? 'None'),
+    field('📅 Account created', `<t:${Math.floor(user.createdTimestamp / 1000)}:R>`),
+    field('📥 Joined server', target.joinedTimestamp
+      ? `<t:${Math.floor(target.joinedTimestamp / 1000)}:R>`
+      : 'Unknown'),
+    field('⚠️ Warnings', `${warnings.length}`, false),
+    field('🏷️ Roles', roles || 'None', false),
+  ];
+
+  if (badges.length > 0) fields.push(field('🏅 Badges', badges.join('\n'), false));
+
   if (isNewAccount) {
-    embed.addFields({ name: '⚠️  تنبيه — حساب جديد', value: `هذا الحساب عمره **${accountAge} يوم** فقط.`, inline: false });
+    fields.push(field(
+      '⚠️ New account',
+      `This account is only **${accountAge} day${accountAge === 1 ? '' : 's'}** old.`,
+      false,
+    ));
   }
 
-  await interaction.reply({ embeds: [embed] });
+  if (warnings.length > 0) {
+    fields.push(field(
+      '📋 Warning history',
+      warnings.slice(-5).reverse()
+        .map((w, i) => `${i + 1}. <t:${Math.floor((w.timestamp ?? 0) / 1000)}:d> — `
+          + `${w.reason ?? 'No reason given'}${w.moderatorId ? ` · by <@${w.moderatorId}>` : ''}`)
+        .join('\n')
+        .slice(0, 1024),
+      false,
+    ));
+  }
+
+  await interaction.reply({
+    embeds: [notice({
+      title: `👤 ${userTag(user)}`,
+      color: isNewAccount ? C.warn : C.info,
+      thumbnail: user.displayAvatarURL({ dynamic: true, size: 512 }),
+      fields,
+      footer: warnColor === C.error
+        ? 'Kratos System • Member information — 3 or more warnings'
+        : 'Kratos System • Member information',
+      timestamp: true,
+    })],
+  });
 }

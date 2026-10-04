@@ -1,15 +1,15 @@
-import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { requireRole, getLogChannel } from '../../utils/permissions.js';
-import { Colors } from '../../utils/embeds.js';
+import { ok, logEntry, field } from '../../utils/embeds.js';
 import { getConfig } from '../../database.js';
 import { COMMAND_ROLES } from '../../config/roles.js';
 
 export const data = new SlashCommandBuilder()
   .setName('slowmode')
-  .setDescription('ضبط وضع البطء في القناة الحالية')
+  .setDescription('Set the slowmode delay in this channel')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
   .addIntegerOption(opt =>
-    opt.setName('seconds').setDescription('المدة بالثواني (0 لتعطيل)').setRequired(true).setMinValue(0).setMaxValue(21600)
+    opt.setName('seconds').setDescription('Seconds between messages (0 to disable)').setRequired(true).setMinValue(0).setMaxValue(21600)
   );
 
 export async function execute(interaction) {
@@ -19,36 +19,21 @@ export async function execute(interaction) {
   const disabled = seconds === 0;
   await interaction.channel.setRateLimitPerUser(seconds);
 
-  await interaction.reply({
-    embeds: [
-      new EmbedBuilder()
-        .setColor(disabled ? Colors.WHITE : Colors.WARNING)
-        .setTitle(disabled ? '🔓  تم تعطيل وضع البطء' : '🐢  تم تفعيل وضع البطء')
-        .addFields(
-          { name: '📢 القناة',  value: `${interaction.channel}`,                              inline: true },
-          { name: '⏱️ المدة',  value: disabled ? 'معطّل' : `${seconds} ثانية بين كل رسالة`, inline: true },
-          { name: '🛡️ بواسطة', value: `${interaction.user}`,                                 inline: true },
-        )
-        .setTimestamp()
-        .setFooter({ text: '⚔️ KRS-SYS  •  إدارة القنوات' })
-    ],
-  });
+  await interaction.reply(ok(
+    disabled
+      ? `Slowmode disabled in ${interaction.channel}`
+      : `Slowmode set to ${seconds}s in ${interaction.channel}`
+  ));
 
   const modLogCh = await getLogChannel(interaction.guild, getConfig(interaction.guildId, 'modlog_channel'));
   if (modLogCh) {
     await modLogCh.send({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(disabled ? Colors.WHITE : Colors.WARNING)
-          .setTitle('🐢  تغيير وضع البطء')
-          .addFields(
-            { name: '📢 القناة',  value: `${interaction.channel}`,                  inline: true },
-            { name: '⏱️ المدة',  value: disabled ? 'معطّل' : `${seconds} ثانية`,  inline: true },
-            { name: '🛡️ المشرف', value: `${interaction.user}`,                      inline: true },
-          )
-          .setTimestamp()
-          .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' })
-      ],
+      embeds: [logEntry({
+        kind: 'slowmode',
+        target: interaction.channel.toString(),
+        actor: interaction.user.tag,
+        fields: [field('Delay', disabled ? 'Disabled' : `${seconds}s`)],
+      })],
     }).catch(() => {});
   }
 }

@@ -1,3 +1,23 @@
+/**
+ * embeds.js — the bot's entire visual vocabulary.
+ *
+ * Design rules, applied everywhere in this file:
+ *
+ *   1. No ANSI code blocks. Discord renders ```ansi monospaced and does not
+ *      interpret escape codes, so `\u001b[1;31m` produced a grey box and nothing
+ *      else. Colour comes from the embed's own colour bar instead.
+ *   2. No `━━━━` dividers. They were a 2021 trend, they render inconsistently
+ *      across clients, and they cost vertical space that the data needs.
+ *   3. One colour palette, seven entries, named for meaning rather than hue.
+ *      The file used to export two palettes (`Colors` with 18 names, `COLOR`
+ *      with 8) covering 14 distinct hexes; `RED`, `ERROR`, `MOD` and `ROLE` were
+ *      all the same colour under four names.
+ *   4. Embeds only where there is structured data to scan. A one-line result is
+ *      plain ephemeral text — see `ok()` and `fail()`.
+ *   5. Modlog entries all go through `logEntry()`, so the 13 moderation
+ *      commands cannot drift apart visually.
+ */
+
 import { fileURLToPath } from 'node:url';
 import {
   EmbedBuilder,
@@ -11,179 +31,181 @@ import { CATEGORY_LABEL } from '../data/ticketTypes.js';
 import { formatDuration } from './parseDuration.js';
 import { resolveGuildImage } from './guildImage.js';
 
-// ════════════════════════════════════════════════════════════════════════════
-//  PREMIUM Color Palette 2025
-// ════════════════════════════════════════════════════════════════════════════
-
-export const Colors = {
-  RED:     0xef4444,
-  CRIMSON: 0xdc2626,
-  BLOOD:   0x991b1b,
-  DARK:    0x0f172a,
-  CHARCOAL:0x1e293b,
-  WHITE:   0xf8fafc,
-  SUCCESS: 0x22c55e,
-  ERROR:   0xef4444,
-  INFO:    0x3b82f6,
-  WARNING: 0xf59e0b,
-  MOD:     0xef4444,
-  RAID:    0x991b1b,
-  JOIN:    0x22c55e,
-  LEAVE:   0x64748b,
-  EDIT:    0x3b82f6,
-  VOICE:   0x06b6d4,
-  ROLE:    0xef4444,
-  BOTLOG:  0x0f172a,
-};
-
-export const COLOR = {
-  blue:   0x3b82f6,
-  black:  0x0f172a,
-  red:    0xef4444,
-  white:  0xf8fafc,
-  gold:   0xfbbf24,
-  green:  0x22c55e,
-  orange: 0xf97316,
-  purple: 0x8b5cf6,
-};
-
-// ════════════════════════════════════════════════════════════════════════════
-//  Premium helpers
-// ════════════════════════════════════════════════════════════════════════════
-
+/** Ephemeral replies. Kept as a named constant so it is never magic-numbered. */
 export const EPHEMERAL = 64;
 
-// يعرض اسم المستخدم بأمان — متوافق مع `user.tag` القديم والجديد (بدون discriminator)
-export function userTag(user) {
-  if (!user) return 'غير معروف';
-  try { return user.tag || user.username; } catch { return user.username || user.id || 'غير معروف'; }
-}
-
-const R = '\u200b';
-
-export function footer(text = 'KRS-SYS') {
-  return { text: `⚔️ ${text}` };
-}
-
-function base(color, section) {
-  return new EmbedBuilder()
-    .setColor(color)
-    .setTimestamp()
-    .setFooter(footer(section));
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-//  SYS — Utility Embeds
-// ════════════════════════════════════════════════════════════════════════════
-
-export function sysSuccessEmbed(title, desc) {
-  const e = base(Colors.SUCCESS, 'KRS-SYS').setTitle(`✅ ${title}`);
-  if (desc) e.setDescription(desc);
-  return e;
-}
-
-export function sysErrorEmbed(title, desc) {
-  const e = base(Colors.ERROR, 'KRS-SYS').setTitle(`❌ ${title}`);
-  if (desc) e.setDescription(desc);
-  return e;
-}
-
-export function infoEmbed(title, desc) {
-  const e = base(Colors.INFO, 'KRS-SYS').setTitle(`ℹ️ ${title}`);
-  if (desc) e.setDescription(desc);
-  return e;
-}
-
-export function warnEmbed(title, desc) {
-  const e = base(Colors.WARNING, 'KRS-SYS').setTitle(`⚠️ ${title}`);
-  if (desc) e.setDescription(desc);
-  return e;
-}
-
-export function sysLogEmbed(title, desc, color = Colors.CHARCOAL, section = 'السجلات العامة') {
-  const e = base(color, section).setTitle(title);
-  if (desc) e.setDescription(desc);
-  return e;
-}
-
-export function modEmbed(action, target, moderator, reason, extra = {}) {
-  const desc = [
-    '```ansi',
-    `\u001b[1;31m🔨  ${action}  │  ${userTag(target?.user || target)}\u001b[0m`,
-    '```',
-    '━━━━━━━━━━━━━━━━━━━━━━━━',
-    '',
-    `**👤 العضو**  ─  ${target} ${target?.id ? `\`${target.id}\`` : ''}`,
-    `**🛡️ المشرف**  ─  ${moderator}`,
-    '',
-    '━━━━━━━━━━━━━━━━━━━━━━━━',
-    '',
-    `**📋 السبب**  ─  \`\`\`${(reason || 'لم يُذكر').slice(0, 990)}\`\`\``,
-  ];
-  const e = base(Colors.MOD, 'سجلات الإشراف')
-    .setTitle(`🔨 ${action}`)
-    .setDescription(desc.join('\n'));
-  for (const [k, v] of Object.entries(extra)) e.addFields({ name: k, value: String(v).slice(0, 1024), inline: true });
-  return e;
-}
-
-export function alertEmbed(title, desc) {
-  const e = base(Colors.RAID, 'نظام الحماية').setTitle(`🚨 ${title}`);
-  if (desc) e.setDescription(desc);
-  return e;
-}
-
-export function botLogEmbed(status, desc, color = Colors.BOTLOG) {
-  const e = base(color, 'سجل البوت').setTitle(status)
-    .addFields({ name: '🕐 الوقت', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true });
-  if (desc) e.setDescription(desc);
-  return e;
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-//  TICKET — Color map
-// ════════════════════════════════════════════════════════════════════════════
-
-const CATEGORY_COLOR = {
-  technical:   COLOR.blue,
-  complaint:   COLOR.red,
-  partnership: COLOR.green,
-  other:       COLOR.gold,
+/**
+ * The whole palette. Seven colours, each named for what it means.
+ *
+ *   ok       an action completed
+ *   error    a failure, or a destructive action taken against someone
+ *   warn     caution — something needs attention but nothing broke
+ *   info     neutral information
+ *   accent   the product's own colour (tickets, panels, branding)
+ *   gold     highlights and praise (ratings)
+ *   neutral  log entries that carry no opinion
+ */
+export const C = {
+  ok:      0x22c55e,
+  error:   0xef4444,
+  warn:    0xf59e0b,
+  info:    0x3b82f6,
+  accent:  0x8b5cf6,
+  gold:    0xfbbf24,
+  neutral: 0x1e293b,
 };
 
-export function successEmbed(desc) {
-  return new EmbedBuilder()
-    .setColor(COLOR.green)
-    .setTitle('✅ تم بنجاح')
-    .setDescription(desc)
-    .setTimestamp()
-    .setFooter(footer('KRS-SYS'));
+/**
+ * Discord dropped discriminators; `user.tag` only exists on partial users now.
+ * Anything can legitimately be missing, so every path has a fallback.
+ */
+export function userTag(user) {
+  if (!user) return 'Unknown';
+  try {
+    return user.tag || user.username || user.id || 'Unknown';
+  } catch {
+    return user.username || user.id || 'Unknown';
+  }
 }
 
-export function errorEmbed(desc) {
-  return new EmbedBuilder()
-    .setColor(COLOR.red)
-    .setTitle('❌ خطأ')
-    .setDescription(desc)
-    .setTimestamp()
-    .setFooter(footer('KRS-SYS'));
+// ─── Plain-text replies ────────────────────────────────────────────────────
+// A confirmation does not need a colour bar, a footer and a timestamp to say
+// four words. These are the single most common reply in the bot and they were
+// all full embeds.
+
+export function ok(text) {
+  return { content: `✅ ${text}`, flags: EPHEMERAL };
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-//  TICKET — Premium Panel
-// ════════════════════════════════════════════════════════════════════════════
+export function fail(text) {
+  return { content: `❌ ${text}`, flags: EPHEMERAL };
+}
 
-const DIV = '━━━━━━━━━━━━━━━━━━━━━━━━';
-const DIV2 = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+// ─── notice(): the one general-purpose embed ───────────────────────────────
+//
+
+/**
+ * Build the standard embed.
+ *
+ * @param {object}   opts
+ * @param {string}   opts.title      required
+ * @param {number}  [opts.color]     defaults to C.info
+ * @param {string}  [opts.description]
+ * @param {Array}   [opts.fields]    EmbedBuilder field objects
+ * @param {string}  [opts.thumbnail] URL
+ * @param {string}  [opts.image]     URL
+ * @param {string}  [opts.footer]    shown only where a source matters
+ * @param {boolean} [opts.timestamp] logs default to true, replies to false
+ */
+export function notice({ title, color = C.info, description, fields, thumbnail, image, footer: footerText, timestamp = false }) {
+  const embed = new EmbedBuilder().setColor(color).setTitle(title);
+  if (description) embed.setDescription(description);
+  if (fields?.length) embed.addFields(fields);
+  if (thumbnail) embed.setThumbnail(thumbnail);
+  if (image) embed.setImage(image);
+  if (footerText) embed.setFooter({ text: footerText });
+  if (timestamp) embed.setTimestamp();
+  return embed;
+}
+
+/** Inline field helper — keeps call sites readable. */
+export function field(name, value, inline = true) {
+  return { name, value: String(value ?? '—'), inline };
+}
+
+// ─── logEntry(): one shape for every moderation log ────────────────────────
+//
+// Previously ban/kick/timeout used `modEmbed` and the other ten moderation
+// commands each hand-rolled their own near-identical version of the same
+// description. Same data, two shapes. This is the single builder now.
+
+const LOG_TITLES = {
+  ban: '🔨 Member banned',
+  kick: '👢 Member kicked',
+  timeout: '⏱ Member timed out',
+  warn: '⚠️ Warning issued',
+  warn_clear: '🧹 Warnings cleared',
+  clear: '🧹 Messages purged',
+  lock: '🔒 Channel locked',
+  unlock: '🔓 Channel unlocked',
+  hide: '🙈 Channel hidden',
+  unhide: '👁️ Channel shown',
+  nick: '📝 Nickname changed',
+  role_add: '🎖️ Role granted',
+  role_remove: '🎖️ Role revoked',
+  slowmode: '🐌 Slowmode changed',
+  role_create: '🎖️ Role created',
+  role_delete: '🗑️ Role deleted',
+  channel_create: '📁 Channel created',
+  channel_delete: '🗑️ Channel deleted',
+  channel_update: '📁 Channel updated',
+  member_join: '📥 Member joined',
+  member_remove: '👋 Member left',
+  member_update: '👤 Member updated',
+  member_ban: '🔨 Member banned',
+  member_unban: '♻️ Member unbanned',
+  message_delete: '🗑️ Message deleted',
+  message_bulk_delete: '🧹 Bulk delete',
+  message_update: '✏️ Message edited',
+  raid: '🚨 Raid detected',
+  voice_join: '🎤 Joined a voice channel',
+  voice_leave: '🔇 Left a voice channel',
+  voice_switch: '🔀 Moved between voice channels',
+  tempvc_created: '🔊 Temporary voice channel created',
+  tempvc_deleted: '🗑️ Temporary voice channel deleted',
+  restricted_channel: '🚫 Restricted channel violation',
+  automod_spam: '🤖 Auto-mod — spam',
+  automod_links: '🔗 Auto-mod — link removed',
+  automod_mentions: '💬 Auto-mod — mass mentions',
+};
+
+const LOG_COLORS = {
+  ban: C.error, kick: C.error, member_ban: C.error,
+  warn_clear: C.ok, clear: C.ok, role_remove: C.warn,
+  raid: C.error, member_unban: C.ok, member_join: C.ok,
+  voice_join: C.ok, voice_leave: C.neutral, voice_switch: C.info,
+  tempvc_created: C.info, tempvc_deleted: C.neutral,
+  restricted_channel: C.error,
+  automod_spam: C.error, automod_links: C.warn, automod_mentions: C.warn,
+};
+
+/**
+ * @param {object} opts
+ * @param {string} opts.kind       key of LOG_TITLES
+ * @param {string} [opts.actor]    who performed it
+ * @param {string} [opts.target]   who/what it happened to
+ * @param {string} [opts.reason]
+ * @param {Array}  [opts.fields]   extra fields
+ * @param {string} [opts.footer]
+ */
+export function logEntry({ kind, actor, target, reason, fields, footer: footerText = 'Kratos System' }) {
+  const rows = [];
+  if (target) rows.push(field('Target', target));
+  if (actor) rows.push(field('Moderator', actor));
+  if (reason) rows.push(field('Reason', String(reason).slice(0, 1024), false));
+  if (fields?.length) rows.push(...fields);
+
+  return notice({
+    title: LOG_TITLES[kind] ?? '📋 Log',
+    color: LOG_COLORS[kind] ?? C.neutral,
+    fields: rows,
+    footer: footerText,
+    timestamp: true,
+  });
+}
+
+// ─── Ticket panel ──────────────────────────────────────────────────────────
 
 const PANEL_IMAGE = fileURLToPath(new URL('../../assets/panel.png', import.meta.url));
 
+/**
+ * The /panel payload. A guild's own panel image (set from the dashboard) wins
+ * over the bundled default.
+ */
 export function panelPayload(guildId) {
-  // صورة بنل تكتات مخصصة لكل سيرفر (من الداشبورد) — تُعطى الأولوية
   const custom = guildId && resolveGuildImage(guildId, 'ticket_panel_image');
-  const attachment = custom ? (custom.buffer || custom.url) : PANEL_IMAGE;
   return {
-    files: [{ attachment, name: 'panel.png' }],
+    files: [{ attachment: custom ? (custom.buffer || custom.url) : PANEL_IMAGE, name: 'panel.png' }],
     components: [panelMenu()],
   };
 }
@@ -192,95 +214,89 @@ export function panelMenu() {
   return new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId('ticket_category')
-      .setPlaceholder('📋 اختر نوع الطلب لفتح تذكرة...')
+      .setPlaceholder('Select a category to open a ticket…')
       .addOptions(
         new StringSelectMenuOptionBuilder()
-          .setLabel('الدعم التقني').setDescription('مشاكل تقنية وأعطال')
-          .setValue('technical').setEmoji('🛠️'),
+          .setLabel('Technical Support').setDescription('Bugs, errors, anything broken').setValue('technical').setEmoji('🛠️'),
         new StringSelectMenuOptionBuilder()
-          .setLabel('البلاغات').setDescription('الإبلاغ عن تصرف أو مشكلة')
-          .setValue('complaint').setEmoji('🚫'),
+          .setLabel('Report').setDescription('Report a member or a problem').setValue('complaint').setEmoji('🚫'),
         new StringSelectMenuOptionBuilder()
-          .setLabel('الشراكات').setDescription('عروض تعاون وشراكة')
-          .setValue('partnership').setEmoji('🤝'),
+          .setLabel('Partnership').setDescription('Sponsorships and collaborations').setValue('partnership').setEmoji('🤝'),
         new StringSelectMenuOptionBuilder()
-          .setLabel('أخرى').setDescription('استفسارات لا تندرج بالأقسام أعلاه')
-          .setValue('other').setEmoji('❓'),
+          .setLabel('Other').setDescription('Anything that does not fit above').setValue('other').setEmoji('❓'),
       )
   );
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-//  TICKET — Premium Ticket Embed + Action Buttons
-// ════════════════════════════════════════════════════════════════════════════
+// ─── Ticket ────────────────────────────────────────────────────────────────
 
-const PRIORITY_LABEL = { high: '🔴 عالية', medium: '🟡 متوسطة', low: '🟢 منخفضة' };
+const CATEGORY_COLOR = {
+  technical: C.info,
+  complaint: C.error,
+  partnership: C.ok,
+  other: C.gold,
+};
 
+/**
+ * The ticket itself. This one earns its embed: it carries the ticket's state,
+ * who opened it, what they asked for, and it is the anchor for the action
+ * buttons below it.
+ */
 export function ticketEmbed(t, adminChannel = false) {
-  const color = adminChannel ? COLOR.purple : (CATEGORY_COLOR[t.category] ?? COLOR.blue);
+  const color = adminChannel ? C.accent : (CATEGORY_COLOR[t.category] ?? C.info);
   const label = CATEGORY_LABEL[t.category] ?? t.category;
+  const priority = { high: '🔴 High', medium: '🟡 Medium', low: '🟢 Low' }[t.priority] ?? t.priority;
 
-  const statusLine = adminChannel
-    ? '```ansi\n\u001b[1;35m⚠️  قناة إدارة  │  الرد هنا يصل للعضو تلقائياً\u001b[0m\n```'
-    : '```ansi\n\u001b[1;32m✅  تم الفتح    │  فريق الدعم سيتواصل معك\u001b[0m\n```';
+  const fields = [
+    field('Opened by', `<@${t.userId}>${t.username ? ` (${t.username})` : ''}`),
+    field('Category', label),
+    field('Priority', priority),
+    field('Ticket', `\`${t.ticketId}\``),
+    field('Summary', t.title ?? '—', false),
+    field('Details', t.description ?? '—', false),
+  ];
 
-  const desc = [
-    `${DIV}`,
-    statusLine,
-    `${DIV}`,
-    '',
-    `**👤 العضو**  ─  <@${t.userId}> ${t.username ?? ''}`,
-    `**📂 القسم**  ─  ${label}`,
-    `**🎯 الأولوية**  ─  ${PRIORITY_LABEL[t.priority]}`,
-    `**🆔 التذكرة**  ─  ${t.ticketId}`,
-    '',
-    `${DIV}`,
-    '',
-    `**📌 العنوان**`,
-    `> ${t.title}`,
-    '',
-    `**📝 الوصف**`,
-    `> ${t.description}`,
-    t.evidence ? `\n**🔗 الأدلة**\n> ${t.evidence}` : '',
-    ...(Array.isArray(t.extra) && t.extra.length
-      ? t.extra.map((e) => `\n**⚙️ ${e.label}**\n> ${e.value}`).join('')
-      : []),
-    '',
-    `${DIV}`,
-  ].filter(Boolean).join('\n');
+  if (t.evidence) fields.push(field('Evidence', t.evidence, false));
+  if (Array.isArray(t.extra) && t.extra.length) {
+    for (const item of t.extra) fields.push(field(item.label, item.value, false));
+  }
 
-  return new EmbedBuilder()
-    .setColor(color)
-    .setTitle(adminChannel ? `🔐 ${t.ticketId} — ${label}` : `🎫 ${t.ticketId} — ${label}`)
-    .setDescription(desc)
-    .setFooter(footer(adminChannel ? `KRS • ${t.ticketId} • إدارة` : `KRS • ${t.ticketId}`))
-    .setTimestamp();
+  return notice({
+    title: `${adminChannel ? '🔐' : '🎫'} ${t.ticketId} — ${label}`,
+    description: adminChannel
+      ? 'Staff channel — replies here are delivered to the member automatically.'
+      : 'Opened. Our team will reply here shortly.',
+    color,
+    fields,
+    footer: `Kratos System • ${t.ticketId}`,
+    timestamp: true,
+  });
 }
 
 export function ticketButtons(claimed, claimedByUsername, adminMode = false) {
   const row1 = new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId('ticket_actions')
-      .setPlaceholder('📋 اختر إجراء...')
+      .setPlaceholder('Select an action…')
       .addOptions(
         new StringSelectMenuOptionBuilder()
-          .setLabel(claimed ? `✅ مستلم بواسطة ${claimedByUsername ?? '—'}` : '📩 استلام التكت')
-          .setDescription(claimed ? 'تم استلام هذا التكت بالفعل' : 'استلام وتولي مسؤولية التكت')
+          .setLabel(claimed ? `✅ Claimed by ${claimedByUsername ?? '—'}` : '📩 Claim')
+          .setDescription(claimed ? 'Already claimed by a staff member' : 'Take ownership of this ticket')
           .setValue('claim')
           .setEmoji('📩'),
         new StringSelectMenuOptionBuilder()
-          .setLabel('📤 إلغاء الاستلام')
-          .setDescription('إعادة التكت للفريق')
+          .setLabel('📤 Unclaim')
+          .setDescription('Return this ticket to the queue')
           .setValue('unclaim')
           .setEmoji('📤'),
         new StringSelectMenuOptionBuilder()
-          .setLabel('✏️ إعادة تسمية')
-          .setDescription('تغيير اسم قناة التكت')
+          .setLabel('✏️ Rename channel')
+          .setDescription("Change this ticket's channel name")
           .setValue('rename')
           .setEmoji('✏️'),
         new StringSelectMenuOptionBuilder()
-          .setLabel('🔒 إغلاق التكت')
-          .setDescription('إغلاق وحذف التكت بشكل نهائي')
+          .setLabel('🔒 Close ticket')
+          .setDescription('Close and remove the channel')
           .setValue('close')
           .setEmoji('🔒'),
       )
@@ -289,70 +305,40 @@ export function ticketButtons(claimed, claimedByUsername, adminMode = false) {
   const rows = [row1];
 
   if (adminMode) {
-    const row2 = new ActionRowBuilder().addComponents(
+    rows.push(new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder()
         .setCustomId('ticket_quickreply')
-        .setPlaceholder('📋 رد سريع — اختر رداً جاهزاً...')
+        .setPlaceholder('Quick reply…')
         .addOptions(
-          new StringSelectMenuOptionBuilder().setLabel('قيد المراجعة').setDescription('نراجع طلبك حالياً').setValue('reviewing').setEmoji('🔍'),
-          new StringSelectMenuOptionBuilder().setLabel('طلب أدلة').setDescription('نحتاج صوراً أو أدلة إضافية').setValue('need_evidence').setEmoji('📸'),
-          new StringSelectMenuOptionBuilder().setLabel('تم الحل').setDescription('تم حل المشكلة بنجاح').setValue('resolved').setEmoji('✅'),
-          new StringSelectMenuOptionBuilder().setLabel('يرجى التوضيح').setDescription('نحتاج توضيحاً إضافياً').setValue('clarify').setEmoji('❓'),
-          new StringSelectMenuOptionBuilder().setLabel('شكراً للتواصل').setDescription('رسالة شكر وترحيب').setValue('thanks').setEmoji('🙏'),
-          new StringSelectMenuOptionBuilder().setLabel('سيتم التحويل').setDescription('تحويل الطلب للجهة المختصة').setValue('transfer').setEmoji('🔄'),
-          new StringSelectMenuOptionBuilder().setLabel('مشكلة معروفة').setDescription('نعمل على حلها حالياً').setValue('known_issue').setEmoji('⚠️'),
+          new StringSelectMenuOptionBuilder().setLabel('Under review').setDescription('We are looking into it').setValue('reviewing').setEmoji('🔍'),
+          new StringSelectMenuOptionBuilder().setLabel('Need more info').setDescription('We need screenshots or details').setValue('need_evidence').setEmoji('📸'),
+          new StringSelectMenuOptionBuilder().setLabel('Resolved').setDescription('The issue has been fixed').setValue('resolved').setEmoji('✅'),
+          new StringSelectMenuOptionBuilder().setLabel('Need clarification').setDescription('Could you clarify?').setValue('clarify').setEmoji('❓'),
+          new StringSelectMenuOptionBuilder().setLabel('Thanks for reaching out').setDescription('A closing thank-you').setValue('thanks').setEmoji('🙏'),
+          new StringSelectMenuOptionBuilder().setLabel('Escalating').setDescription('Handing this to another team').setValue('transfer').setEmoji('🔄'),
+          new StringSelectMenuOptionBuilder().setLabel('Known issue').setDescription('We are already fixing this').setValue('known_issue').setEmoji('⚠️'),
         )
-    );
-    rows.push(row2);
+    ));
   }
 
   return rows;
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-//  TICKET — Rating
-// ════════════════════════════════════════════════════════════════════════════
+// ─── Rating ────────────────────────────────────────────────────────────────
 
+/**
+ * Shown after a ticket closes. This used to be 22 lines of description with
+ * three divider blocks and an ANSI table spelling out the five stars — all of
+ * which the five buttons directly below already say.
+ */
 export function ratingEmbed(ticketId, adminUsername) {
-  const desc = [
-    '```ansi',
-    '\u001b[1;33m╔══════════════════════════════════╗',
-    '\u001b[1;33m║    ✦  تقييم تجربة الدعم  ✦      ║',
-    '\u001b[1;33m╚══════════════════════════════════╝',
-    '```',
-    '',
-    `> ### 👋 شكراً لتواصلك مع ${adminUsername ? `**${adminUsername}**` : 'فريق الدعم'}`,
-    '',
-    `${DIV2}`,
-    '',
-    '### ✨ قيّم تجربتك',
-    '> اختر التصنيف الذي يناسب مستوى الخدمة',
-    '',
-    '```ansi',
-    '\u001b[1;31m 1️⃣  \u001b[0m\u001b[1;37mسيئة جداً  \u001b[0m\u001b[1;30m│ غير راضٍ تماماً عن الخدمة',
-    '\u001b[1;31m 2️⃣  \u001b[0m\u001b[1;37mسيئة       \u001b[0m\u001b[1;30m│ الخدمة لم تلبي التوقعات',
-    '\u001b[1;33m 3️⃣  \u001b[0m\u001b[1;37mمقبولة     \u001b[0m\u001b[1;30m│ خدمة متوسطة وتحتاج تحسين',
-    '\u001b[1;32m 4️⃣  \u001b[0m\u001b[1;37mجيدة       \u001b[0m\u001b[1;30m│ خدمة جيدة ونلنا الرضا',
-    '\u001b[1;32m 5️⃣  \u001b[0m\u001b[1;37mممتازة     \u001b[0m\u001b[1;30m│ خدمة استثنائية ورائعة',
-    '```',
-    '',
-    `${DIV2}`,
-    '',
-    `> 📋 **التذكرة:** \`${ticketId}\``,
-    '',
-    `${DIV}`,
-    '',
-    '> 💙 **رأيك يهمنا** — تقييمك يساعدنا على تطوير الخدمة وتقديم الأفضل',
-    '> ⏳ سيتم حذف القناة تلقائياً بعد التقييم',
-  ].filter(Boolean).join('\n');
-
-  return new EmbedBuilder()
-    .setColor(0xf59e0b)
-    .setAuthor({ name: 'KRS • نظام التقييم', iconURL: 'https://cdn.discordapp.com/emojis/1100192159824027751.webp' })
-    .setTitle('⭐ تقييم تجربة الدعم')
-    .setDescription(desc)
-    .setFooter(footer('KRS • تقييم'))
-    .setTimestamp();
+  return notice({
+    title: '⭐ Rate your support experience',
+    description: `Thanks for contacting ${adminUsername ? `**${adminUsername}**` : 'our support team'}.\nPick a rating below — the channel deletes itself 20 minutes after you do.`,
+    color: C.gold,
+    fields: [field('Ticket', `\`${ticketId}\``)],
+    footer: 'Kratos System • Rating',
+  });
 }
 
 export function ratingButtons(ticketId) {
@@ -365,138 +351,105 @@ export function ratingButtons(ticketId) {
   );
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-//  TICKET — Close Summary (used by closeHandler)
-// ════════════════════════════════════════════════════════════════════════════
+// ─── Ticket close summary ──────────────────────────────────────────────────
 
 export function closeEmbed(ticket, closedBy) {
-  const stars = ticket.rating ? '⭐'.repeat(ticket.rating) : 'لم يُقيّم';
-  const desc = [
-    `${DIV}`,
-    `**🎫 التذكرة**  ─  ${ticket.ticketId}`,
-    `**📂 القسم**  ─  ${CATEGORY_LABEL?.[ticket.category] ?? ticket.category ?? '—'}`,
-    `${DIV}`,
-    '',
-    `**👤 فاتح التذكرة**  ─  <@${ticket.userId}> ${ticket.username ?? ''}`,
-    `**📩 المستلم**  ─  ${ticket.claimedBy ? `<@${ticket.claimedBy}> ${ticket.claimedByUsername ?? ''}` : '❌ غير مستلم'}`,
-    `**🔒 أغلقت بواسطة**  ─  <@${closedBy}>`,
-    '',
-    `${DIV}`,
-    '',
-    `**⏱ المدة**  ─  ${formatDuration(Date.now() - ticket.openedAt)}`,
-    `**📅 فتحت**  ─  <t:${Math.floor(ticket.openedAt / 1000)}:f>`,
-    `**📅 أغلقت**  ─  <t:${Math.floor(Date.now() / 1000)}:f>`,
-    '',
-    `${DIV}`,
-    '',
-    `**📌 العنوان**  ─  ${ticket.title ?? '—'}`,
-    `**⭐ التقييم**  ─  ${stars}`,
-    '',
-    `${DIV}`,
-    '',
-    '> ⏳ **سيتم حذف القناة تلقائياً** بعد 20 دقيقة إن لم يتم التقييم',
-    '> ✨ يمكنك التقييم الآن باستخدام الأزرار أدناه',
-  ].join('\n');
+  const rating = ticket.rating ? '⭐'.repeat(ticket.rating) : 'Not rated';
 
-  return new EmbedBuilder()
-    .setColor(COLOR.red)
-    .setTitle(`🔒 تم إغلاق التذكرة — ${ticket.ticketId}`)
-    .setDescription(desc)
-    .setFooter(footer(`KRS • ${ticket.ticketId} • إغلاق`))
-    .setTimestamp();
+  return notice({
+    title: `🔒 Ticket closed — ${ticket.ticketId}`,
+    color: C.error,
+    fields: [
+      field('Ticket', `\`${ticket.ticketId}\``),
+      field('Category', CATEGORY_LABEL[ticket.category] ?? ticket.category ?? '—'),
+      field('Opened by', `<@${ticket.userId}>${ticket.username ? ` (${ticket.username})` : ''}`),
+      field('Claimed by', ticket.claimedBy ? `<@${ticket.claimedBy}>` : '❌ Not claimed'),
+      field('Closed by', `<@${closedBy}>`),
+      field('Duration', formatDuration(Date.now() - ticket.openedAt)),
+      field('Opened', `<t:${Math.floor(ticket.openedAt / 1000)}:f>`),
+      field('Closed', `<t:${Math.floor(Date.now() / 1000)}:f>`),
+      field('Summary', ticket.title ?? '—', false),
+      field('Rating', rating),
+    ],
+    footer: `Kratos System • ${ticket.ticketId}`,
+    timestamp: true,
+  });
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-//  TICKET — Log & Inactivity
-// ════════════════════════════════════════════════════════════════════════════
+// ─── Logs ──────────────────────────────────────────────────────────────────
 
 export function logEmbed(title, color, fields) {
-  return new EmbedBuilder()
-    .setColor(color)
-    .setTitle(`📋 ${title}`)
-    .addFields(fields)
-    .setTimestamp()
-    .setFooter(footer('KRS-SYS • سجل'));
+  return notice({ title, color, fields, footer: 'Kratos System', timestamp: true });
 }
 
+/** Inactivity nudge. One sentence — it was an ANSI block with two dividers. */
 export function inactivityEmbed(ticketId) {
-  return new EmbedBuilder()
-    .setColor(COLOR.orange)
-    .setTitle('⚠️ تحذير عدم نشاط')
-    .setDescription([
-      `${DIV}`,
-      `**🆔 التذكرة**  ─  ${ticketId}`,
-      `${DIV}`,
-      '',
-      '> ⏰ **لم يتم إرسال أي رسائل منذ 24 ساعة**',
-      '',
-      'إذا لم يكن هناك رد خلال **12 ساعة** سيتم إغلاق التذكرة تلقائياً.',
-      '',
-      `${DIV}`,
-      '',
-      '> 💬 يرجى الرد إن كنت لا تزال بحاجة للمساعدة',
-    ].join('\n'))
-    .setFooter(footer('KRS • تنبيه عدم نشاط'))
-    .setTimestamp();
+  return notice({
+    title: '⏰ No recent activity',
+    description: `No messages in this ticket for 24 hours. It will be closed automatically in 12 hours unless someone replies.`,
+    color: C.warn,
+    fields: [field('Ticket', `\`${ticketId}\``)],
+    footer: 'Kratos System • Inactivity',
+    timestamp: true,
+  });
 }
 
 export function buildTicketLogEmbed(ticket) {
-  const stars = ticket.rating ? '⭐'.repeat(ticket.rating) : 'لم يُقيّم';
-  const statusEmoji = ticket.status === 'closed' ? '🔒' : ticket.status === 'claimed' ? '📩' : '🟢';
-  const statusText = ticket.status === 'closed' ? 'مغلقة' : ticket.status === 'claimed' ? 'مستلمة' : 'مفتوحة';
-  const e = new EmbedBuilder()
-    .setColor(
-      ticket.status === 'closed' ? COLOR.red
-        : ticket.status === 'claimed' ? COLOR.blue
-          : COLOR.green
-    )
-    .setTitle(`🎫 ${ticket.ticketId}  │  ${CATEGORY_LABEL?.[ticket.category] ?? ticket.category ?? 'تذكرة'}`)
-    .setDescription(DIV)
-    .addFields(
-      { name: '📌 الحالة', value: `${statusEmoji} ${statusText}`, inline: true },
-      { name: '👤 العضو', value: `<@${ticket.userId}>`, inline: true },
-      { name: '📩 المستلم', value: ticket.claimedBy ? `<@${ticket.claimedBy}>` : '—', inline: true },
-      { name: '📅 فتحت', value: ticket.openedAt ? `<t:${Math.floor(ticket.openedAt / 1000)}:f>` : '—', inline: true },
-      { name: '📅 أغلقت', value: ticket.closedAt ? `<t:${Math.floor(ticket.closedAt / 1000)}:f>` : '—', inline: true },
-      { name: '📌 العنوان', value: ticket.title ?? '—', inline: false },
-    );
+  const rating = ticket.rating ? `${'⭐'.repeat(ticket.rating)} (${ticket.rating}/5)` : 'Not rated';
+  const status = {
+    closed: { emoji: '🔒', text: 'Closed', color: C.error },
+    claimed: { emoji: '📩', text: 'Claimed', color: C.info },
+  }[ticket.status] ?? { emoji: '🟢', text: 'Open', color: C.ok };
 
-  if (ticket.rating) e.addFields({ name: '⭐ التقييم', value: `${stars} (${ticket.rating}/5)`, inline: true });
+  const fields = [
+    field('Status', `${status.emoji} ${status.text}`),
+    field('Member', `<@${ticket.userId}>`),
+    field('Claimed by', ticket.claimedBy ? `<@${ticket.claimedBy}>` : '—'),
+    field('Opened', ticket.openedAt ? `<t:${Math.floor(ticket.openedAt / 1000)}:f>` : '—'),
+    field('Closed', ticket.closedAt ? `<t:${Math.floor(ticket.closedAt / 1000)}:f>` : '—'),
+    field('Summary', ticket.title ?? '—', false),
+  ];
 
-  return e
-    .setFooter(footer(`KRS • ${ticket.ticketId}`))
-    .setTimestamp();
+  if (ticket.rating) fields.push(field('Rating', rating));
+
+  return notice({
+    title: `🎫 ${ticket.ticketId} — ${CATEGORY_LABEL[ticket.category] ?? ticket.category ?? 'Ticket'}`,
+    color: status.color,
+    fields,
+    footer: `Kratos System • ${ticket.ticketId}`,
+    timestamp: true,
+  });
 }
 
 export function ticketLogMenu(ticket) {
   const options = [
     new StringSelectMenuOptionBuilder()
-      .setLabel('التفاصيل الكاملة')
-      .setDescription(`جميع معلومات التذكرة ${ticket.ticketId}`)
+      .setLabel('Full details')
+      .setDescription(`Everything recorded for ${ticket.ticketId}`)
       .setValue(`details||${ticket.ticketId}`)
       .setEmoji('📋'),
   ];
 
-  if (ticket.channelId) options.push(
-    new StringSelectMenuOptionBuilder()
-      .setLabel('قناة العضو')
-      .setDescription(`الذهاب لقناة التذكرة ${ticket.ticketId}`)
+  if (ticket.channelId) {
+    options.push(new StringSelectMenuOptionBuilder()
+      .setLabel('Member channel')
+      .setDescription(`Go to the member's channel for ${ticket.ticketId}`)
       .setValue(`user_channel||${ticket.ticketId}`)
-      .setEmoji('📩'),
-  );
+      .setEmoji('📩'));
+  }
 
-  if (ticket.adminChannelId) options.push(
-    new StringSelectMenuOptionBuilder()
-      .setLabel('قناة الإدارة')
-      .setDescription(`الذهاب لقناة الإدارة ${ticket.ticketId}`)
+  if (ticket.adminChannelId) {
+    options.push(new StringSelectMenuOptionBuilder()
+      .setLabel('Staff channel')
+      .setDescription(`Go to the staff channel for ${ticket.ticketId}`)
       .setValue(`admin_channel||${ticket.ticketId}`)
-      .setEmoji('🔐'),
-  );
+      .setEmoji('🔐'));
+  }
 
   return new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId('ticket_log_menu')
-      .setPlaceholder('🔽 إجراءات التذكرة...')
+      .setPlaceholder('Ticket actions…')
       .addOptions(options),
   );
 }

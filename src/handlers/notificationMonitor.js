@@ -169,23 +169,23 @@ async function kickFetch(url) {
 
 export async function fetchKickStream(slug) {
   const cleaned = String(slug || '').trim().replace(/^@/, '').toLowerCase();
-  if (!cleaned) return { status: 'error', message: 'معرف القناة فارغ' };
+  if (!cleaned) return { status: 'error', message: 'Channel ID is empty' };
 
   const res = await kickFetch(`https://kick.com/api/v2/channels/${encodeURIComponent(cleaned)}`);
   if (res.status === 'http') {
     if (res.code === 403 || res.code === 401) {
-      return { status: 'error', message: 'Kick يحجب طلبات هذا الخادم (403) حتى عبر عدة هويات — الحل: تشغيل البوت على VPS أو إعادة المحاولة لاحقاً' };
+      return { status: 'error', message: 'Kick is blocking requests from this host (403), including via several identities — run the bot on a VPS, or try again later' };
     }
     if (res.code === 429) {
-      return { status: 'error', message: 'Kick يحدّ من الطلبات مؤقتاً (429) — سيعود تلقائياً بعد دقائق' };
+      return { status: 'error', message: 'Kick is rate-limiting requests (429) — it recovers automatically in a few minutes' };
     }
     if (res.code === 404) {
-      return { status: 'error', message: 'القناة غير موجودة على Kick — تحقق من الرابط' };
+      return { status: 'error', message: 'Channel not found on Kick — check the URL' };
     }
     return { status: 'offline' };
   }
   if (res.status === 'error') {
-    return { status: 'error', message: 'Kick يرفض طلبات هذا الخادم حالياً حتى عبر الوسيط — جرب تشغيل البوت على VPS أو أعد المحاولة لاحقاً' };
+    return { status: 'error', message: 'Kick is currently refusing requests from this host, proxy included — run the bot on a VPS, or try again later' };
   }
 
   const data = res.data;
@@ -425,35 +425,35 @@ async function checkTwitter(client) {
 export async function checkSubscriptionNow(client, sub) {
   if (sub.platform === 'youtube' && sub.channelId) {
     const video = await fetchLatestYouTubeVideo(sub.channelId);
-    if (!video) return '❌ تعذر جلب الفيديو من RSS يوتيوب';
+    if (!video) return '❌ Could not read the YouTube RSS feed';
 
     const lastAt = Number(sub.lastVideoAt) || 0;
     if (lastAt > 0 && Number(video.publishedAt) <= lastAt) {
-      return 'لا يوجد فيديو جديد أحدث من الفيديو المُرسل مسبقاً';
+      return 'No video newer than the last one sent.';
     }
     const prevId = sub.lastVideoId;
 
     const claimed = await claimYouTubeVideo(sub._id.toString(), video);
-    if (!claimed) return 'ℹ️ هذا الفيديو تم إرساله مسبقاً (سجل مكرر)';
+    if (!claimed) return 'ℹ️ This video was already sent (duplicate record).';
 
     const sent = await sendNotification(client, sub, youtubeEmbed(video));
     if (!sent) {
       await updateSubscription(sub._id.toString(), { lastVideoId: prevId || '', lastVideoAt: lastAt }).catch(() => {});
-      return '❌ فشل الإرسال إلى ديسكورد';
+      return '❌ Sending to Discord failed.';
     }
-    return `فيديو: ${video.title}`;
+    return `Video: ${video.title}`;
   }
 
   if (sub.platform === 'kick' && sub.channelId) {
     const result = await fetchKickStream(sub.channelId);
     if (result.status === 'error') return `❌ ${result.message}`;
-    if (result.status === 'offline') return 'غير متصل حالياً — لا يوجد بث مباشر';
+    if (result.status === 'offline') return 'Offline right now — no live stream.';
     const stream = result.stream;
     const sent = await sendNotification(client, sub, kickEmbed(stream));
     if (sent) {
       await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id || '' });
     }
-    return sent ? `بث: ${stream.title}` : '❌ فشل الإرسال';
+    return sent ? `Stream: ${stream.title}` : '❌ Sending failed.';
   }
 
   if (sub.platform === 'twitter' && sub.channelId) {
@@ -466,9 +466,9 @@ export async function checkSubscriptionNow(client, sub) {
           channelName: sub.channelName || tweet.userName,
         });
       }
-      return sent ? `تغريدة: ${tweet.text?.slice(0, 50)}` : '❌ فشل الإرسال';
+      return sent ? `Post: ${tweet.text?.slice(0, 50)}` : '❌ Sending failed.';
     }
-    return '❌ تعذر جلب التغريدة';
+    return '❌ Could not read the latest post.';
   }
 
   return null;

@@ -1,7 +1,7 @@
-import { Events, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
+import { Events, PermissionFlagsBits } from 'discord.js';
 import { getConfig, getSpamData, upsertSpamData } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
-import { Colors, userTag } from '../utils/embeds.js';
+import { logEntry, notice, field, userTag } from '../utils/embeds.js';
 import { updateTicketActivity } from '../handlers/inactivityHandler.js';
 import { getTicket, getTicketByAdminChannel, getGuildConfig } from '../data/ticketDB.js';
 import mongoose from 'mongoose';
@@ -13,14 +13,16 @@ export const once = false;
 
 const OWNER_ID = process.env.OWNER_ID || null;
 
-// ─── SYS protection settings ────────────────────────────────────────────────
+// ─── Protection thresholds ──────────────────────────────────────────────────
 const SPAM_THRESHOLD    = 5;
 const SPAM_WINDOW_MS    = 5_000;
 const TIMEOUT_MS        = 60_000;
 const MENTION_THRESHOLD = 5;
 const LINK_REGEX        = /https?:\/\/[^\s]+/gi;
 
-// كاش الرومات المحضورة — يتجنّب استعلام MongoDB مع كل رسالة
+const BAN_DURATION_MS = 24 * 60 * 60 * 1000;
+
+// Cached for 15 seconds: a Mongo query per message is not worth it.
 const restrictedCache = new Map();
 const RESTRICTED_TTL_MS = 15_000;
 
@@ -31,11 +33,20 @@ async function getRestrictedChannelIds(guildId) {
   let ids = [];
   try {
     const doc = await GuildConfig.findOne({ guildId, key: 'restricted_channels' }).lean();
-    if (doc?.value) ids = JSON.parse(doc.value).map(c => c.id);
-  } catch {}
+    if (doc?.value) ids = JSON.parse(doc.value).map((c) => c.id);
+  } catch { /* database unavailable — treat as none */ }
 
   restrictedCache.set(guildId, { at: Date.now(), ids });
   return ids;
+}
+
+/**
+ * Posts a short warning in the channel and removes it after `seconds`.
+ * Plain text: it is one sentence that disappears, so an embed would be noise.
+ */
+async function warnAndCleanUp(channel, text, seconds) {
+  const msg = await channel.send({ content: text }).catch(() => null);
+  if (msg) setTimeout(() => msg.delete().catch(() => {}), seconds * 1000);
 }
 
 export async function execute(message, client) {
@@ -44,232 +55,244 @@ export async function execute(message, client) {
   const { guild, member, channel } = message;
 
   // ══════════════════════════════════════════════════════════════════════════
-  //  RESTRICTED CHANNELS — الرومات المحضورة
-  //  أي شخص يرسل هنا (حتى الإدارة) يُحظر لمدة يوم
-  //  الاستثناءات: المالك, البوت, والمبرمج (role: admin في لوحة التحكم)
+  //  RESTRICTED CHANNELS
+  //  Anyone who posts here is banned for a day — including moderators.
+  //  Exempt: the owner, the bot, and dashboard admins.
   // ══════════════════════════════════════════════════════════════════════════
 
-  let restrictedIds = await getRestrictedChannelIds(guild.id);
+  const restrictedIds = await getRestrictedChannelIds(guild.id);
 
   if (restrictedIds.includes(channel.id)) {
-      // Exemptions check
-      let exempt = false;
-      if (OWNER_ID && message.author.id === OWNER_ID) exempt = true;
-      if (!exempt) {
-        try {
-          const adminDoc = await mongoose.connection.db.collection('admins').findOne({
-            userId: message.author.id,
-            guildId: guild.id,
-            role: 'admin',
-          });
-          if (adminDoc) exempt = true;
-        } catch {}
-      }
-      if (exempt) return;
+    let exempt = Boolean(OWNER_ID) && message.author.id === OWNER_ID;
 
-      // Delete the triggering message immediately
-      await message.delete().catch(() => {});
-
-      // Delete user's recent messages in this channel (fast cleanup)
+    if (!exempt) {
       try {
-        const msgs = await channel.messages.fetch({ limit: 50 });
-        const userMsgs = msgs.filter(m => m.author.id === message.author.id);
-        if (userMsgs.size > 0) await channel.bulkDelete(userMsgs).catch(() => {});
-      } catch {}
-
-      // Fetch invite link for DM messages (BEFORE banning — بمجرد الحظر يفقد
-      // البوت السيرفر المشترك مع المستخدم فيفشل إرسال رسالة الخاص)
-      const inviteLink = await getGuildInvite(guild);
-
-      const userId = message.author.id;
-      const guildId = guild.id;
-      const ownerMention = guild.ownerId ? `<@${guild.ownerId}>` : 'مالك السيرفر';
-
-      // ── رسالة الخاص تُرسل قبل الحظر لضمان وصولها (طالما السيرفر مشترك) ──
-      let dmSent = false;
-      try {
-        const desc = [
-          `**السيرفر:** ${guild.name}`,
-          `**السبب:** كتابتك في روم محضور (${channel.name})`,
-          '',
-          '> هذا الإجراء تلقائي لحماية السيرفر.',
-          '> قد يكون سبب الحظر أن حسابك تم اختراقه،',
-          '> أو أنك أرسلت بالخطأ في روم ممنوع.',
-          '',
-          '**⏰ مدة الحظر: 24 ساعة**',
-          'سيتم فك الحظر تلقائياً بعد انتهاء المدة.',
-        ];
-        if (inviteLink) {
-          desc.push('');
-          desc.push(`**🔗 رابط العودة بعد فك الحظر:** ${inviteLink}`);
-        }
-        desc.push('');
-        desc.push(`إذا كنت تعتقد أن هذا خطأ، تواصل مع ${ownerMention}.`);
-
-        const dmEmbed = new EmbedBuilder()
-          .setColor(Colors.BLOOD)
-          .setTitle('🚫 تم حظرك من السيرفر')
-          .setDescription(desc.join('\n'))
-          .setTimestamp()
-          .setFooter({ text: '⚔️ KRS-SYS  •  الحماية التلقائية' });
-        await message.author.send({ embeds: [dmEmbed] });
-        dmSent = true;
-      } catch (dmErr) {
-        // حفظ سبب الفشل ليظهر في سجل الإشراف بدل الصمت التام
-        console.error(`[Restricted] فشل إرسال رسالة الخاص لـ ${userId}:`, dmErr?.message || dmErr);
-      }
-
-      // Ban user for 1 day
-      let banned = false;
-      try {
-        await guild.members.ban(userId, {
-          reason: 'كتابة في روم محضور — حظر تلقائي لمدة يوم',
-          deleteMessageSeconds: 86400,
+        const adminDoc = await mongoose.connection.db.collection('admins').findOne({
+          userId: message.author.id,
+          guildId: guild.id,
+          role: 'admin',
         });
-        banned = true;
-      } catch {
-        // الحظر فشل (لا صلاحية BanMembers أو رتبة المخالف أعلى أو مالك السيرفر)
-        // أرسل رسالة تصحيحية لأن «تم حظرك» وصلت وربما لم يُطبق الحظر فعلاً
-        try {
-          await message.author.send({
-            embeds: [
-              new EmbedBuilder()
-                .setColor(Colors.ERROR)
-                .setTitle('⚠️ لم يتم تطبيق الحظر فعلياً')
-                .setDescription(
-                  `**السيرفر:** ${guild.name}\n\n` +
-                  'تعذّر تنفيذ الحظر التلقائي (غالباً بسبب صلاحيات البوت أو أن رتبتك أعلى من رتبته).\n\n' +
-                  `إذا كنت تواجه مشكلة تواصل مع ${ownerMention}.`
-                )
-                .setTimestamp()
-                .setFooter({ text: '⚔️ KRS-SYS  •  الحماية التلقائية' }),
-            ],
-          }).catch(() => {});
-        } catch {}
+        if (adminDoc) exempt = true;
+      } catch { /* database unavailable — no exemption */ }
+    }
+    if (exempt) return;
+
+    const { author } = message;
+    const userId  = author.id;
+    const guildId = guild.id;
+
+    await message.delete().catch(() => {});
+
+    // Clear their recent messages in this channel.
+    try {
+      const msgs = await channel.messages.fetch({ limit: 50 });
+      const theirs = msgs.filter((m) => m.author.id === userId);
+      if (theirs.size > 0) await channel.bulkDelete(theirs).catch(() => {});
+    } catch { /* cannot bulk delete here */ }
+
+    // Fetched before the ban: once they are banned the bot no longer shares a
+    // guild with them, and every DM fails.
+    const inviteLink = await getGuildInvite(guild);
+    const ownerMention = guild.ownerId ? `<@${guild.ownerId}>` : 'the server owner';
+
+    // ── DM first, while the bot can still reach them ────────────────────────
+    let dmSent = false;
+    try {
+      const description = [
+        `**Server:** ${guild.name}`,
+        `**Reason:** you posted in ${channel} (${channel.name}), which is restricted.`,
+        '',
+        'This action was taken automatically to protect the server.',
+        'Your account may have been compromised, or you may have posted in the',
+        'wrong channel by mistake.',
+        '',
+        '**⏰ Ban duration: 24 hours**',
+        'The ban lifts itself when the timer runs out.',
+      ];
+
+      if (inviteLink) {
+        description.push('');
+        description.push(`**🔗 Rejoin link once unbanned:** ${inviteLink}`);
       }
 
-      // Auto unban after 1 day + send DM
-      if (banned) {
-        if (!client.pendingAutoUnbans) client.pendingAutoUnbans = new Set();
-        setTimeout(async () => {
-          try {
-            client.pendingAutoUnbans.add(`${guildId}:${userId}`);
-            await guild.members.unban(userId, 'انتهت مدة الحظر التلقائي (روم محضور)');
-            client.pendingAutoUnbans.delete(`${guildId}:${userId}`);
-          } catch { return; }
+      description.push('');
+      description.push(`If you think this is a mistake, contact ${ownerMention}.`);
 
-          try {
-            const user = await client.users.fetch(userId);
-            const autoUnbanEmbed = new EmbedBuilder()
-              .setColor(Colors.SUCCESS)
-              .setTitle('✅ تم فك الحظر تلقائياً')
-              .setDescription([
-                `**السيرفر:** ${guild.name}`,
-                'انتهت مدة الحظر التلقائي (24 ساعة).',
-                '',
-                inviteLink
-                  ? `يمكنك العودة إلى السيرفر عبر الرابط:\n${inviteLink}`
-                  : 'يمكنك العودة إلى السيرفر الآن.',
-                '',
-                'نعتذر عن أي إزعاج، ونشكرك على تفهمك.',
-              ].join('\n'))
-              .setTimestamp()
-              .setFooter({ text: '⚔️ KRS-SYS  •  الحماية التلقائية' });
-            await user.send({ embeds: [autoUnbanEmbed] }).catch(() => {});
-          } catch {}
-        }, 24 * 60 * 60 * 1000);
-      }
-
-      // Send log to alert channel
-      try {
-        const logChDoc = await GuildConfig.findOne({ guildId: guild.id, key: 'log_channel' }).lean();
-        const modLogDoc = await GuildConfig.findOne({ guildId: guild.id, key: 'modlog_channel' }).lean();
-        const logChId = logChDoc?.value;
-        const modLogId = modLogDoc?.value;
-        const alertChId = modLogId || logChId;
-
-        if (alertChId) {
-          const alertCh = await guild.channels.fetch(alertChId).catch(() => null);
-          if (alertCh) {
-            const logEmbed = new EmbedBuilder()
-              .setColor(Colors.BLOOD)
-              .setTitle('🚨 روم محضور — تم اكتشاف مخالف')
-              .addFields(
-                { name: '👤 المستخدم', value: `${message.author} \`${userTag(message.author)}\``, inline: true },
-                { name: '💬 القناة',   value: `${channel}`,                                 inline: true },
-                { name: '📋 الإجراء',  value: banned ? 'حظر لمدة يوم ✅' : 'حذف الرسائل ❌',   inline: true },
-                { name: '✉️ رسالة الخاص', value: dmSent ? 'وصلت للمخالف ✅' : 'تعذّر الإرسال ⚠️ (خاص مغلق/حساب غير متاح)', inline: true },
-                { name: '📝 محتوى الرسالة', value: `\`\`\`${(message.content || '(بدون نص)').slice(0, 990)}\`\`\``, inline: false },
-              )
-              .setTimestamp()
-              .setFooter({ text: '⚔️ KRS-SYS  •  الرومات المحضورة' });
-            if (message.attachments.size > 0) {
-              logEmbed.addFields({
-                name: '📎 المرفقات',
-                value: message.attachments.map(a => `[${a.name}](${a.url})`).join('\n').slice(0, 1024),
-                inline: false,
-              });
-            }
-            await alertCh.send({ embeds: [logEmbed] }).catch(() => {});
-          }
-        }
-      } catch {}
-
-      return;
+      await author.send({
+        embeds: [notice({
+          title: '🚫 You have been banned',
+          description: description.join('\n'),
+          color: 0x7f1d1d,
+          footer: 'Kratos System • Automatic protection',
+          timestamp: true,
+        })],
+      });
+      dmSent = true;
+    } catch (err) {
+      console.error(`[Restricted] Could not DM ${userId}:`, err?.message ?? err);
     }
 
+    // ── Ban ─────────────────────────────────────────────────────────────────
+    let banned = false;
+    try {
+      await guild.members.ban(userId, {
+        reason: 'Posted in a restricted channel — automatic 24-hour ban',
+        deleteMessageSeconds: 86400,
+      });
+      banned = true;
+    } catch {
+      // Usually a missing permission, a higher role, or the server owner.
+      // The user has already read "you have been banned", so correct the
+      // record rather than leave them believing it worked.
+      await author.send({
+        embeds: [notice({
+          title: '⚠️ The ban could not be applied',
+          description: [
+            `**Server:** ${guild.name}`,
+            '',
+            'The automatic ban did not go through — most often the bot lacks the '
+            + '**Ban Members** permission, or your highest role outranks the bot’s.',
+            '',
+            `If you need help, contact ${ownerMention}.`,
+          ].join('\n'),
+          color: 0xf59e0b,
+          footer: 'Kratos System • Automatic protection',
+          timestamp: true,
+        })],
+      }).catch(() => {});
+    }
+
+    // ── Auto-unban ─────────────────────────────────────────────────────────
+    if (banned) {
+      if (!client.pendingAutoUnbans) client.pendingAutoUnbans = new Set();
+      const key = `${guildId}:${userId}`;
+
+      setTimeout(async () => {
+        try {
+          // Registered before the unban so guildBanRemove knows not to log it
+          // as a manual action.
+          client.pendingAutoUnbans.add(key);
+          await guild.members.unban(userId, 'Automatic 24-hour ban expired');
+          client.pendingAutoUnbans.delete(key);
+        } catch {
+          client.pendingAutoUnbans.delete(key);
+          return;
+        }
+
+        try {
+          const user = await client.users.fetch(userId);
+          await user.send({
+            embeds: [notice({
+              title: '✅ Your ban has been lifted',
+              description: [
+                `**Server:** ${guild.name}`,
+                'The 24-hour automatic ban has expired.',
+                '',
+                inviteLink
+                  ? `You can rejoin here:\n${inviteLink}`
+                  : 'You can rejoin now.',
+                '',
+                'Sorry for the inconvenience, and thanks for understanding.',
+              ].join('\n'),
+              color: 0x22c55e,
+              footer: 'Kratos System • Automatic protection',
+              timestamp: true,
+            })],
+          }).catch(() => {});
+        } catch { /* account unavailable */ }
+      }, BAN_DURATION_MS);
+    }
+
+    // ── Modlog ─────────────────────────────────────────────────────────────
+    try {
+      const [logDoc, modLogDoc] = await Promise.all([
+        GuildConfig.findOne({ guildId: guild.id, key: 'log_channel' }).lean(),
+        GuildConfig.findOne({ guildId: guild.id, key: 'modlog_channel' }).lean(),
+      ]);
+
+      const alertChId = modLogDoc?.value || logDoc?.value;
+      if (alertChId) {
+        const alertCh = await guild.channels.fetch(alertChId).catch(() => null);
+
+        if (alertCh) {
+          const fields = [
+            field('💬 Channel', channel.toString()),
+            field('📋 Action', banned ? '🔨 Banned for 24 hours' : '🧹 Messages deleted only'),
+            field('✉️ DM status', dmSent
+              ? '✅ Delivered'
+              : '⚠️ Could not be sent — DMs closed or the account is unavailable'),
+            field('📝 Message', `\`\`\`\n${(message.content || '[no text]').slice(0, 990)}\n\`\`\``, false),
+          ];
+
+          if (message.attachments.size > 0) {
+            fields.push(field('📎 Attachments', message.attachments
+              .map((a) => `[${a.name}](${a.url})`)
+              .join('\n')
+              .slice(0, 1024), false));
+          }
+
+          await alertCh.send({
+            embeds: [logEntry({
+              kind: 'restricted_channel',
+              target: `${author} (${userTag(author)})`,
+              fields,
+              footer: 'Kratos System • Restricted channels',
+            })],
+          }).catch(() => {});
+        }
+      }
+    } catch { /* logging must never block moderation */ }
+
+    return;
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
-  //  TICKET: Relay system (forward between user/admin channels)
+  //  TICKET RELAY
   // ══════════════════════════════════════════════════════════════════════════
 
   if (message.content || message.attachments.size > 0) {
-
-    // Message from user channel → forward to admin channel
+    // Member channel → staff channel.
     const userTicket = getTicket(channel.id);
     if (userTicket && userTicket.status !== 'closed' && userTicket.adminChannelId) {
       updateTicketActivity(channel.id);
       try {
         const adminCh = await guild.channels.fetch(userTicket.adminChannelId).catch(() => null);
-        if (adminCh) {
-          await adminCh.send(formatUserRelay(message));
-        }
-      } catch {}
+        if (adminCh) await adminCh.send(formatUserRelay(message));
+      } catch { /* cannot reach the staff channel */ }
       return;
     }
 
-    // Message from admin channel → forward to user channel
+    // Staff channel → member channel.
     const adminTicket = getTicketByAdminChannel(channel.id);
     if (adminTicket && adminTicket.status !== 'closed') {
       const config = getGuildConfig(guild.id);
       try {
-        const m = await guild.members.fetch(message.author.id).catch(() => null);
-        if (!m) return;
+        const author = await guild.members.fetch(message.author.id).catch(() => null);
+        if (!author) return;
 
-        const isSupport =
-          m.permissions.has(8n) ||
-          m.permissions.has(16n) ||
-          config.supportRoleIds.some((id) => m.roles.cache.has(id));
+        const isSupport = author.permissions.has(PermissionFlagsBits.Administrator)
+          || author.permissions.has(PermissionFlagsBits.ManageChannels)
+          || (config.supportRoleIds ?? []).some((id) => author.roles.cache.has(id));
 
         if (!isSupport) return;
 
         const userCh = await guild.channels.fetch(adminTicket.channelId).catch(() => null);
         if (userCh) {
-          const text = await formatAdminRelay(message, guild, message.client);
-          await userCh.send(text);
+          await userCh.send(await formatAdminRelay(message, guild));
           updateTicketActivity(adminTicket.channelId);
         }
-      } catch {}
+      } catch { /* cannot reach the member channel */ }
       return;
     }
 
-    // Update activity for single-channel tickets
+    // Single-channel tickets only need their timer refreshed.
     if (userTicket && userTicket.status !== 'closed') {
       updateTicketActivity(channel.id);
     }
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  //  SYS: Anti-spam / Anti-link / Anti-mention protection
+  //  ANTI-SPAM / ANTI-LINK / ANTI-MENTION
   // ══════════════════════════════════════════════════════════════════════════
 
   const guildId  = guild.id;
@@ -279,89 +302,71 @@ export async function execute(message, client) {
   const modLogCh = await getLogChannel(guild, getConfig(guildId, 'modlog_channel'));
   const alertCh  = modLogCh ?? logCh;
 
-  // ═══ الإعفاء الوحيد: مالك السيرفر (باختيار المالك: الإدارة تُعاقب أيضاً) ═══
-  // ملاحظة: كانت سابقاً تُعفي أي رتبة إشراف (BanMembers/Administrator/ManageGuild)
+  // The owner is the only exemption — moderators are held to the same rule, by
+  // design. Earlier versions exempted any staff role.
   if (member && member.id === guild.ownerId) return;
 
-  // ─── Anti-Mention-Spam ────────────────────────────────────────────────
+  // ─── Anti-mention ────────────────────────────────────────────────────────
   const mentionCount = message.mentions.users.size + message.mentions.roles.size;
   if (mentionCount >= MENTION_THRESHOLD) {
     await message.delete().catch(() => {});
 
-    const warn = await channel.send({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(Colors.BLOOD)
-          .setTitle('🚫 مسح جماعي للمنشنات')
-          .setDescription(`${message.author} — لا يُسمح بمنشنة ${mentionCount} عضو في رسالة واحدة.`)
-          .setTimestamp()
-          .setFooter({ text: '⚔️ KRS-SYS  •  الحماية التلقائية' })
-      ],
-    }).catch(() => null);
-    if (warn) setTimeout(() => warn.delete().catch(() => {}), 6000);
+    await warnAndCleanUp(
+      channel,
+      `⚠️ ${message.author} — you cannot mention ${mentionCount} people in one message.`,
+      6,
+    );
 
     if (alertCh) {
       await alertCh.send({
-        embeds: [
-          new EmbedBuilder()
-            .setColor(Colors.BLOOD)
-            .setTitle('🚨 Auto-Mod — منشنات جماعية')
-            .addFields(
-              { name: '👤 المستخدم', value: `${message.author} \`${userTag(message.author)}\``, inline: true },
-              { name: '💬 القناة',   value: `${channel}`,                                 inline: true },
-              { name: '📊 المنشنات', value: `${mentionCount} منشن`,                       inline: true },
-            )
-            .setTimestamp()
-            .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' })
-        ],
+        embeds: [logEntry({
+          kind: 'automod_mentions',
+          target: `${message.author} (${userTag(message.author)})`,
+          fields: [
+            field('💬 Channel', channel.toString()),
+            field('📊 Mentions', `${mentionCount}`),
+          ],
+          footer: 'Kratos System • Modlog',
+        })],
       }).catch(() => {});
     }
     return;
   }
 
-  // ─── Anti-Link ────────────────────────────────────────────────────────
+  // ─── Anti-link ───────────────────────────────────────────────────────────
   const links = message.content.match(LINK_REGEX) ?? [];
   if (links.length > 0) {
     await message.delete().catch(() => {});
 
-      const warn = await channel.send({
-        embeds: [
-          new EmbedBuilder()
-            .setColor(Colors.WARNING)
-            .setTitle('🔗 رابط محظور')
-            .setDescription(`${message.author} — الروابط غير مسموح بها في هذا السيرفر.`)
-            .setTimestamp()
-            .setFooter({ text: '⚔️ KRS-SYS  •  الحماية التلقائية' })
-        ],
-      }).catch(() => null);
-      if (warn) setTimeout(() => warn.delete().catch(() => {}), 5000);
+    await warnAndCleanUp(
+      channel,
+      `⚠️ ${message.author} — links are not allowed in this server.`,
+      5,
+    );
 
-      if (alertCh) {
-        await alertCh.send({
-          embeds: [
-            new EmbedBuilder()
-              .setColor(Colors.WARNING)
-              .setTitle('🔗 Auto-Mod — رابط محذوف')
-              .addFields(
-                { name: '👤 المستخدم', value: `${message.author} \`${userTag(message.author)}\``, inline: true },
-                { name: '💬 القناة',   value: `${channel}`,                                 inline: true },
-                { name: '🔗 الرابط',   value: links[0].slice(0, 512),                       inline: false },
-              )
-              .setTimestamp()
-              .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' })
+    if (alertCh) {
+      await alertCh.send({
+        embeds: [logEntry({
+          kind: 'automod_links',
+          target: `${message.author} (${userTag(message.author)})`,
+          fields: [
+            field('💬 Channel', channel.toString()),
+            field('🔗 Link', links[0].slice(0, 1024), false),
           ],
-        }).catch(() => {});
-      }
-      return;
+          footer: 'Kratos System • Modlog',
+        })],
+      }).catch(() => {});
+    }
+    return;
   }
 
-  // ─── Anti-Spam ────────────────────────────────────────────────────────
-  const spamData  = await getSpamData(guildId, userId);
-  let count       = 1;
-  let lastReset   = now;
+  // ─── Anti-spam ───────────────────────────────────────────────────────────
+  const spamData = await getSpamData(guildId, userId);
+  let count = 1;
+  let lastReset = now;
 
   if (spamData && now - spamData.lastReset < SPAM_WINDOW_MS) {
-    count     = spamData.messageCount + 1;
+    count = spamData.messageCount + 1;
     lastReset = spamData.lastReset;
   }
   await upsertSpamData(guildId, userId, count, lastReset);
@@ -371,79 +376,55 @@ export async function execute(message, client) {
 
     let timedOut = false;
     try {
-      await member.timeout(TIMEOUT_MS, 'Auto-Mod: سبام');
+      await member.timeout(TIMEOUT_MS, 'Auto-mod: spam');
       timedOut = true;
-    } catch { /* no permission */ }
+    } catch { /* the bot cannot time out this member */ }
 
-    const warn = await channel.send({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(Colors.ERROR)
-          .setTitle('🚫 سبام مكتشف')
-          .setDescription(
-            `${message.author} — ` +
-            (timedOut ? `تم إيقافك مؤقتاً لمدة **${TIMEOUT_MS / 1000} ثانية**.` : 'يُرجى التوقف عن الإرسال المتكرر.')
-          )
-          .setTimestamp()
-          .setFooter({ text: '⚔️ KRS-SYS  •  الحماية التلقائية' })
-      ],
-    }).catch(() => null);
-    if (warn) setTimeout(() => warn.delete().catch(() => {}), 8000);
+    await warnAndCleanUp(
+      channel,
+      `⚠️ ${message.author} — ${timedOut
+        ? `you have been timed out for ${TIMEOUT_MS / 1000} seconds.`
+        : 'please stop sending repeated messages.'}`,
+      8,
+    );
 
     if (alertCh) {
       await alertCh.send({
-        embeds: [
-          new EmbedBuilder()
-            .setColor(Colors.ERROR)
-            .setTitle('🤖 Auto-Mod — سبام')
-            .addFields(
-              { name: '👤 المستخدم', value: `${message.author} \`${userTag(message.author)}\``,   inline: true },
-              { name: '💬 القناة',   value: `${channel}`,                                    inline: true },
-              { name: '📊 الرسائل',  value: `${count} في ${SPAM_WINDOW_MS / 1000}ث`,        inline: true },
-              { name: '⚡ الإجراء',  value: timedOut ? `إيقاف ${TIMEOUT_MS / 1000}ث` : 'تحذير', inline: true },
-            )
-            .setTimestamp()
-            .setFooter({ text: '⚔️ KRS-SYS  •  سجلات الإشراف' })
-        ],
+        embeds: [logEntry({
+          kind: 'automod_spam',
+          target: `${message.author} (${userTag(message.author)})`,
+          fields: [
+            field('💬 Channel', channel.toString()),
+            field('📊 Messages', `${count} in ${SPAM_WINDOW_MS / 1000}s`),
+            field('⚡ Action', timedOut
+              ? `🔇 Timed out for ${TIMEOUT_MS / 1000}s`
+              : '⚠️ Warning only'),
+          ],
+          footer: 'Kratos System • Modlog',
+        })],
       }).catch(() => {});
     }
   }
 }
 
-// ── TICKET relay helpers ─────────────────────────────────────────────────────
+// ── Ticket relay helpers ───────────────────────────────────────────────────
 
 function formatUserRelay(msg) {
-  const parts = [];
-  parts.push(`📩 **${msg.author.username}:** ${msg.content || ''}`);
-  if (msg.attachments.size > 0) {
-    for (const att of msg.attachments.values()) {
-      parts.push(att.url);
-    }
-  }
+  const parts = [`📩 **${msg.author.username}:** ${msg.content || ''}`];
+  for (const attachment of msg.attachments.values()) parts.push(attachment.url);
   return parts.join('\n');
 }
 
-async function formatAdminRelay(msg, guild, client) {
-  const parts = [];
+async function formatAdminRelay(msg, guild) {
+  let roleDisplay = '[STAFF] ';
 
-  let roleDisplay = '';
   try {
     const member = await guild.members.fetch(msg.author.id).catch(() => null);
-    if (member) {
-      const highestRole = member.roles.highest;
-      if (highestRole && highestRole.name !== '@everyone') {
-        roleDisplay = `[${highestRole.name}] `;
-      } else {
-        roleDisplay = '[STAFF] ';
-      }
-    }
-  } catch {}
+    const highest = member?.roles.highest;
+    if (highest && highest.name !== '@everyone') roleDisplay = `[${highest.name}] `;
+  } catch { /* fall back to the generic STAFF label */ }
 
-  parts.push(`📨 **${roleDisplay}${msg.author.username}:** ${msg.content || ''}`);
-  if (msg.attachments.size > 0) {
-    for (const att of msg.attachments.values()) {
-      parts.push(att.url);
-    }
-  }
+  const parts = [`📨 **${roleDisplay}${msg.author.username}:** ${msg.content || ''}`];
+  for (const attachment of msg.attachments.values()) parts.push(attachment.url);
   return parts.join('\n');
 }

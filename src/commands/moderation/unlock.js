@@ -1,18 +1,16 @@
-import { SlashCommandBuilder, PermissionFlagsBits, ChannelType, EmbedBuilder } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from 'discord.js';
 import { requireRole, getLogChannel } from '../../utils/permissions.js';
-import { Colors, COLOR, footer } from '../../utils/embeds.js';
+import { notice, logEntry, C } from '../../utils/embeds.js';
 import { getConfig } from '../../database.js';
 import { COMMAND_ROLES, clearAdminOverwrites } from '../../config/roles.js';
 
-const DIV = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
-
 export const data = new SlashCommandBuilder()
   .setName('unlock')
-  .setDescription('فتح قناة مغلقة والسماح للأعضاء بالإرسال فيها')
+  .setDescription('Unlock a channel so members can post again')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
   .addChannelOption(opt =>
     opt.setName('channel')
-      .setDescription('القناة المراد فتحها (الافتراضي: الحالية)')
+      .setDescription('Channel to unlock (defaults to this one)')
       .addChannelTypes(ChannelType.GuildText)
   );
 
@@ -25,74 +23,35 @@ export async function execute(interaction) {
   const currentPermissions = channel.permissionOverwrites.cache.get(everyoneRole.id);
 
   if (!currentPermissions || !currentPermissions.deny.has(PermissionFlagsBits.SendMessages)) {
-    return interaction.reply({
-      content: `⚠️ القناة ${channel} مفتوحة بالفعل ولا تحتاج لإعادة فتح.`,
-      ephemeral: true
-    });
+    return interaction.reply({ content: `⚠️ ${channel} is already unlocked.`, flags: 64 });
   }
 
   await channel.permissionOverwrites.edit(everyoneRole, { SendMessages: null });
   await clearAdminOverwrites(channel, interaction.guild);
 
-  const embed = new EmbedBuilder()
-    .setColor(COLOR.white)
-    .setTitle('🔓  فتح القناة')
-    .setDescription([
-      '```ansi',
-      `\u001b[1;37m🔓  تم فتح القناة  │  ${channel.name}\u001b[0m`,
-      '```',
-      `${DIV}`,
-      '',
-      `**🛡️ بواسطة**  ─  ${interaction.user}`,
-      '',
-      `${DIV}`,
-      '',
-      '> جميع الأعضاء يستطيعون الإرسال الآن',
-    ].join('\n'))
-    .setFooter(footer('KRS • إدارة القنوات'))
-    .setTimestamp();
+  await interaction.reply({ content: `🔓 Unlocked ${channel} — members can post again.`, flags: 64 });
 
-  await interaction.reply({ embeds: [embed] });
-
+  // Public notice, same reasoning as /lock.
   if (channel.id !== interaction.channel.id) {
     await channel.send({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(COLOR.white)
-          .setTitle('🔓  تم فتح هذه القناة')
-          .setDescription([
-            '```ansi',
-            `\u001b[1;37m🔓  القناة مفتوحة  │  يمكن للأعضاء الإرسال الآن\u001b[0m`,
-            '```',
-            `${DIV}`,
-            '',
-            `**🛡️ بواسطة**  ─  ${interaction.user}`,
-          ].join('\n'))
-          .setFooter(footer('KRS • إدارة القنوات'))
-          .setTimestamp(),
-      ],
+      embeds: [notice({
+        title: '🔓 This channel is open again',
+        description: 'Members can send messages here again.',
+        color: C.ok,
+        footer: 'Kratos System',
+        timestamp: true,
+      })],
     }).catch(() => {});
   }
 
   const modLogCh = await getLogChannel(interaction.guild, getConfig(interaction.guildId, 'modlog_channel'));
   if (modLogCh) {
     await modLogCh.send({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(COLOR.white)
-          .setTitle('🔓  سجل — فتح قناة')
-          .setDescription([
-            '```ansi',
-            `\u001b[1;37m🔓  فتح  │  ${channel.name}\u001b[0m`,
-            '```',
-            `${DIV}`,
-            '',
-            `**📢 القناة**  ─  ${channel}`,
-            `**🛡️ المشرف**  ─  ${interaction.user}`,
-          ].join('\n'))
-          .setFooter(footer('KRS • سجلات الإشراف'))
-          .setTimestamp(),
-      ],
+      embeds: [logEntry({
+        kind: 'unlock',
+        target: channel.toString(),
+        actor: interaction.user.tag,
+      })],
     }).catch(() => {});
   }
 }

@@ -1,53 +1,30 @@
-import { SlashCommandBuilder, ChannelType, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
+import { SlashCommandBuilder, ChannelType, PermissionFlagsBits } from 'discord.js';
 import { setConfig } from '../../database.js';
-import { Colors, EPHEMERAL } from '../../utils/embeds.js';
 import { requireRole } from '../../utils/permissions.js';
 import { COMMAND_ROLES } from '../../config/roles.js';
+import { channelSetReply } from '../../utils/setupReply.js';
 
 export const data = new SlashCommandBuilder()
   .setName('setup-modlogs')
-  .setDescription('تعيين قناة سجلات الإشراف — ban/kick/timeout/warn والقنوات والأدوار')
+  .setDescription('Set the modlog channel — bans, kicks, timeouts, warnings, channels, roles')
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-  .addChannelOption(opt =>
+  .addChannelOption((opt) =>
     opt.setName('channel')
-      .setDescription('القناة التي تُسجَّل فيها أوامر الإشراف')
+      .setDescription('Channel that records moderation actions')
       .addChannelTypes(ChannelType.GuildText)
-      .setRequired(true)
-  );
+      .setRequired(true));
 
 export async function execute(interaction) {
   if (!await requireRole(interaction, COMMAND_ROLES.setup)) return;
 
-  const channel = interaction.options.getChannel('channel');
+  const channel = interaction.options.getChannel('channel', true);
   setConfig(interaction.guildId, 'modlog_channel', channel.id);
 
-  await interaction.reply({
-    embeds: [
-      new EmbedBuilder()
-        .setColor(Colors.RED)
-        .setTitle('🔨  تم تعيين قناة سجلات الإشراف')
-        .setDescription(`جميع أوامر الإشراف ستُسجَّل في ${channel}`)
-        .addFields(
-          {
-            name: '📋  ما يُسجَّل هنا',
-            value: [
-              '> 🔨 `/ban` — تفاصيل الحظر',
-              '> 👢 `/kick` — تفاصيل الطرد',
-              '> ⏱️ `/timeout` — الإيقاف المؤقت',
-              '> ⚠️ `/warn` — التحذيرات الصادرة',
-              '> 🔒 `/lock` `/hide` — إغلاق/إخفاء القنوات',
-              '> 🏷️ `/role` — تغيير الأدوار',
-              '> 📌 إنشاء وحذف القنوات',
-              '> 🚨 Anti-Nuke / Raid Alerts',
-            ].join('\n'),
-            inline: false,
-          },
-          { name: '📢  القناة المحددة', value: `${channel} (\`${channel.id}\`)`, inline: true }
-        )
-        .setThumbnail(interaction.guild.iconURL({ dynamic: true }))
-        .setTimestamp()
-        .setFooter({ text: '⚔️ KRS-SYS  •  الإعداد' })
-    ],
-    flags: EPHEMERAL,
-  });
+  await interaction.reply(channelSetReply({
+    title: 'Modlog channel set',
+    emoji: '🔨',
+    channels: [{ label: '📢 Channel', mention: channel.toString(), id: channel.id }],
+    records: '`/ban` · `/kick` · `/timeout` · `/warn` · `/clear` · `/lock` `/hide` · `/role` · `/nick` · channel and role changes · anti-nuke and raid alerts',
+    tip: 'Use `/setup-logs` for general activity and `/setup-botlogs` for the bot itself.',
+  }));
 }

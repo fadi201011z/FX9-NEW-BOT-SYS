@@ -10,14 +10,14 @@ export function youtubeEmbed(video) {
   return new EmbedBuilder()
     .setColor(PLATFORM.youtube.color)
     .setAuthor({ name: PLATFORM.youtube.name, iconURL: PLATFORM.youtube.logo })
-    .setTitle('فيديو جديد على يوتيوب')
+    .setTitle('New YouTube video')
     .setDescription(`### [${video.title}](${video.url})`)
     .setURL(video.url)
     .setThumbnail(video.channelAvatar || video.thumbnail)
     .setImage(video.thumbnail)
     .addFields(
-      { name: 'القناة', value: `[${video.channelName}](https://www.youtube.com/channel/${video.channelId})`, inline: true },
-      { name: 'تاريخ النشر', value: `<t:${Math.floor(video.publishedAt / 1000)}:R>`, inline: true },
+      { name: 'Channel', value: `[${video.channelName}](https://www.youtube.com/channel/${video.channelId})`, inline: true },
+      { name: 'Published', value: `<t:${Math.floor(video.publishedAt / 1000)}:R>`, inline: true },
     )
     .setFooter({ text: 'KRS Notifier' })
     .setTimestamp();
@@ -45,7 +45,7 @@ export function twitterEmbed(tweet) {
   return new EmbedBuilder()
     .setColor(PLATFORM.twitter.color)
     .setAuthor({ name: PLATFORM.twitter.name, iconURL: PLATFORM.twitter.logo })
-    .setTitle('تغريدة جديدة')
+    .setTitle('New post')
     .setDescription(tweet.text?.slice(0, 2000) || '')
     .setURL(tweet.url)
     .setThumbnail(tweet.channelAvatar)

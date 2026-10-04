@@ -3,6 +3,14 @@ import {
   getSubscriptions, addSubscription, removeSubscription,
 } from '../../data/notificationDB.js';
 import { getGuildConfig } from '../../data/ticketDB.js';
+import { fail, notice, field, C } from '../../utils/embeds.js';
+
+const PLATFORM_EMOJI = { youtube: '📹', kick: '🔴', twitter: '🐦' };
+const PLATFORM_LABEL = {
+  youtube: '📹 YouTube',
+  kick: '🔴 Kick',
+  twitter: '🐦 Twitter/X',
+};
 
 async function resolveChannelId(platform, url) {
   if (platform === 'youtube') {
@@ -22,84 +30,86 @@ async function resolveChannelId(platform, url) {
 
 export const data = new SlashCommandBuilder()
   .setName('notify')
-  .setDescription('🔔 إدارة إشتراكات الإشعارات (يوتيوب / كيك / تويتر)')
-  .addSubcommand(sub =>
-    sub.setName('add')
-      .setDescription('إضافة إشتراك إشعارات جديد')
-      .addStringOption(opt =>
-        opt.setName('platform')
-          .setDescription('المنصة')
-          .setRequired(true)
-          .addChoices(
-            { name: '📹 YouTube', value: 'youtube' },
-            { name: '🔴 Kick', value: 'kick' },
-            { name: '🐦 Twitter/X', value: 'twitter' },
-          ))
-      .addStringOption(opt =>
-        opt.setName('url')
-          .setDescription('رابط القناة')
-          .setRequired(true))
-      .addChannelOption(opt =>
-        opt.setName('channel')
-          .setDescription('القناة اللي تنزل فيها الإشعارات')
-          .setRequired(true))
-      .addStringOption(opt =>
-        opt.setName('message')
-          .setDescription('رسالة إضافية (اختياري) تظهر مع الإشعار')
-          .setRequired(false)))
-  .addSubcommand(sub =>
-    sub.setName('remove')
-      .setDescription('حذف إشتراك')
-      .addStringOption(opt =>
-        opt.setName('id')
-          .setDescription('معرف الإشتراك')
-          .setRequired(true)))
-  .addSubcommand(sub =>
-    sub.setName('list')
-      .setDescription('عرض جميع الإشتراكات في هذا السيرفر'));
+  .setDescription('🔔 Manage notification subscriptions (YouTube / Kick / Twitter)')
+  .addSubcommand((sub) => sub
+    .setName('add')
+    .setDescription('Add a notification subscription')
+    .addStringOption((opt) => opt
+      .setName('platform')
+      .setDescription('Platform')
+      .setRequired(true)
+      .addChoices(
+        { name: '📹 YouTube', value: 'youtube' },
+        { name: '🔴 Kick', value: 'kick' },
+        { name: '🐦 Twitter/X', value: 'twitter' },
+      ))
+    .addStringOption((opt) => opt
+      .setName('url')
+      .setDescription('Channel URL')
+      .setRequired(true))
+    .addChannelOption((opt) => opt
+      .setName('channel')
+      .setDescription('Where the notifications are delivered')
+      .setRequired(true))
+    .addStringOption((opt) => opt
+      .setName('message')
+      .setDescription('Extra line shown with every notification (optional)')
+      .setRequired(false)))
+  .addSubcommand((sub) => sub
+    .setName('remove')
+    .setDescription('Remove a subscription')
+    .addStringOption((opt) => opt
+      .setName('id')
+      .setDescription('Subscription ID')
+      .setRequired(true)))
+  .addSubcommand((sub) => sub
+    .setName('list')
+    .setDescription('List every subscription in this server'));
 
 export async function execute(interaction) {
   if (!interaction.guild) {
-    await interaction.reply({ content: '❌ هذا الأمر يعمل فقط داخل السيرفر.', flags: 64 });
+    await interaction.reply(fail('This command only works inside a server.'));
     return;
   }
 
   const config = getGuildConfig(interaction.guildId);
   const member = await interaction.guild.members.fetch(interaction.user.id);
-  const isAdmin =
-    member.permissions.has(PermissionsBitField.Flags.ManageChannels) ||
-    config.supportRoleIds?.some(id => member.roles.cache.has(id));
+  const isAdmin = member.permissions.has(PermissionsBitField.Flags.ManageChannels)
+    || (config.supportRoleIds ?? []).some((id) => member.roles.cache.has(id));
 
   if (!isAdmin) {
-    await interaction.reply({ content: '❌ يحتاج صلاحية ManageChannels أو رتبة دعم.', flags: 64 });
+    await interaction.reply(fail('You need the Manage Channels permission or the support role.'));
     return;
   }
 
   const sub = interaction.options.getSubcommand();
 
   if (sub === 'add') {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: 64 });
 
-    const platform = interaction.options.getString('platform');
-    const url = interaction.options.getString('url').trim();
-    const discordCh = interaction.options.getChannel('channel');
-    const customMessage = interaction.options.getString('message') || '';
+    const platform       = interaction.options.getString('platform');
+    const url            = interaction.options.getString('url').trim();
+    const discordCh      = interaction.options.getChannel('channel');
+    const customMessage  = interaction.options.getString('message') || '';
 
     const resolvedId = await resolveChannelId(platform, url);
     if (!resolvedId) {
-      await interaction.editReply({ content: `❌ ما قدرت استخرج معرف القناة من الرابط.\nتأكد من الرابط وحاول مره ثانية.` });
+      await interaction.editReply({
+        content: '❌ Could not read a channel ID from that link — check the URL and try again.',
+      });
       return;
     }
 
     const existing = getSubscriptions(interaction.guildId);
-    const dup = existing.find(s => s.platform === platform && s.channelId === resolvedId);
+    const dup = existing.find((s) => s.platform === platform && s.channelId === resolvedId);
     if (dup) {
-      await interaction.editReply({ content: `⚠️ القناة مضافه مسبقاً! (ID: \`${dup._id}\`)` });
+      await interaction.editReply({ content: `⚠️ Already subscribed (ID: \`${dup._id}\`).` });
       return;
     }
 
+    let doc;
     try {
-      const doc = await addSubscription({
+      doc = await addSubscription({
         guildId: interaction.guildId,
         platform,
         channelUrl: url,
@@ -107,78 +117,81 @@ export async function execute(interaction) {
         discordChannelId: discordCh.id,
         customMessage,
       });
-
-      const platLabel = platform === 'youtube' ? '📹 YouTube' : platform === 'kick' ? '🔴 Kick' : '🐦 Twitter';
-
-      await interaction.editReply({
-        content: [
-          `✅ **تمت الإضافة!**`,
-          `┃ المنصة: **${platLabel}**`,
-          `┃ رابط القناة: ${url}`,
-          `┃ قناة الإشعارات: <#${discordCh.id}>`,
-          `┃ المعرف: \`${doc._id}\``,
-          customMessage ? `┃ رسالة: ${customMessage}` : '',
-          '',
-          `⏳ جاري التحقق من آخر محتوى...`,
-        ].filter(Boolean).join('\n'),
-      });
-
-      // Immediate first check for this subscription
-      try {
-        const { checkSubscriptionNow } = await import('../../handlers/notificationMonitor.js');
-        const result = await checkSubscriptionNow(interaction.client, doc);
-        if (result) {
-          await interaction.editReply({
-            content: `✅ **تمت الإضافة!** تم إرسال إشعار لآخر ${result}.`,
-          });
-        } else {
-          await interaction.editReply({
-            content: `✅ **تمت الإضافة!** ما في محتوى جديد حالياً، البوت بيراقب تلقائياً.`,
-          });
-        }
-      } catch {
-        // background check failed, subscription is already saved
-      }
     } catch (err) {
       console.error('[Notify] Add error:', err);
-      await interaction.editReply({ content: '❌ حدث خطأ أثناء الإضافة.' });
+      await interaction.editReply({ content: '❌ Something went wrong while saving the subscription.' });
+      return;
+    }
+
+    // The subscription is live — show it, then report the result of the
+    // immediate first check in place of the same message.
+    await interaction.editReply({
+      embeds: [notice({
+        title: '✅ Subscription added',
+        color: C.ok,
+        fields: [
+          field('Channel URL', url, false),
+          field('Platform', PLATFORM_LABEL[platform] ?? platform),
+          field('Delivered to', `<#${discordCh.id}>`),
+          field('Subscription ID', `\`${doc._id}\``, false),
+          ...(customMessage ? [field('Extra line', customMessage, false)] : []),
+        ],
+        footer: 'Kratos System • Checking latest content…',
+      })],
+    });
+
+    try {
+      const { checkSubscriptionNow } = await import('../../handlers/notificationMonitor.js');
+      const result = await checkSubscriptionNow(interaction.client, doc);
+
+      await interaction.editReply({
+        content: result
+          ? `✅ Added. A notification was sent for the latest ${result}.`
+          : '✅ Added. Nothing new right now — the bot will keep watching.',
+      });
+    } catch {
+      // The subscription is already saved, so a failed first check is not fatal.
     }
     return;
   }
 
   if (sub === 'remove') {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: 64 });
 
     const id = interaction.options.getString('id').trim();
-    const subItem = getSubscriptions(interaction.guildId).find(s => s._id.toString() === id);
+    const subItem = getSubscriptions(interaction.guildId).find((s) => s._id.toString() === id);
 
     if (!subItem) {
-      await interaction.editReply({ content: `❌ ما فيه إشتراك بهذا المعرف \`${id}\`` });
+      await interaction.editReply({ content: `❌ No subscription with the ID \`${id}\`.` });
       return;
     }
 
     await removeSubscription(id);
-    await interaction.editReply({ content: `✅ تم حذف الإشتراك \`${id}\` (${subItem.platform}).` });
+    await interaction.editReply({ content: `✅ Removed \`${id}\` (${subItem.platform}).` });
     return;
   }
 
   if (sub === 'list') {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: 64 });
 
     const subs = getSubscriptions(interaction.guildId);
     if (subs.length === 0) {
-      await interaction.editReply({ content: '📭 لا يوجد أي إشتراكات في هذا السيرفر.' });
+      await interaction.editReply({ content: '📭 No subscriptions in this server.' });
       return;
     }
 
-    const lines = subs.map((s, i) => {
-      const plat = s.platform === 'youtube' ? '📹' : s.platform === 'kick' ? '🔴' : '🐦';
-      return `\`${i + 1}.\` ${plat} **${s.channelName || s.channelId}** — <#${s.discordChannelId}> — \`${s._id}\``;
-    });
-
+    // A table: name, destination, id — worth an embed, it gets re-read.
     await interaction.editReply({
-      content: `**🔔 الإشتراكات (${subs.length}):**\n${lines.join('\n')}`,
+      embeds: [notice({
+        title: `🔔 Subscriptions (${subs.length})`,
+        color: C.info,
+        fields: subs.map((s, i) => field(
+          `${PLATFORM_EMOJI[s.platform] ?? '•'} ${s.channelName || s.channelId}`,
+          `Sent to <#${s.discordChannelId}>\n\`${s._id}\``,
+          false,
+        )),
+        footer: 'Kratos System • /notify list',
+      })],
     });
-    return;
   }
 }

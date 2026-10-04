@@ -1,128 +1,182 @@
-import {
-  ChatInputCommandInteraction, SlashCommandBuilder,
-  PermissionsBitField, EmbedBuilder, User,
-} from "discord.js";
-import { getAllAdminStats, getAdminStats, saveAdminStats, getAllTickets } from "../../data/ticketDB.js";
-import { COLOR } from "../../utils/embeds.js";
+import { SlashCommandBuilder, PermissionsBitField } from 'discord.js';
+import { getAllAdminStats, getAdminStats, saveAdminStats, getAllTickets } from '../../data/ticketDB.js';
+import { ok, fail, notice, field, C } from '../../utils/embeds.js';
 
 export const data = new SlashCommandBuilder()
-  .setName("ratings")
-  .setDescription("⭐ إدارة ومراقبة تقييمات المشرفين")
+  .setName('ratings')
+  .setDescription('⭐ Review and manage staff ratings')
   .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageChannels)
   .addSubcommand((s) =>
-    s.setName("view").setDescription("عرض تقييمات مشرف أو الجميع")
-     .addUserOption((o) => o.setName("admin").setDescription("المشرف (فارغ = الجميع)").setRequired(false))
-  )
+    s.setName('view').setDescription('Show ratings for one staff member, or everyone')
+      .addUserOption((o) => o.setName('admin').setDescription('Staff member (omit for everyone)').setRequired(false)))
   .addSubcommand((s) =>
-    s.setName("leaderboard").setDescription("🏆 لوحة المتصدرين")
-     .addIntegerOption((o) => o.setName("top").setDescription("عدد المشرفين (افتراضي 10)").setMinValue(1).setMaxValue(25).setRequired(false))
-  )
+    s.setName('leaderboard').setDescription('🏆 Highest-rated staff')
+      .addIntegerOption((o) => o.setName('top').setDescription('How many to show (default 10)').setMinValue(1).setMaxValue(25).setRequired(false)))
   .addSubcommand((s) =>
-    s.setName("history").setDescription("📜 آخر التقييمات")
-     .addIntegerOption((o) => o.setName("limit").setDescription("العدد (افتراضي 10)").setMinValue(1).setMaxValue(25).setRequired(false))
-  )
+    s.setName('history').setDescription('📜 Most recent ratings')
+      .addIntegerOption((o) => o.setName('limit').setDescription('How many to show (default 10)').setMinValue(1).setMaxValue(25).setRequired(false)))
   .addSubcommand((s) =>
-    s.setName("reset").setDescription("🔄 إعادة تعيين تقييمات مشرف — يتطلب Administrator")
-     .addUserOption((o) => o.setName("admin").setDescription("المشرف").setRequired(true))
+    s.setName('reset').setDescription('🔄 Reset a staff member’s ratings — requires Administrator')
+      .addUserOption((o) => o.setName('admin').setDescription('Staff member').setRequired(true)));
+
+/**
+ * Admin stats are stored per adminId, with no guild column — so the raw map
+ * holds staff from every server this bot is in. Restrict it to people who
+ * actually handled a ticket here, otherwise /ratings in one server leaks the
+ * staff list of another.
+ */
+function statsForGuild(guildId) {
+  const staffHere = new Set(
+    getAllTickets(guildId)
+      .map((t) => t.claimedBy)
+      .filter(Boolean),
   );
+  return getAllAdminStats().filter((s) => staffHere.has(s.adminId));
+}
+
+const average = (s) => (s.ratingCount > 0 ? s.totalRating / s.ratingCount : 0);
+const stars = (value) => (value > 0 ? '⭐'.repeat(Math.round(value)) : '—');
 
 export async function execute(interaction) {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: 64 });
+
   const sub     = interaction.options.getSubcommand();
   const guildId = interaction.guildId;
 
-  if (sub === "view") {
-    const user = interaction.options.getUser("admin");
-    user ? await viewOne(interaction, user, guildId) : await viewAll(interaction, guildId);
+  if (sub === 'view') {
+    const user = interaction.options.getUser('admin');
+    return user ? viewOne(interaction, user, guildId) : viewAll(interaction, guildId);
+  }
 
-  } else if (sub === "leaderboard") {
-    const top = interaction.options.getInteger("top") ?? 10;
-    const list = getAllAdminStats()
+  // ── leaderboard ─────────────────────────────────────────────────────────
+  if (sub === 'leaderboard') {
+    const top  = interaction.options.getInteger('top') ?? 10;
+    const list = statsForGuild(guildId)
       .filter((s) => s.ratingCount > 0)
-      .sort((a, b) => b.totalRating / b.ratingCount - a.totalRating / a.ratingCount)
+      .sort((a, b) => average(b) - average(a))
       .slice(0, top);
 
-    if (!list.length) { await interaction.editReply({ content: "❌ لا توجد تقييمات بعد." }); return; }
+    if (list.length === 0) return interaction.editReply({ content: '❌ No ratings recorded yet.' });
 
-    const medals = ["🥇", "🥈", "🥉"];
+    const medals = ['🥇', '🥈', '🥉'];
     const rows = list.map((s, i) => {
-      const avg   = (s.totalRating / s.ratingCount).toFixed(2);
-      const stars = "⭐".repeat(Math.round(s.totalRating / s.ratingCount));
-      return [`${medals[i] ?? `\`${i + 1}.\``} <@${s.adminId}>`, `> ⭐ **${avg}/5** ${stars}`, `> 📊 ${s.ratingCount} تقييم | 🔒 ${s.closed ?? 0} مغلق`].join("\n");
+      const rank = medals[i] ?? `\`${i + 1}.\``;
+      return `${rank} <@${s.adminId}> — ⭐ **${average(s).toFixed(2)}/5** ${stars(average(s))}\n`
+        + `> 📊 ${s.ratingCount} rating${s.ratingCount === 1 ? '' : 's'} · 🔒 ${s.closed ?? 0} closed`;
     });
 
-    await interaction.editReply({ embeds: [new EmbedBuilder().setColor(COLOR.gold).setTitle(`🏆 لوحة المتصدرين — أفضل ${top}`).setDescription("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" + rows.join("\n\n") + "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━").setFooter({ text: "KRS • Leaderboard" }).setTimestamp()] });
+    return interaction.editReply({
+      embeds: [notice({
+        title: `🏆 Leaderboard — top ${top}`,
+        color: C.gold,
+        fields: [field('Staff', rows.join('\n\n'), false)],
+        footer: 'Kratos System • Ratings',
+        timestamp: true,
+      })],
+    });
+  }
 
-  } else if (sub === "history") {
-    const limit = interaction.options.getInteger("limit") ?? 10;
-    const tickets = getAllTickets(guildId).filter((t) => t.rating !== undefined && t.closedAt).sort((a, b) => (b.closedAt ?? 0) - (a.closedAt ?? 0)).slice(0, limit);
+  // ── history ─────────────────────────────────────────────────────────────
+  if (sub === 'history') {
+    const limit = interaction.options.getInteger('limit') ?? 10;
+    const tickets = getAllTickets(guildId)
+      .filter((t) => t.rating !== undefined && t.closedAt)
+      .sort((a, b) => (b.closedAt ?? 0) - (a.closedAt ?? 0))
+      .slice(0, limit);
 
-    if (!tickets.length) { await interaction.editReply({ content: "❌ لا توجد تقييمات مسجّلة." }); return; }
+    if (tickets.length === 0) return interaction.editReply({ content: '❌ No ratings recorded yet.' });
 
     const rows = tickets.map((t) => {
-      const stars = "⭐".repeat(t.rating ?? 0);
-      const admin = t.claimedBy ? `<@${t.claimedBy}>` : "غير مستلم";
-      const date  = t.closedAt ? `<t:${Math.floor(t.closedAt / 1000)}:R>` : "—";
-      return `\`${t.ticketId}\` ${stars} — ${admin} ${date}`;
+      const handled = t.claimedBy ? `<@${t.claimedBy}>` : 'unclaimed';
+      const when    = t.closedAt ? `<t:${Math.floor(t.closedAt / 1000)}:R>` : '—';
+      return `\`${t.ticketId}\` ${'⭐'.repeat(t.rating ?? 0)} — ${handled} ${when}`;
     });
 
-    await interaction.editReply({ embeds: [new EmbedBuilder().setColor(COLOR.blue).setTitle(`📜 آخر ${limit} تقييمات`).setDescription("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" + rows.join("\n") + "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━").setFooter({ text: "KRS • Rating History" }).setTimestamp()] });
+    return interaction.editReply({
+      embeds: [notice({
+        title: `📜 Last ${limit} ratings`,
+        color: C.info,
+        fields: [field('History', rows.join('\n'), false)],
+        footer: 'Kratos System • Ratings',
+        timestamp: true,
+      })],
+    });
+  }
 
-  } else if (sub === "reset") {
+  // ── reset ───────────────────────────────────────────────────────────────
+  if (sub === 'reset') {
     const member = await interaction.guild.members.fetch(interaction.user.id);
     if (!member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-      await interaction.editReply({ content: "❌ يلزم صلاحية **Administrator**." }); return;
+      return interaction.editReply(fail('This requires the **Administrator** permission.'));
     }
-    const user = interaction.options.getUser("admin", true);
+
+    const user  = interaction.options.getUser('admin', true);
     const stats = getAdminStats(user.id);
     stats.totalRating = 0;
     stats.ratingCount = 0;
-    saveAdminStats(stats);
-    await interaction.editReply({ embeds: [new EmbedBuilder().setColor(COLOR.green).setTitle("✅ تم إعادة التعيين").setDescription(`تم مسح تقييمات <@${user.id}>.`).setFooter({ text: `بواسطة: ${interaction.user.username}` }).setTimestamp()] });
+    await saveAdminStats(stats);
+
+    return interaction.editReply(ok(`Ratings for ${user.tag} have been reset.`));
   }
 }
 
+// ── Sub-views ──────────────────────────────────────────────────────────────
+
 async function viewOne(interaction, user, guildId) {
-  const stats  = getAdminStats(user.id);
-  const all    = getAllTickets(guildId).filter((t) => t.claimedBy === user.id);
-  const rated  = all.filter((t) => t.rating !== undefined);
-  const avg    = stats.ratingCount > 0 ? (stats.totalRating / stats.ratingCount).toFixed(2) : "—";
-  const stars  = stats.ratingCount > 0 ? "⭐".repeat(Math.round(stats.totalRating / stats.ratingCount)) : "—";
+  const stats = getAdminStats(user.id);
+  const all   = getAllTickets(guildId).filter((t) => t.claimedBy === user.id);
+  const rated = all.filter((t) => t.rating !== undefined);
+  const avg   = stats.ratingCount > 0 ? (stats.totalRating / stats.ratingCount) : 0;
 
-  const dist = [1,2,3,4,5].map((n) => {
+  // A five-bar histogram, which is more readable than five raw counts.
+  const distribution = [5, 4, 3, 2, 1].map((n) => {
     const count = rated.filter((t) => t.rating === n).length;
-    const bar   = "█".repeat(count) + "░".repeat(Math.max(0, 5 - count));
-    return `${"⭐".repeat(n)} ${bar} (${count})`;
-  });
+    return `${'⭐'.repeat(n)} ${'█'.repeat(count)}${'░'.repeat(Math.max(0, 5 - count))} (${count})`;
+  }).join('\n');
 
-  await interaction.editReply({ embeds: [
-    new EmbedBuilder().setColor(COLOR.blue).setTitle(`📊 تقييمات — ${user.username}`).setThumbnail(user.displayAvatarURL())
-      .setDescription("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-      .addFields(
-        { name: "⭐ المتوسط",         value: `**${avg}/5** ${stars}`, inline: true },
-        { name: "📊 عدد التقييمات",   value: `**${stats.ratingCount}**`, inline: true },
-        { name: "🎫 تكتات معالجة",    value: `**${all.length}**`, inline: true },
-        { name: "📩 Claimed",          value: `**${stats.claimed ?? 0}**`, inline: true },
-        { name: "🔒 Closed",           value: `**${stats.closed ?? 0}**`, inline: true },
-        { name: "📈 نسبة الإغلاق",    value: stats.claimed > 0 ? `**${Math.round(((stats.closed ?? 0) / stats.claimed) * 100)}%**` : "**—**", inline: true },
-        { name: "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📉 توزيع النجوم", value: dist.join("\n") }
-      ).setFooter({ text: "KRS • Admin Ratings" }).setTimestamp()
-  ] });
+  await interaction.editReply({
+    embeds: [notice({
+      title: `📊 Ratings — ${user.username}`,
+      color: C.info,
+      thumbnail: user.displayAvatarURL({ size: 512 }),
+      fields: [
+        field('Average', stats.ratingCount > 0 ? `**${avg.toFixed(2)}/5** ${stars(avg)}` : '—'),
+        field('Ratings', `${stats.ratingCount}`),
+        field('Tickets handled', `${all.length}`),
+        field('Claimed', `${stats.claimed ?? 0}`),
+        field('Closed', `${stats.closed ?? 0}`),
+        field('Close rate', stats.claimed > 0
+          ? `${Math.round(((stats.closed ?? 0) / stats.claimed) * 100)}%`
+          : '—'),
+        field('Star distribution', `\`\`\`\n${distribution}\n\`\`\``, false),
+      ],
+      footer: 'Kratos System • Ratings',
+      timestamp: true,
+    })],
+  });
 }
 
-async function viewAll(interaction, _guildId) {
-  const list = getAllAdminStats().filter((s) => (s.claimed ?? 0) > 0 || (s.closed ?? 0) > 0).sort((a, b) => (b.closed ?? 0) - (a.closed ?? 0));
-  if (!list.length) { await interaction.editReply({ content: "❌ لا توجد بيانات مشرفين بعد." }); return; }
+async function viewAll(interaction, guildId) {
+  const list = statsForGuild(guildId)
+    .filter((s) => (s.claimed ?? 0) > 0 || (s.closed ?? 0) > 0)
+    .sort((a, b) => (b.closed ?? 0) - (a.closed ?? 0));
 
-  const medals = ["🥇", "🥈", "🥉"];
+  if (list.length === 0) return interaction.editReply({ content: '❌ No staff activity recorded yet.' });
+
+  const medals = ['🥇', '🥈', '🥉'];
   const rows = list.map((s, i) => {
-    const avg = s.ratingCount > 0 ? (s.totalRating / s.ratingCount).toFixed(1) : "—";
-    return `${medals[i] ?? `\`${i + 1}.\``} <@${s.adminId}> — ⭐ **${avg}**/5 | 📩 ${s.claimed ?? 0} | 🔒 ${s.closed ?? 0}`;
+    const rank = medals[i] ?? `\`${i + 1}.\``;
+    const avg  = s.ratingCount > 0 ? average(s).toFixed(1) : '—';
+    return `${rank} <@${s.adminId}> — ⭐ **${avg}**/5 · 📩 ${s.claimed ?? 0} claimed · 🔒 ${s.closed ?? 0} closed`;
   });
 
-  await interaction.editReply({ embeds: [
-    new EmbedBuilder().setColor(COLOR.blue).setTitle("👥 تقييمات جميع المشرفين")
-      .setDescription("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" + rows.join("\n") + "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n*📩 = Claimed | 🔒 = Closed*")
-      .setFooter({ text: `KRS • ${list.length} مشرف` }).setTimestamp()
-  ] });
+  await interaction.editReply({
+    embeds: [notice({
+      title: '👥 All staff ratings',
+      color: C.info,
+      fields: [field('Staff', rows.join('\n'), false)],
+      footer: `Kratos System • ${list.length} staff`,
+      timestamp: true,
+    })],
+  });
 }

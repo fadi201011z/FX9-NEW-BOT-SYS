@@ -1,69 +1,69 @@
+import { SlashCommandBuilder, PermissionsBitField } from 'discord.js';
 import {
-  ChatInputCommandInteraction, SlashCommandBuilder,
-  PermissionsBitField, EmbedBuilder,
-} from "discord.js";
-import { getAllOpenTickets, getAllTickets, getClosedTicketsCount, getAllAdminStats, getGuildConfig } from "../../data/ticketDB.js";
-import { COLOR } from "../../utils/embeds.js";
+  getAllOpenTickets, getAllTickets, getClosedTicketsCount,
+  getAllAdminStats, getGuildConfig,
+} from '../../data/ticketDB.js';
+import { notice, field, C } from '../../utils/embeds.js';
 
 export const data = new SlashCommandBuilder()
-  .setName("stats")
-  .setDescription("📊 .إحصائيات نظام التكتات KRS")
+  .setDescription('📊 Ticket system statistics')
+  .setName('stats')
   .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageChannels);
 
 export async function execute(interaction) {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: 64 });
 
-  const guildId = interaction.guildId;
-  const config  = getGuildConfig(guildId);
-  const open    = getAllOpenTickets(guildId);
-  const all     = getAllTickets(guildId);
-  const closed  = getClosedTicketsCount(guildId);
-  const rated   = all.filter((t) => t.rating !== undefined);
+  const guildId   = interaction.guildId;
+  const config    = getGuildConfig(guildId);
+  const open      = getAllOpenTickets(guildId);
+  const all       = getAllTickets(guildId);
+  const closed    = getClosedTicketsCount(guildId);
+  const rated     = all.filter((t) => t.rating !== undefined);
   const avgRating = rated.length > 0
-    ? rated.reduce((s, t) => s + (t.rating ?? 0), 0) / rated.length
+    ? rated.reduce((sum, t) => sum + (t.rating ?? 0), 0) / rated.length
     : 0;
 
+  // Restrict to staff who handled a ticket in THIS guild. Admin stats carry no
+  // guild column, so the raw list spans every server the bot is in.
+  const staffHere = new Set(all.map((t) => t.claimedBy).filter(Boolean));
   const top5 = getAllAdminStats()
-    .filter((s) => s.ratingCount > 0)
+    .filter((s) => staffHere.has(s.adminId) && s.ratingCount > 0)
     .sort((a, b) => (b.totalRating / b.ratingCount) - (a.totalRating / a.ratingCount))
     .slice(0, 5);
 
-  const catCount = { technical: 0, complaint: 0, partnership: 0, other: 0 };
-  for (const t of all) catCount[t.category] = (catCount[t.category] ?? 0) + 1;
+  const byCategory = {};
+  for (const t of all) byCategory[t.category] = (byCategory[t.category] ?? 0) + 1;
 
-  const embed = new EmbedBuilder()
-    .setColor(COLOR.blue)
-    .setTitle("📊 إحصائيات KRS Ticket System")
-    .setDescription("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    .addFields(
-      { name: "🟢 مفتوحة",          value: `**${open.length}**`, inline: true },
-      { name: "📩 Claimed",          value: `**${open.filter((t) => t.status === "claimed").length}**`, inline: true },
-      { name: "🔒 مغلقة",           value: `**${closed}**`, inline: true },
-      { name: "📁 الإجمالي",        value: `**${all.length}**`, inline: true },
-      { name: "⭐ متوسط التقييم",   value: rated.length > 0 ? `**${avgRating.toFixed(1)}/5** (${rated.length})` : "لا يوجد", inline: true },
-      { name: "🛡️ رتب الدعم",       value: `**${config.supportRoleIds.length}**`, inline: true },
-      { name: "🔐 نظام الريلاي",    value: config.adminCategoryId ? "✅ مفعّل" : "❌ معطّل", inline: true },
-      {
-        name: "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📂 توزيع الأقسام",
-        value: [
-          `🛠️ دعم فني: **${catCount.technical ?? 0}**`,
-          `🚫 شكاوى: **${catCount.complaint ?? 0}**`,
-          `🤝 شراكات: **${catCount.partnership ?? 0}**`,
-          `❓ أخرى: **${catCount.other ?? 0}**`,
-        ].join(" | "),
-      },
-    );
+  const fields = [
+    field('🟢 Open', `${open.length}`),
+    field('📩 Claimed', `${open.filter((t) => t.status === 'claimed').length}`),
+    field('🔒 Closed', `${closed}`),
+    field('📁 Total', `${all.length}`),
+    field('⭐ Average rating', rated.length > 0 ? `${avgRating.toFixed(1)}/5 (${rated.length})` : 'None yet'),
+    field('🛡️ Support roles', `${config.supportRoleIds?.length ?? 0}`),
+    field('🔐 Two-channel mode', config.adminCategoryId ? '✅ Enabled' : '❌ Disabled'),
+    field('📂 By category', [
+      `🛠️ Technical Support: **${byCategory.technical ?? 0}**`,
+      `🚫 Report: **${byCategory.complaint ?? 0}**`,
+      `🤝 Partnership: **${byCategory.partnership ?? 0}**`,
+      `❓ Other: **${byCategory.other ?? 0}**`,
+    ].join('\n'), false),
+  ];
 
   if (top5.length > 0) {
-    const medals = ["🥇", "🥈", "🥉", "`4.`", "`5.`"];
-    embed.addFields({
-      name: "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🏆 أفضل المشرفين تقييماً",
-      value: top5
-        .map((s, i) => `${medals[i]} <@${s.adminId}> — ⭐ **${(s.totalRating / s.ratingCount).toFixed(1)}**/5 | 📩 ${s.claimed ?? 0} | 🔒 ${s.closed ?? 0}`)
-        .join("\n"),
-    });
+    const medals = ['🥇', '🥈', '🥉', '`4.`', '`5.`'];
+    fields.push(field('🏆 Highest-rated staff', top5
+      .map((s, i) => `${medals[i]} <@${s.adminId}> — ⭐ **${(s.totalRating / s.ratingCount).toFixed(1)}**/5 · 🔒 ${s.closed ?? 0} closed`)
+      .join('\n'), false));
   }
 
-  embed.setFooter({ text: "KRS Support System • Statistics" }).setTimestamp();
-  await interaction.editReply({ embeds: [embed] });
+  await interaction.editReply({
+    embeds: [notice({
+      title: '📊 Ticket statistics',
+      color: C.info,
+      fields,
+      footer: 'Kratos System • Statistics',
+      timestamp: true,
+    })],
+  });
 }

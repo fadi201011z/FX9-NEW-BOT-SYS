@@ -1,40 +1,44 @@
-import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
-import { Colors } from '../../utils/embeds.js';
+import { SlashCommandBuilder } from 'discord.js';
+import { notice, field, userTag, C } from '../../utils/embeds.js';
 
 export const data = new SlashCommandBuilder()
   .setName('avatar')
-  .setDescription('عرض صورة عضو بأعلى دقة ممكنة')
-  .addUserOption(opt =>
-    opt.setName('user').setDescription('العضو المراد عرض صورته (الافتراضي: أنت)')
-  );
+  .setDescription('View a member’s avatar at the highest available quality')
+  .addUserOption((opt) =>
+    opt.setName('user').setDescription('Member to view (omit for yourself)'));
 
 export async function execute(interaction) {
   const member = interaction.options.getMember('user') ?? interaction.member;
-  const user   = member.user;
+  const { user } = member;
 
-  // صورة السيرفر (إذا وجدت) + صورة الحساب
-  const serverAvatar  = member.displayAvatarURL({ dynamic: true, size: 4096 });
-  const globalAvatar  = user.displayAvatarURL({ dynamic: true, size: 4096 });
-  const isGif         = serverAvatar.includes('.gif') || globalAvatar.includes('.gif');
+  // A per-server avatar takes priority, so `displayAvatarURL` is the one to
+  // show; the global avatar is the fallback and the download source.
+  const serverAvatar = member.displayAvatarURL({ dynamic: true, size: 4096 });
+  const globalAvatar = user.displayAvatarURL({ dynamic: true, size: 4096 });
+  const hasServerAvatar = serverAvatar !== globalAvatar;
+  const isAnimated = serverAvatar.endsWith('.gif') || globalAvatar.endsWith('.gif');
 
-  const embed = new EmbedBuilder()
-    .setColor(Colors.DARK)
-    .setTitle(`🖼️  صورة ${user.tag}`)
-    .setImage(serverAvatar)
-    .addFields(
-      { name: '📥 تنزيل الصورة', value: `[PNG](${user.displayAvatarURL({ format: 'png', size: 4096 })}) • [WebP](${globalAvatar}) ${isGif ? `• [GIF](${serverAvatar})` : ''}`, inline: false },
-    )
-    .setTimestamp()
-    .setFooter({ text: '⚔️ KRS-SYS  •  صورة العضو' });
+  const formats = [`[PNG](${user.displayAvatarURL({ format: 'png', size: 4096 })})`];
+  formats.push(`[WebP](${user.displayAvatarURL({ format: 'webp', size: 4096 })})`);
+  formats.push(`[JPG](${user.displayAvatarURL({ format: 'jpg', size: 4096 })})`);
+  if (isAnimated) formats.push(`[GIF](${serverAvatar})`);
 
-  // إذا كانت صورة السيرفر مختلفة عن الصورة العامة
-  if (serverAvatar !== globalAvatar) {
-    embed.addFields({
-      name: '🌐 الصورة العامة للحساب',
-      value: `[اضغط هنا للعرض](${globalAvatar})`,
-      inline: false,
-    });
-  }
-
-  await interaction.reply({ embeds: [embed] });
+  await interaction.reply({
+    embeds: [notice({
+      title: `🖼️ ${userTag(user)}`,
+      color: C.neutral,
+      image: serverAvatar,
+      thumbnail: globalAvatar,
+      fields: [
+        field('💾 Download', formats.join(' · '), false),
+        // Worth saying explicitly, because "avatar" and "profile picture" are
+        // different pictures when a server avatar is set.
+        ...(hasServerAvatar
+          ? [field('🌐 Global avatar', `This member uses a server-specific avatar. The account avatar is [here](${globalAvatar}).`, false)]
+          : []),
+      ],
+      footer: 'Kratos System • Avatar',
+      timestamp: true,
+    })],
+  });
 }
