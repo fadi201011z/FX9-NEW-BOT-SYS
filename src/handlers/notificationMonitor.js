@@ -1,5 +1,6 @@
 import { getAllSubscriptions, updateSubscription, claimYouTubeVideo } from '../data/notificationDB.js';
 import { youtubeEmbed, kickEmbed, twitterEmbed } from '../utils/notificationEmbeds.js';
+import { isEnabled } from '../utils/features.js';
 
 const CHECK_INTERVAL_MS = 1 * 60 * 1000;
 
@@ -480,6 +481,7 @@ export async function checkSubscriptionNow(client, sub) {
 
 export function startNotificationMonitor(client) {
   async function run() {
+    if (!isEnabled('notifications')) return;
     await Promise.all([
       checkYouTube(client).catch(e => console.error('[Notif] YouTube batch:', e.message)),
       checkKick(client).catch(e => console.error('[Notif] Kick batch:', e.message)),

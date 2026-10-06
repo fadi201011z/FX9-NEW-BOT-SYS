@@ -16,6 +16,7 @@ import {
 import { commandModules } from '../config/commandLoader.js';
 import Maintenance from '../models/Maintenance.js';
 import { ROLES } from '../config/roles.js';
+import { getFeature, featureForCommand, featureForComponent, FEATURE_NAMES } from '../utils/features.js';
 
 const DEV_ID = process.env.BOT_DEVELOPER_ID || null;
 
@@ -57,6 +58,35 @@ async function blockIfMaintenance(interaction) {
   return false;
 }
 
+// ─── Feature switchboard ───────────────────────────────────────────────────
+// Every slash command and every ticket/temp-voice component is owned by a
+// feature. If the dashboard set that feature to `off` the interaction is
+// refused outright; if it is under `maintenance` the user sees the feature's
+// own message. Developers and the guild owner can still use a feature that is
+// only under maintenance (handy for verifying a fix) but not a disabled one.
+const FEATURE_DISABLED_NOTE = 'هذه الخصيصة معطّلة حالياً من قبل الإدارة.';
+
+async function blockIfFeature(interaction, key) {
+  if (!key) return false;
+  const f = getFeature(key);
+  if (f.state === 'on') return false;
+  if (f.state === 'maintenance' && interaction.member && canBypassMaintenance(interaction.member)) return false;
+
+  const name = FEATURE_NAMES[key] || key;
+  const content = f.state === 'maintenance'
+    ? `🔧 **${name}** قيد الصيانة مؤقتاً.
+> ${f.message || 'نعمل على تحسينها، سنعود قريباً.'}`
+    : `🚫 ${FEATURE_DISABLED_NOTE}\n> **${name}**`;
+
+  const payload = { content, flags: EPHEMERAL };
+  if (interaction.replied || interaction.deferred) {
+    await interaction.followUp(payload).catch(() => {});
+  } else {
+    await interaction.reply(payload).catch(() => {});
+  }
+  return true;
+}
+
 export const name = Events.InteractionCreate;
 export const once = false;
 
@@ -80,6 +110,11 @@ export async function execute(interaction) {
           }).catch(() => {});
           return;
         }
+      }
+
+      // ── Feature switchboard ───────────────────────────────────────────────
+      if (await blockIfFeature(interaction, await featureForCommand(interaction.commandName))) {
+        return;
       }
 
       if (interaction.guildId && !isCommandEnabled(interaction.guildId, interaction.commandName)) {
@@ -113,6 +148,7 @@ export async function execute(interaction) {
     // ══════════════════════════════════════════════════════════════════════
     if (interaction.isStringSelectMenu()) {
       if (await blockIfMaintenance(interaction)) return;
+      if (await blockIfFeature(interaction, featureForComponent(interaction.customId))) return;
       const { handleCategorySelect, handleQuickReply } = await import('../handlers/ticketHandler.js');
 
       if (interaction.customId === 'ticket_category') {
@@ -202,6 +238,7 @@ export async function execute(interaction) {
     // ══════════════════════════════════════════════════════════════════════
     if (interaction.isModalSubmit()) {
       if (await blockIfMaintenance(interaction)) return;
+      if (await blockIfFeature(interaction, featureForComponent(interaction.customId))) return;
       const id = interaction.customId;
 
       // Ticket modals
@@ -279,6 +316,7 @@ export async function execute(interaction) {
     // ══════════════════════════════════════════════════════════════════════
     if (interaction.isButton()) {
       if (await blockIfMaintenance(interaction)) return;
+      if (await blockIfFeature(interaction, featureForComponent(interaction.customId))) return;
       const id = interaction.customId;
 
       // ── Rating buttons (ticket system) ──────────────────────────────

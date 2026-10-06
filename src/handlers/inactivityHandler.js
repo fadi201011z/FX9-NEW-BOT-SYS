@@ -1,6 +1,7 @@
 import { getAllOpenTickets, getTicket, saveTicket } from '../data/ticketDB.js';
 import { logEntry, inactivityEmbed, ratingEmbed, ratingButtons, field } from '../utils/embeds.js';
 import { sendOrUpdateTicketLog } from '../utils/ticketLogUtils.js';
+import { isEnabled } from '../utils/features.js';
 
 const WARN_MS  = 24 * 60 * 60 * 1000;
 const CLOSE_MS = 36 * 60 * 60 * 1000;
@@ -23,6 +24,8 @@ export async function updateTicketActivity(channelId) {
 }
 
 async function checkAll(client) {
+  // The inactivity auto-close belongs to the ticket system.
+  if (!isEnabled('tickets')) return;
   const now = Date.now();
   for (const guild of client.guilds.cache.values()) {
     for (const ticket of getAllOpenTickets(guild.id)) {

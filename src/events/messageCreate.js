@@ -8,6 +8,7 @@ import mongoose from 'mongoose';
 import GuildConfig from '../models/GuildConfig.js';
 import { getGuildInvite } from '../utils/invite.js';
 import { markSelfAction, autoUnbanKey, AUTO_UNBAN_TTL_MS } from '../utils/recentAction.js';
+import { isEnabled } from '../utils/features.js';
 
 export const name = Events.MessageCreate;
 export const once = false;
@@ -61,7 +62,9 @@ export async function execute(message, client) {
   //  Exempt: the owner, the bot, and dashboard admins.
   // ══════════════════════════════════════════════════════════════════════════
 
-  const restrictedIds = await getRestrictedChannelIds(guild.id);
+  // Restricted-channel guard is part of the protection feature: when it is off
+  // the list is never consulted, so the whole block below is skipped.
+  const restrictedIds = isEnabled('protection') ? await getRestrictedChannelIds(guild.id) : [];
 
   if (restrictedIds.includes(channel.id)) {
     let exempt = Boolean(OWNER_ID) && message.author.id === OWNER_ID;
@@ -252,7 +255,7 @@ export async function execute(message, client) {
   //  TICKET RELAY
   // ══════════════════════════════════════════════════════════════════════════
 
-  if (message.content || message.attachments.size > 0) {
+  if (isEnabled('tickets') && (message.content || message.attachments.size > 0)) {
     // Member channel → staff channel.
     const userTicket = getTicket(channel.id);
     if (userTicket && userTicket.status !== 'closed' && userTicket.adminChannelId) {
@@ -296,6 +299,10 @@ export async function execute(message, client) {
   // ══════════════════════════════════════════════════════════════════════════
   //  ANTI-SPAM / ANTI-LINK / ANTI-MENTION
   // ══════════════════════════════════════════════════════════════════════════
+
+  // Automod belongs to the protection feature; with it off there is nothing
+  // left for this message to do.
+  if (!isEnabled('protection')) return;
 
   const guildId  = guild.id;
   const userId   = message.author.id;

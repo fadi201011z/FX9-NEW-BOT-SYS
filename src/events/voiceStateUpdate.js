@@ -4,6 +4,7 @@ import { getLogChannel } from '../utils/permissions.js';
 import { logEntry, field, userTag } from '../utils/embeds.js';
 import { updateStatusChannels } from '../utils/statusUpdater.js';
 import Maintenance from '../models/Maintenance.js';
+import { isEnabled } from '../utils/features.js';
 
 const DEV_ID = process.env.BOT_DEVELOPER_ID || null;
 
@@ -35,7 +36,10 @@ export async function execute(oldState, newState) {
 
   const { getGuildSetup, registerChannel, getChannel, deleteChannel, refreshPanel } = await import('../handlers/tempVoice.js');
 
-  const setup = getGuildSetup(guild.id);
+  // Temp-voice is a switchboard feature: when it is off, `setup` reads as absent
+  // so the whole create/delete/transfer block below is skipped — while the
+  // voice-state logging underneath still runs.
+  const setup = isEnabled('temp_voice') ? getGuildSetup(guild.id) : null;
 
   if (setup) {
     // Member joined Join-to-Create channel
@@ -154,7 +158,7 @@ export async function execute(oldState, newState) {
     detail = `Moved from **${oldState.channel.name}** to **${newState.channel.name}**`;
   }
 
-  if (logCh) {
+  if (logCh && isEnabled('logging')) {
     void logCh.send({
       embeds: [logEntry({
         kind,

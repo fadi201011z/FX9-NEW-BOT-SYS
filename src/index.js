@@ -13,6 +13,8 @@ import express from 'express';
 import { loadFromDisk, cleanStaleChannels } from './handlers/tempVoice.js';
 import { loadAllData } from './data/ticketDB.js';
 import { loadAllSubscriptions } from './data/notificationDB.js';
+import Feature from './models/Feature.js';
+import { loadFeatures, isEnabled, featureForEvent } from './utils/features.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -278,6 +280,54 @@ app.get('/api/commands/stats', async (req, res) => {
   res.json({ total, categories: Object.keys(perCategory), perCategory });
 });
 
+// ─── Feature flags: control plane for the dashboard ────────────────────────
+// The dashboard is the source of truth. It writes a feature's state and then
+// pushes it here; this bot stores it in its own DB (works even when the two
+// services use different databases) and the periodic reload picks it up.
+app.get('/api/features', async (req, res) => {
+  try {
+    const docs = await Feature.find({}).lean();
+    res.json({
+      features: docs.map((d) => ({
+        key: d.key,
+        state: d.state || 'on',
+        message: d.message || '',
+        updatedAt: d.updatedAt || null,
+        updatedBy: d.updatedBy || '',
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/features/sync', async (req, res) => {
+  try {
+    const { key, state, message, updatedBy } = req.body || {};
+    if (!key) return res.status(400).json({ error: 'Missing key' });
+    const allowed = ['on', 'off', 'maintenance'];
+    const nextState = allowed.includes(state) ? state : 'on';
+    await Feature.updateOne(
+      { key },
+      {
+        $set: {
+          key,
+          state: nextState,
+          message: typeof message === 'string' ? message.slice(0, 400) : '',
+          updatedBy: typeof updatedBy === 'string' ? updatedBy.slice(0, 100) : '',
+          updatedAt: Date.now(),
+        },
+      },
+      { upsert: true },
+    );
+    await loadFeatures();
+    console.log(`[Features] ${key} → ${nextState}`);
+    res.json({ synced: true, key, state: nextState });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 client.commands = new Collection();
 
 // ─── Load Commands ─────────────────────────────────────────────────────────
@@ -300,12 +350,20 @@ const eventFiles = (await readdir(eventsDir)).filter(f => f.endsWith('.js'));
 
 for (const file of eventFiles) {
   const event = await import(pathToFileURL(path.join(eventsDir, file)).href);
+  // Feature switchboard: an event that serves a disabled/under-maintenance
+  // feature is skipped entirely. Only events mapped in FEATURE_BY_EVENT are
+  // gated; `ready`/`guildCreate`/`guildDelete` and core events are never gated.
+  const featureKey = featureForEvent(event.name);
+  const run = (...args) => {
+    if (featureKey && !isEnabled(featureKey)) return;
+    return event.execute(...args, client);
+  };
   if (event.once) {
-    client.once(event.name, (...args) => event.execute(...args, client));
+    client.once(event.name, run);
   } else {
-    client.on(event.name, (...args) => event.execute(...args, client));
+    client.on(event.name, run);
   }
-  console.log(`  [EVT] ${event.name}`);
+  console.log(`  [EVT] ${event.name}${featureKey ? ` (feature: ${featureKey})` : ''}`);
 }
 
 // ─── Load Persistent Data ──────────────────────────────────────────────────
@@ -315,8 +373,14 @@ await Promise.all([loadFromDisk(), loadAllData(), loadAllSubscriptions()]);
 const { loadCommandConfigsFromDB, loadConfigsFromDB } = await import('./database.js');
 await Promise.all([loadCommandConfigsFromDB(), loadConfigsFromDB()]);
 
+// Feature states are read at boot and refreshed on the same cadence as the
+// other config caches, so a dashboard toggle takes effect globally within a
+// few seconds even if the push to /api/features/sync is missed.
+await loadFeatures();
+
 // Periodic reload of command configs + guild configs (picks up dashboard changes)
 setInterval(() => loadCommandConfigsFromDB(), 5000);
+setInterval(() => loadFeatures(), 5000);
 setInterval(() => loadConfigsFromDB(), 10000);
 setInterval(() => loadAllSubscriptions().catch(e => console.error('[NotifDB] reload error:', e.message)), 15000);
 
