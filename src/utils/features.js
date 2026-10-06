@@ -66,7 +66,15 @@ export const FEATURE_BY_EVENT = Object.freeze({
 let cache = new Map();
 let loadedAt = 0;
 
-/** يقرأ الحالات من قاعدة البيانات إلى الذاكرة. يُستدعى كل 5 ثوان وعند كل مزامنة. */
+/**
+ * يقرأ الحالات من قاعدة البيانات إلى الذاكرة. يُستدعى كل 5 ثوان وعند كل مزامنة.
+ *
+ * يُعيد قائمة الخصائص التي تغيّرت حالتها فعلاً منذ آخر قراءة:
+ *   [{ key, from, to, message }]
+ * الحمل الأول يكون فيه المخزون فارغاً، فلا يُبلَّغ عن شيء عند إقلاع البوت،
+ * وإعادة قراءة لا تغيّر شيئاً تُعيد قائمة فارغة. هذا ما يجعل الإشعار يُرسل
+ * مرة واحدة فقط لكل تبديل، سواء جاء من دفعة اللوحة أو من القراءة الدورية.
+ */
 export async function loadFeatures() {
   try {
     const docs = await Feature.find({}).lean();
@@ -76,11 +84,22 @@ export async function loadFeatures() {
       const state = Object.values(STATE).includes(d.state) ? d.state : STATE.ON;
       next.set(d.key, { state, message: d.message || '' });
     }
+
+    const changes = [];
+    for (const [key, value] of next) {
+      const before = cache.get(key);
+      if (before && before.state !== value.state) {
+        changes.push({ key, from: before.state, to: value.state, message: value.message });
+      }
+    }
+
     cache = next;
     loadedAt = Date.now();
+    return changes;
   } catch (err) {
     // قاعدة البيانات غير متاحة؟ نُبقي آخر لقطة في الذاكرة بدل تعطيل كل شيء.
     if (!loadedAt) console.warn('[Features] load failed:', err.message);
+    return [];
   }
 }
 

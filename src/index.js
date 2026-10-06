@@ -15,6 +15,7 @@ import { loadAllData } from './data/ticketDB.js';
 import { loadAllSubscriptions } from './data/notificationDB.js';
 import Feature from './models/Feature.js';
 import { loadFeatures, isEnabled, featureForEvent } from './utils/features.js';
+import { notifyFeatureChanges } from './utils/featureNotify.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -230,6 +231,27 @@ const client = new Client({
   ],
 });
 
+// ─── Feature reload + announcements ───────────────────────────────────────
+// One place reads the flags and announces whatever actually moved: at boot
+// (cache is empty, so nothing is announced), every 5s, and right after the
+// dashboard's /api/features/sync push. A single promise chain serialises the
+// runs, so a sync push and the 5s tick racing for the same change means the
+// first consumes it and the second sees nothing — never a duplicate notice.
+let featureReload = Promise.resolve();
+
+function reloadFeatures() {
+  const run = async () => {
+    try {
+      const changes = await loadFeatures();
+      if (changes.length) await notifyFeatureChanges(client, changes);
+    } catch (err) {
+      console.error('[Features] reload/notify failed:', err.message);
+    }
+  };
+  featureReload = featureReload.then(run, run);
+  return featureReload;
+}
+
 // ─── Dashboard-Facing API (module scope, not inside `ready`) ───────────────
 // These three endpoints feed the dashboard's landing-page metrics, so they must
 // respond from the moment the process starts — not from the moment Discord
@@ -320,9 +342,11 @@ app.post('/api/features/sync', async (req, res) => {
       },
       { upsert: true },
     );
-    await loadFeatures();
     console.log(`[Features] ${key} → ${nextState}`);
     res.json({ synced: true, key, state: nextState });
+    // Fire-and-forget: the dashboard's save must not wait for a DM to every
+    // server owner. This reload is what turns the toggle into notifications.
+    reloadFeatures();
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -380,7 +404,7 @@ await loadFeatures();
 
 // Periodic reload of command configs + guild configs (picks up dashboard changes)
 setInterval(() => loadCommandConfigsFromDB(), 5000);
-setInterval(() => loadFeatures(), 5000);
+setInterval(() => reloadFeatures(), 5000);
 setInterval(() => loadConfigsFromDB(), 10000);
 setInterval(() => loadAllSubscriptions().catch(e => console.error('[NotifDB] reload error:', e.message)), 15000);
 
