@@ -23,12 +23,19 @@ const DEV_ID = process.env.BOT_DEVELOPER_ID || null;
 async function isMaintenanceActive() {
   try {
     const doc = await Maintenance.findOne().lean();
-    if (!doc || !doc.enabled) return false;
-    if (doc.endTime && Date.now() >= doc.endTime) {
-      await Maintenance.updateOne({ _id: doc._id }, { $set: { enabled: false, endTime: null, durationMinutes: 0 } });
+    if (!doc) return false;
+    // The document now carries two independent halfs. `botEnabled` gates the
+    // bot; before the dashboard ever saved it, an old doc only had `enabled`
+    // (the site switch), so fall back to it for those.
+    const enabled = doc.botEnabled === undefined ? !!doc.enabled : !!doc.botEnabled;
+    const endTime = doc.botEndTime === undefined ? doc.endTime : doc.botEndTime;
+    const message = doc.botMessage || doc.message;
+    if (!enabled) return false;
+    if (endTime && Date.now() >= endTime) {
+      await Maintenance.updateOne({ _id: doc._id }, { $set: { botEnabled: false, botEndTime: null, botDurationMinutes: 0 } });
       return false;
     }
-    return doc.message || 'The bot is under maintenance and development. Please check back later.';
+    return message || 'The bot is under maintenance and development. Please check back later.';
   } catch { return false; }
 }
 

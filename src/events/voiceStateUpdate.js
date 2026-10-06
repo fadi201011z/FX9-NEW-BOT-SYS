@@ -11,9 +11,14 @@ const DEV_ID = process.env.BOT_DEVELOPER_ID || null;
 async function isMaintenanceBlocked(member, guild) {
   try {
     const doc = await Maintenance.findOne().lean();
-    if (!doc || !doc.enabled) return false;
-    if (doc.endTime && Date.now() >= doc.endTime) {
-      await Maintenance.updateOne({ _id: doc._id }, { $set: { enabled: false, endTime: null, durationMinutes: 0 } });
+    if (!doc) return false;
+    // Bot half of the maintenance document; fall back to the legacy single
+    // `enabled` for documents the dashboard has not rewritten yet.
+    const enabled = doc.botEnabled === undefined ? !!doc.enabled : !!doc.botEnabled;
+    const endTime = doc.botEndTime === undefined ? doc.endTime : doc.botEndTime;
+    if (!enabled) return false;
+    if (endTime && Date.now() >= endTime) {
+      await Maintenance.updateOne({ _id: doc._id }, { $set: { botEnabled: false, botEndTime: null, botDurationMinutes: 0 } });
       return false;
     }
     const bypass = (DEV_ID && member.id === DEV_ID) || guild.ownerId === member.id;

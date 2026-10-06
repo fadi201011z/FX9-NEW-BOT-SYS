@@ -51,13 +51,19 @@ export async function execute(client) {
   // ── Check maintenance at startup ────────────────────────────────────
   try {
     const doc = await Maintenance.findOne().lean();
-    if (doc && doc.enabled) {
-      if (doc.endTime && Date.now() >= doc.endTime) {
-        await Maintenance.updateOne({ _id: doc._id }, { $set: { enabled: false, endTime: null, durationMinutes: 0 } });
-      } else {
-        setMaintenancePresence(client, doc.message || 'The bot is under maintenance');
-        if (doc.channelId && !process.env.SUPPRESS_MAINTENANCE_EMBED) {
-          await sendMaintenanceStart(client, doc.channelId, doc.message, doc.endTime);
+    if (doc) {
+      // The bot's own half; fall back to the legacy `enabled` for old docs.
+      const enabled = doc.botEnabled === undefined ? !!doc.enabled : !!doc.botEnabled;
+      const endTime = doc.botEndTime === undefined ? doc.endTime : doc.botEndTime;
+      const message = doc.botMessage || doc.message;
+      if (enabled) {
+        if (endTime && Date.now() >= endTime) {
+          await Maintenance.updateOne({ _id: doc._id }, { $set: { botEnabled: false, botEndTime: null, botDurationMinutes: 0 } });
+        } else {
+          setMaintenancePresence(client, message || 'The bot is under maintenance');
+          if (doc.channelId && !process.env.SUPPRESS_MAINTENANCE_EMBED) {
+            await sendMaintenanceStart(client, doc.channelId, message, endTime);
+          }
         }
       }
     }

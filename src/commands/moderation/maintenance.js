@@ -71,36 +71,39 @@ async function handleStart(interaction) {
     let doc = await Maintenance.findOne();
     if (!doc) doc = new Maintenance();
 
-    doc.enabled = true;
+    // This command drives the BOT half only; the dashboard's site switch is
+    // independent and untouched here.
+    doc.botEnabled = true;
+    doc.botStartedAt = Date.now();
     doc.updatedAt = Date.now();
     doc.updatedBy = interaction.user.id;
 
     if (duration !== null && duration > 0) {
-      doc.endTime = Date.now() + duration * 60 * 1000;
-      doc.durationMinutes = duration;
+      doc.botEndTime = Date.now() + duration * 60 * 1000;
+      doc.botDurationMinutes = duration;
     } else {
-      doc.endTime = null;
-      doc.durationMinutes = 0;
+      doc.botEndTime = null;
+      doc.botDurationMinutes = 0;
     }
 
     await doc.save();
 
-    setMaintenancePresence(interaction.client, doc.message);
+    setMaintenancePresence(interaction.client, doc.botMessage);
 
     if (doc.channelId) {
-      await sendMaintenanceStart(interaction.client, doc.channelId, doc.message, doc.endTime);
+      await sendMaintenanceStart(interaction.client, doc.channelId, doc.botMessage, doc.botEndTime);
     }
 
     await interaction.editReply({
       embeds: [modAction({
         kind: 'maintenance_start',
-        description: doc.durationMinutes > 0
-          ? `All commands and protection systems are paused for ${doc.durationMinutes} minute${doc.durationMinutes === 1 ? '' : 's'}.`
+        description: doc.botDurationMinutes > 0
+          ? `All commands and protection systems are paused for ${doc.botDurationMinutes} minute${doc.botDurationMinutes === 1 ? '' : 's'}.`
           : 'All commands and protection systems are paused until maintenance ends.',
         actor: userTag(interaction.user),
         fields: [
-          field('Duration', doc.durationMinutes > 0
-            ? `<t:${Math.floor(doc.endTime / 1000)}:R>`
+          field('Duration', doc.botDurationMinutes > 0
+            ? `<t:${Math.floor(doc.botEndTime / 1000)}:R>`
             : 'Indefinite'),
           ...(doc.channelId ? [field('Announcement', `<#${doc.channelId}>`)] : []),
         ],
@@ -117,16 +120,16 @@ async function handleStop(interaction) {
 
   try {
     const doc = await Maintenance.findOne();
-    if (!doc || !doc.enabled) {
+    if (!doc || !doc.botEnabled) {
       return interaction.editReply(fail('Maintenance was not on.'));
     }
 
     const oldChannelId = doc.channelId || '';
-    const oldDuration  = doc.durationMinutes || 0;
+    const oldDuration  = doc.botDurationMinutes || 0;
 
-    doc.enabled = false;
-    doc.endTime = null;
-    doc.durationMinutes = 0;
+    doc.botEnabled = false;
+    doc.botEndTime = null;
+    doc.botDurationMinutes = 0;
     doc.updatedAt = Date.now();
     doc.updatedBy = interaction.user.id;
 
@@ -158,9 +161,12 @@ async function handleStop(interaction) {
 async function handleStatus(interaction) {
   try {
     const doc = await Maintenance.findOne().lean();
+    const enabled = doc ? (doc.botEnabled === undefined ? !!doc.enabled : !!doc.botEnabled) : false;
+    const endTime = doc ? (doc.botEndTime === undefined ? doc.endTime : doc.botEndTime) : null;
+    const message = doc ? (doc.botMessage || doc.message) : '';
 
     // Not running: one line is the whole truth.
-    if (!doc || !doc.enabled) {
+    if (!enabled) {
       return interaction.reply({
         content: '🟢 System is healthy — maintenance is not active.',
         flags: EPHEMERAL,
@@ -169,8 +175,8 @@ async function handleStatus(interaction) {
 
     // Running: state, remaining time and where the notice went. Table territory.
     const fields = [
-      field('Message', doc.message || 'The bot is under maintenance'),
-      field('Remaining', doc.endTime ? `<t:${Math.floor(doc.endTime / 1000)}:R>` : 'No end time set'),
+      field('Message', message || 'The bot is under maintenance'),
+      field('Remaining', endTime ? `<t:${Math.floor(endTime / 1000)}:R>` : 'No end time set'),
     ];
     if (doc.channelId) fields.push(field('Announcement', `<#${doc.channelId}>`));
 

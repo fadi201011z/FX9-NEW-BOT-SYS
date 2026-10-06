@@ -754,13 +754,23 @@ client.once('ready', async () => {
     try {
       const Maintenance = (await import('./models/Maintenance.js')).default;
       const doc = await Maintenance.findOne().lean();
-      if (doc && doc.enabled && doc.endTime && Date.now() >= doc.endTime) {
-        await Maintenance.updateOne({ _id: doc._id }, { $set: { enabled: false, endTime: null, durationMinutes: 0 } });
+      // Before the dashboard ever saved the bot half, an old doc only had the
+      // site's `enabled`; fall back to it so the badge matches the gate.
+      const botEnabled = doc ? (doc.botEnabled === undefined ? !!doc.enabled : !!doc.botEnabled) : false;
+      const botEndTime = doc ? (doc.botEndTime === undefined ? doc.endTime : doc.botEndTime) : null;
+      const botMessage = doc ? (doc.botMessage || doc.message || '') : '';
+      if (botEnabled && botEndTime && Date.now() >= botEndTime) {
+        await Maintenance.updateOne({ _id: doc._id }, { $set: { botEnabled: false, botEndTime: null, botDurationMinutes: 0 } });
         clearMaintenancePresence(client);
-        return res.json({ enabled: false });
+        return res.json({ enabled: false, botEnabled: false });
       }
-      res.json({ enabled: doc?.enabled || false, message: doc?.message || '', endTime: doc?.endTime || null });
-    } catch { res.json({ enabled: false }); }
+      res.json({
+        enabled: botEnabled,
+        botEnabled,
+        message: botMessage,
+        endTime: botEndTime,
+      });
+    } catch { res.json({ enabled: false, botEnabled: false }); }
   });
 
   let lastStopTime = 0;
@@ -768,67 +778,82 @@ client.once('ready', async () => {
   app.post('/api/maintenance/sync', async (req, res) => {
     try {
       const Maintenance = (await import('./models/Maintenance.js')).default;
-      const { action, channelId, changelog } = req.body || {};
+      const { action, channelId, changelog, message, endTime, durationMinutes } = req.body || {};
 
-      console.log(`[Maintenance/Sync] action=${action} channelId=${channelId}`);
+      console.log(`[Maintenance/Sync] action=${action || 'update'} channelId=${channelId}`);
 
-      if (channelId) {
-        await Maintenance.updateOne({}, { $set: { channelId } }, { upsert: true });
-      }
-
+      const set = {};
+      if (typeof channelId === 'string' && channelId) set.channelId = channelId;
+      if (typeof message === 'string' && message) set.botMessage = message;
+      if (endTime === null || typeof endTime === 'number') set.botEndTime = endTime ?? null;
+      if (typeof durationMinutes === 'number') set.botDurationMinutes = durationMinutes;
       if (changelog) {
-        const botUpdates = (changelog.botUpdates || '').trim() || 'No updates recorded';
-        const siteUpdates = (changelog.siteUpdates || '').trim() || 'No updates recorded';
-        await Maintenance.updateOne({}, { $set: { changelog: { botUpdates, siteUpdates } } }, { upsert: true });
-      }
-
-      let doc = await Maintenance.findOne().lean();
-
-      if (!doc) {
-        doc = { enabled: false, message: '', channelId: '', endTime: null, durationMinutes: 0, changelog: { botUpdates: '', siteUpdates: '' }, _id: null };
+        set.changelog = {
+          botUpdates: (changelog.botUpdates || '').trim() || 'No updates recorded',
+          siteUpdates: (changelog.siteUpdates || '').trim() || 'No updates recorded',
+        };
       }
 
       if (action === 'start') {
         lastStopTime = 0;
-        await Maintenance.updateOne({}, { $set: { changelog: { botUpdates: '', siteUpdates: '' } } }, { upsert: true });
-        setMaintenancePresence(client, doc.message || 'The bot is under maintenance');
-        const target = channelId || doc.channelId || '';
+        set.botEnabled = true;
+        set.botStartedAt = Date.now();
+        set.changelog = { botUpdates: '', siteUpdates: '' };
+        await Maintenance.updateOne({}, { $set: set }, { upsert: true });
+        const doc = await Maintenance.findOne().lean();
+        setMaintenancePresence(client, doc?.botMessage || 'The bot is under maintenance');
+        const target = channelId || doc?.channelId || '';
         console.log(`[Maintenance/Sync] Sending the start notice to ${target}`);
-        if (target) await sendMaintenanceStart(client, target, doc.message, doc.endTime);
-      } else if (action === 'stop') {
+        if (target) await sendMaintenanceStart(client, target, doc?.botMessage, doc?.botEndTime);
+        return res.json({ synced: true, enabled: true });
+      }
+
+      if (action === 'stop') {
+        const elapsed = typeof req.body?.elapsedMinutes === 'number' ? req.body.elapsedMinutes : 0;
+        set.botEnabled = false;
+        set.botEndTime = null;
+        set.botDurationMinutes = 0;
+        await Maintenance.updateOne({}, { $set: set }, { upsert: true });
         clearMaintenancePresence(client);
         const now = Date.now();
         if (now - lastStopTime < 15000) {
           console.log(`[Maintenance/Sync] Skipping the end notice — already sent ${Math.round((now - lastStopTime) / 1000)}s ago`);
         } else {
           lastStopTime = now;
-          const target = channelId || doc.channelId || '';
-          const cl = doc.changelog || { botUpdates: 'No updates recorded', siteUpdates: 'No updates recorded' };
+          const doc = await Maintenance.findOne().lean();
+          const target = channelId || doc?.channelId || '';
+          const cl = doc?.changelog || { botUpdates: 'No updates recorded', siteUpdates: 'No updates recorded' };
           console.log(`[Maintenance/Sync] Sending the end notice to ${target}`);
-          if (target) await sendMaintenanceEnd(client, target, doc.durationMinutes || 0, cl);
+          if (target) await sendMaintenanceEnd(client, target, elapsed, cl);
         }
-      } else {
-        if (doc.enabled) {
-          if (doc.endTime && Date.now() >= doc.endTime) {
-            await Maintenance.updateOne({ _id: doc._id }, { $set: { enabled: false, endTime: null, durationMinutes: 0 } });
-            clearMaintenancePresence(client);
-            const now = Date.now();
-            if (now - lastStopTime >= 15000) {
-              lastStopTime = now;
-              const target = doc.channelId || '';
-              if (target) await sendMaintenanceEnd(client, target, doc.durationMinutes || 0);
-            }
-          } else {
-            setMaintenancePresence(client, doc.message || 'The bot is under maintenance');
+        return res.json({ synced: true, enabled: false });
+      }
+
+      // 'update' (or no action): persist settings, then reconcile presence and
+      // auto-expiry against the bot's own half.
+      await Maintenance.updateOne({}, { $set: set }, { upsert: true });
+      const doc = await Maintenance.findOne().lean();
+      if (doc?.botEnabled) {
+        if (doc.botEndTime && Date.now() >= doc.botEndTime) {
+          await Maintenance.updateOne({ _id: doc._id }, { $set: { botEnabled: false, botEndTime: null, botDurationMinutes: 0 } });
+          clearMaintenancePresence(client);
+          const now = Date.now();
+          if (now - lastStopTime >= 15000) {
+            lastStopTime = now;
+            const target = doc.channelId || '';
+            if (target) await sendMaintenanceEnd(client, target, doc.botDurationMinutes || 0);
           }
         } else {
-          clearMaintenancePresence(client);
+          setMaintenancePresence(client, doc.botMessage || 'The bot is under maintenance');
         }
+      } else {
+        clearMaintenancePresence(client);
       }
+      return res.json({ synced: true, enabled: !!doc?.botEnabled });
     } catch (err) {
       console.error('[Maintenance/Sync] Error:', err.message);
+      res.json({ synced: false, error: err.message });
     }
-    res.json({ synced: true });
   });
 
   // Single user info from bot cache
@@ -955,12 +980,12 @@ client.once('ready', async () => {
     try {
       const Maintenance = (await import('./models/Maintenance.js')).default;
       const doc = await Maintenance.findOne().lean();
-      if (doc && doc.enabled && doc.endTime && Date.now() >= doc.endTime) {
-        await Maintenance.updateOne({ _id: doc._id }, { $set: { enabled: false, endTime: null, durationMinutes: 0 } });
+      if (doc && doc.botEnabled && doc.botEndTime && Date.now() >= doc.botEndTime) {
+        await Maintenance.updateOne({ _id: doc._id }, { $set: { botEnabled: false, botEndTime: null, botDurationMinutes: 0 } });
         clearMaintenancePresence(client);
         const target = doc.channelId || '';
-        if (target) await sendMaintenanceEnd(client, target, doc.durationMinutes || 0);
-        console.log('[Maintenance] Duration elapsed automatically — maintenance disabled');
+        if (target) await sendMaintenanceEnd(client, target, doc.botDurationMinutes || 0);
+        console.log('[Maintenance] Duration elapsed automatically — bot maintenance disabled');
       }
     } catch (err) {
       console.error('[Maintenance] Error during the periodic check:', err.message);
