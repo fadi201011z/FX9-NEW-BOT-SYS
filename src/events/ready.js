@@ -1,5 +1,6 @@
 import { Events, REST, Routes } from 'discord.js';
 import { updateStatusChannels } from '../utils/statusUpdater.js';
+import { samplePresence } from '../utils/guildStats.js';
 import { startPresenceRotation, setMaintenancePresence } from '../utils/presence.js';
 import { sendMaintenanceStart } from '../utils/maintenanceEmbed.js';
 import Maintenance from '../models/Maintenance.js';
@@ -72,12 +73,21 @@ export async function execute(client) {
   // ── SYS: Update status channels immediately ─────────────────────────
   for (const [, guild] of client.guilds.cache) {
     updateStatusChannels(guild).catch(() => { /* not configured yet */ });
+    samplePresence(guild).catch(() => {});
   }
 
   // ── SYS: Status channel refresh every 60s ───────────────────────────
+  // Every fifth pass also takes a presence sample for the dashboard's
+  // "حالة سرفرك" curve. Renaming a voice channel is a Discord API call the
+  // page does not need every minute, and 288 samples a day is more than a
+  // daily peak can use, so the sample rides along on that slower cadence.
+  let statusTick = 0;
   setInterval(() => {
+    statusTick++;
+    const sampling = statusTick % 5 === 0;
     for (const [, guild] of client.guilds.cache) {
       updateStatusChannels(guild).catch(() => {});
+      if (sampling) samplePresence(guild).catch(() => {});
     }
   }, STATS_INTERVAL);
 

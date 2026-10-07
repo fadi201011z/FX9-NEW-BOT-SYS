@@ -16,6 +16,8 @@ import { loadAllSubscriptions } from './data/notificationDB.js';
 import Feature from './models/Feature.js';
 import { loadFeatures, isEnabled, featureForEvent } from './utils/features.js';
 import { notifyFeatureChanges } from './utils/featureNotify.js';
+import { dayKeys } from './utils/guildStats.js';
+import GuildStats from './models/GuildStats.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -478,6 +480,63 @@ client.once('ready', async () => {
     const guild = client.guilds.cache.get(req.params.guildId);
     if (!guild) return res.status(404).json({ error: 'Guild not found' });
     res.json({ id: guild.id, name: guild.name, icon: guild.icon, memberCount: guild.memberCount });
+  });
+
+  // Daily history for the dashboard's "حالة سرفرك" page: joins and leaves as
+  // they were counted, plus the day's highest presence sample. The response is
+  // zero-filled over the whole window from `dayKeys`, so a server with three
+  // days of data still sends 30 entries and the chart draws the silence
+  // instead of pretending it never existed.
+  app.get('/api/guilds/:guildId/stats', async (req, res) => {
+    const guildId = req.params.guildId;
+    if (!client.guilds.cache.has(guildId)) {
+      return res.status(404).json({ error: 'Guild not found' });
+    }
+    const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 120);
+    try {
+      const keys = dayKeys(days);
+      const rows = await GuildStats.find({ guildId, date: { $gte: keys[0] } })
+        .sort({ date: 1 })
+        .lean();
+      const byDate = new Map(rows.map((r) => [r.date, r]));
+
+      const series = keys.map((date) => {
+        const row = byDate.get(date);
+        return {
+          date,
+          joins: row?.joins || 0,
+          leaves: row?.leaves || 0,
+          onlinePeak: row?.onlinePeak || 0,
+          memberCount: row ? row.memberCount : null,
+        };
+      });
+
+      const totals = series.reduce(
+        (acc, d) => ({
+          joins: acc.joins + d.joins,
+          leaves: acc.leaves + d.leaves,
+          onlinePeak: Math.max(acc.onlinePeak, d.onlinePeak),
+        }),
+        { joins: 0, leaves: 0, onlinePeak: 0 },
+      );
+
+      res.json({
+        guildId,
+        days,
+        series,
+        totals: {
+          joins: totals.joins,
+          leaves: totals.leaves,
+          net: totals.joins - totals.leaves,
+          onlinePeak: totals.onlinePeak,
+        },
+        current: {
+          memberCount: client.guilds.cache.get(guildId)?.memberCount ?? null,
+        },
+      });
+    } catch (e) {
+      res.status(500).json({ error: e?.message || 'Stats unavailable' });
+    }
   });
 
   // Guild roles with member counts for dashboard

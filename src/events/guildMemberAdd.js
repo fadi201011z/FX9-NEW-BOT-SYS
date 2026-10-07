@@ -3,6 +3,7 @@ import { getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
 import { logEntry, notice, field, userTag, C } from '../utils/embeds.js';
 import { updateStatusChannels } from '../utils/statusUpdater.js';
+import { recordJoin } from '../utils/guildStats.js';
 import { generateWelcomeCard } from '../utils/welcomeCard.js';
 
 export const name = Events.GuildMemberAdd;
@@ -117,6 +118,10 @@ export async function execute(member) {
       }).catch(() => {});
     }
   }
+
+  // Counted before anything optional runs: a join that finds no welcome
+  // channel, no log channel or a broken embed still happened today.
+  recordJoin(guild.id, guild.memberCount);
 
   updateStatusChannels(guild, { fetchMembers: false }).catch(() => {});
 }
