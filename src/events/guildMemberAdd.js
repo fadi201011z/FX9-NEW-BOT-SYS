@@ -6,7 +6,7 @@ import { updateStatusChannels } from '../utils/statusUpdater.js';
 import { recordJoin } from '../utils/guildStats.js';
 import { generateWelcomeCard } from '../utils/welcomeCard.js';
 import { isEnabled } from '../utils/features.js';
-import { raidSettings, applyMemberAction, PUNISH_LABEL } from '../utils/protection.js';
+import { raidSettings, applyMemberAction, isExempt, PUNISH_LABEL } from '../utils/protection.js';
 
 export const name = Events.GuildMemberAdd;
 export const once = false;
@@ -52,7 +52,8 @@ export async function execute(member) {
 
       if (wave || tooNew) {
         let done = 'none';
-        if (settings.action !== 'alert') {
+        const exempt = isExempt(guild.id, member, null);
+        if (settings.action !== 'alert' && !exempt) {
           done = await applyMemberAction(member, settings.action, 'Anti-raid: suspicious join', 3_600_000);
         }
 
@@ -73,7 +74,9 @@ export async function execute(member) {
                   field('Wave size', `${joins.length} / ${Math.round(settings.windowMs / 1000)}s (limit ${settings.limit})`),
                   field('Account age', `${accountAgeDays} day${accountAgeDays === 1 ? '' : 's'}`),
                   field('Total members', `${guild.memberCount}`),
-                  field('Action', settings.action === 'alert' ? 'Alert only' : (PUNISH_LABEL[done] ?? done)),
+                  field('Action', settings.action === 'alert'
+                    ? 'Alert only'
+                    : exempt ? 'Skipped (whitelisted)' : (PUNISH_LABEL[done] ?? done)),
                 ],
                 footer: 'Kratos System • Raid alert',
                 timestamp: true,
