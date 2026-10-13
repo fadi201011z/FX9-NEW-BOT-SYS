@@ -7,6 +7,8 @@ import 'dotenv/config';
 import { commandModules } from './config/commandLoader.js';
 import { notice, field, C } from './utils/embeds.js';
 import { initBotLogger, sendOnlineLog, sendOfflineLog, sendErrorLog, startHeartbeat } from './utils/botLogger.js';
+import { getRecentLogs, getMirrorStatus, logStartupStatus } from './utils/dashboardLog.js';
+import { getConfig } from './database.js';
 import { setMaintenancePresence, clearMaintenancePresence } from './utils/presence.js';
 import { sendMaintenanceStart, sendMaintenanceEnd } from './utils/maintenanceEmbed.js';
 import express from 'express';
@@ -63,6 +65,9 @@ if (!API_SECRET) {
   console.error('╚══════════════════════════════════════════════════════════════╝');
   console.error('');
 }
+
+// One explicit line so a dashboard that never receives logs is never a mystery.
+logStartupStatus();
 
 app.get('/', (req, res) => res.send('Kratos System is Online! ✅'));
 app.use(express.json());
@@ -288,6 +293,29 @@ app.get('/api/stats', (req, res) => {
 app.get('/api/guilds', (req, res) => {
   const guildIds = client.isReady() ? client.guilds.cache.map(g => String(g.id)) : [];
   res.json({ guilds: guildIds, count: guildIds.length });
+});
+
+// ─── Dashboard log mirror (pull path) ──────────────────────────────────────
+// The dashboard reads the events the bot mirrored to its log channels. It works
+// even when DASHBOARD_URL is not set on this service, because the dashboard
+// initiates the call and authenticates with the shared API_SECRET. `channels`
+// lets the dashboard explain an empty log instead of guessing.
+app.get('/api/dashboard-log', (req, res) => {
+  const guildId = String(req.query.guildId || '');
+  if (!guildId) return res.status(400).json({ error: 'guildId is required' });
+  const since = Number(req.query.since) || 0;
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 300);
+  res.json({
+    status: {
+      ...getMirrorStatus(),
+      channels: {
+        server: Boolean(getConfig(guildId, 'log_channel')),
+        mod: Boolean(getConfig(guildId, 'modlog_channel')),
+        bot: Boolean(getConfig(guildId, 'botlog_channel')),
+      },
+    },
+    logs: getRecentLogs(guildId, { since, limit }),
+  });
 });
 
 // Command statistics for dashboard (real count, from the loaded modules)

@@ -1,7 +1,7 @@
 import { PermissionFlagsBits } from 'discord.js';
 import { fail } from './embeds.js';
 import { getConfig } from '../database.js';
-import { mirrorServerLog, mirrorEnabled } from './dashboardLog.js';
+import { mirrorServerLog } from './dashboardLog.js';
 
 /**
  * Plain Discord permission check. Still used internally in a few places.
@@ -87,10 +87,12 @@ function logSource(guildId, channelId) {
  * Wrap a log channel so every message it sends is also mirrored to the
  * dashboard. Only `send` is intercepted; everything else is delegated to the
  * real channel with `this` bound to it, so discord.js internals keep working.
- * Returns the channel untouched when mirroring is off or it is not a log channel.
+ * Returns the channel untouched when it is not one of the configured log
+ * channels.
  */
 function withMirror(guild, channelId, ch) {
-  if (!mirrorEnabled) return ch;
+  // Wrap even when real-time push is off: the dashboard can still pull the
+  // events we keep buffered here.
   const source = logSource(guild.id, channelId);
   if (!source) return ch;
 
