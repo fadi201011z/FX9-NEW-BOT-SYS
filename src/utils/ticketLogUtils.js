@@ -1,5 +1,6 @@
 import { buildTicketLogEmbed, ticketLogMenu } from "./embeds.js";
 import { getGuildConfig, saveTicket } from "../data/ticketDB.js";
+import { mirrorServerLog } from "./dashboardLog.js";
 
 export async function sendOrUpdateTicketLog(client, ticket) {
   const config = getGuildConfig(ticket.guildId);
@@ -22,6 +23,7 @@ export async function sendOrUpdateTicketLog(client, ticket) {
   }
 
   try {
+    mirrorServerLog(ticket.guildId, config.logChannelId, 'server', { embeds: [embed] });
     const msg = await logCh.send({ embeds: [embed], components: [row] });
     ticket.logMessageId = msg.id;
     await saveTicket(ticket);

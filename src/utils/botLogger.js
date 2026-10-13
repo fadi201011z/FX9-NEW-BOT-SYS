@@ -17,6 +17,7 @@ import {
 } from 'discord.js';
 import { getConfig, setConfig } from '../database.js';
 import { notice, field, userTag, C, EPHEMERAL } from './embeds.js';
+import { mirrorServerLog } from './dashboardLog.js';
 import { formatDuration } from './parseDuration.js';
 import { commandModules } from '../config/commandLoader.js';
 import process from 'node:process';
@@ -40,7 +41,10 @@ async function broadcast(payload) {
       const id = getConfig(guild.id, 'botlog_channel');
       if (!id) continue;
       const channel = await guild.channels.fetch(id).catch(() => null);
-      if (channel) await channel.send(payload).catch(() => {});
+      if (channel) {
+        mirrorServerLog(guild.id, id, 'bot', payload);
+        await channel.send(payload).catch(() => {});
+      }
     } catch { /* one unreachable guild must not stop the rest */ }
   }
 }

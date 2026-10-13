@@ -1,6 +1,7 @@
 import { PermissionFlagsBits } from 'discord.js';
 import { fail } from './embeds.js';
 import { getConfig } from '../database.js';
+import { mirrorServerLog, mirrorEnabled } from './dashboardLog.js';
 
 /**
  * Plain Discord permission check. Still used internally in a few places.
@@ -72,6 +73,41 @@ export function canModerate(guild, target) {
 const channelCache = new Map();
 const CHANNEL_CACHE_TTL_MS = 15_000;
 
+const LOG_SOURCES = [['log_channel', 'server'], ['modlog_channel', 'mod'], ['botlog_channel', 'bot']];
+
+/** Which log stream a channel belongs to, or null when it is not a log channel. */
+function logSource(guildId, channelId) {
+  for (const [key, source] of LOG_SOURCES) {
+    if (getConfig(guildId, key) === channelId) return source;
+  }
+  return null;
+}
+
+/**
+ * Wrap a log channel so every message it sends is also mirrored to the
+ * dashboard. Only `send` is intercepted; everything else is delegated to the
+ * real channel with `this` bound to it, so discord.js internals keep working.
+ * Returns the channel untouched when mirroring is off or it is not a log channel.
+ */
+function withMirror(guild, channelId, ch) {
+  if (!mirrorEnabled) return ch;
+  const source = logSource(guild.id, channelId);
+  if (!source) return ch;
+
+  return new Proxy(ch, {
+    get(target, prop) {
+      if (prop === 'send') {
+        return (payload, ...rest) => {
+          mirrorServerLog(guild.id, channelId, source, payload);
+          return target.send(payload, ...rest);
+        };
+      }
+      const value = Reflect.get(target, prop, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+}
+
 /** Fetch a log channel by ID, or null. Short-lived cache avoids refetching. */
 export async function getLogChannel(guild, channelId) {
   if (!channelId) return null;
@@ -81,9 +117,13 @@ export async function getLogChannel(guild, channelId) {
   if (cached?.ch && Date.now() - cached.at < CHANNEL_CACHE_TTL_MS) return cached.ch;
 
   try {
-    const ch = guild.channels.cache.get(channelId) ?? await guild.channels.fetch(channelId);
-    if (ch) channelCache.set(key, { ch, at: Date.now() });
-    return ch;
+    const raw = guild.channels.cache.get(channelId) ?? await guild.channels.fetch(channelId);
+    if (raw) {
+      const ch = withMirror(guild, channelId, raw);
+      channelCache.set(key, { ch, at: Date.now() });
+      return ch;
+    }
+    return raw;
   } catch { return null; }
 }
 
