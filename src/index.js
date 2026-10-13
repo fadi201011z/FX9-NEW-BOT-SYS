@@ -836,6 +836,83 @@ client.once('ready', async () => {
     res.json({ success: true, channel: ch.name });
   });
 
+  // ── Send a custom embed built in the dashboard ──────────────────────
+  // The dashboard's "الإمبد" builder posts a fully-formed embed here
+  // (author, title, description, fields, images, footer, colour, timestamp).
+  // Unlike /api/announce this makes no assumptions about the content: it only
+  // clamps every value to Discord's own limits and drops empty pieces, so a
+  // builder that leaves the footer blank does not get a default one.
+  app.post('/api/embed/send', async (req, res) => {
+    const { guildId, channelId, content, mention, embed } = req.body || {};
+    if (!guildId || !channelId) return res.status(400).json({ error: 'Missing guildId or channelId' });
+    if (!embed || typeof embed !== 'object') return res.status(400).json({ error: 'Missing embed' });
+
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+    const ch = await guild.channels.fetch(channelId).catch(() => null);
+    if (!ch || typeof ch.send !== 'function') return res.status(404).json({ error: 'Channel not found or not writable' });
+
+    const str = (v, max) => {
+      if (typeof v !== 'string') return undefined;
+      const t = v.trim();
+      if (!t) return undefined;
+      return max && t.length > max ? t.slice(0, max) : t;
+    };
+    const hexToInt = (v) => {
+      const s = str(v);
+      if (!s) return undefined;
+      const m = s.replace(/^#/, '');
+      if (/^[0-9a-f]{6}$/i.test(m)) return parseInt(m, 16);
+      if (/^[0-9a-f]{3}$/i.test(m)) return parseInt(m.split('').map(c => c + c).join(''), 16);
+      return undefined;
+    };
+
+    const builder = new EmbedBuilder();
+    const color = hexToInt(embed.color);
+    if (color !== undefined) builder.setColor(color);
+
+    const authorName = str(embed.authorName, 256);
+    if (authorName) builder.setAuthor({ name: authorName, iconURL: str(embed.authorIcon) || undefined });
+    if (str(embed.title, 256)) builder.setTitle(str(embed.title, 256));
+    if (str(embed.description, 4096)) builder.setDescription(str(embed.description, 4096));
+
+    if (Array.isArray(embed.fields)) {
+      const fields = embed.fields
+        .filter(f => f && (str(f.name) || str(f.value)))
+        .slice(0, 25)
+        .map(f => ({
+          name: str(f.name, 256) || '\u200b',
+          value: str(f.value, 1024) || '\u200b',
+          inline: !!f.inline,
+        }));
+      if (fields.length) builder.addFields(fields);
+    }
+
+    if (str(embed.image)) builder.setImage(str(embed.image));
+    if (str(embed.thumbnail)) builder.setThumbnail(str(embed.thumbnail));
+
+    const footerText = str(embed.footerText, 2048);
+    if (footerText) builder.setFooter({ text: footerText, iconURL: str(embed.footerIcon) || undefined });
+    if (embed.timestamp) builder.setTimestamp();
+
+    const d = builder.data || {};
+    const hasBody = d.title || d.description || d.author || d.footer || d.image || d.thumbnail || (d.fields && d.fields.length);
+    if (!hasBody) return res.status(400).json({ error: 'Embed is empty — add a title, description, field, or image' });
+
+    let finalContent;
+    if (mention === 'everyone') finalContent = '@everyone';
+    else if (mention === 'here') finalContent = '@here';
+    const text = str(content, 2000);
+    if (text) finalContent = finalContent ? `${finalContent}\n${text}` : text;
+
+    try {
+      const msg = await ch.send({ content: finalContent, embeds: [builder] });
+      res.json({ success: true, channel: ch.name, messageId: msg.id });
+    } catch (err) {
+      res.status(500).json({ error: err.message || 'Failed to send embed' });
+    }
+  });
+
   // Maintenance mode status for dashboard sync
   app.get('/api/maintenance', async (req, res) => {
     try {
