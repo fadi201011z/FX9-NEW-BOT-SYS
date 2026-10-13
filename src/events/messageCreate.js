@@ -9,13 +9,18 @@ import GuildConfig from '../models/GuildConfig.js';
 import { getGuildInvite } from '../utils/invite.js';
 import { markSelfAction, autoUnbanKey, AUTO_UNBAN_TTL_MS } from '../utils/recentAction.js';
 import { isEnabled } from '../utils/features.js';
+import { cfgOf, flagOn, intCfg, PUNISH_LABEL, applyMemberAction, isExempt } from '../utils/protection.js';
 
 export const name = Events.MessageCreate;
 export const once = false;
 
 const OWNER_ID = process.env.OWNER_ID || null;
 
-// ─── Protection thresholds ──────────────────────────────────────────────────
+// ─── Protection ─────────────────────────────────────────────────────────────
+// Every threshold below is a *fallback*: the real value comes from the guild's
+// dashboard config (`anti_*` / `*_limit` keys in the shared guild_config
+// collection). The defaults are only read when a key was never saved, so a
+// fresh server is protected before anyone opens the dashboard.
 const SPAM_THRESHOLD    = 5;
 const SPAM_WINDOW_MS    = 5_000;
 const TIMEOUT_MS        = 60_000;
@@ -297,7 +302,7 @@ export async function execute(message, client) {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  //  ANTI-SPAM / ANTI-LINK / ANTI-MENTION
+  //  ANTI-SPAM / ANTI-LINK / ANTI-MENTION  (all dashboard-configurable)
   // ══════════════════════════════════════════════════════════════════════════
 
   // Automod belongs to the protection feature; with it off there is nothing
@@ -311,107 +316,137 @@ export async function execute(message, client) {
   const modLogCh = await getLogChannel(guild, getConfig(guildId, 'modlog_channel'));
   const alertCh  = modLogCh ?? logCh;
 
-  // The owner is the only exemption — moderators are held to the same rule, by
-  // design. Earlier versions exempted any staff role.
+  // The owner is always exempt. Staff are not: they are held to the same rule
+  // unless their role is added to the dashboard whitelist below.
   if (member && member.id === guild.ownerId) return;
 
+  // ─── Whitelist (roles / users / channels) ─────────────────────────────────
+  if (isExempt(guildId, member, channel.id)) return;
+
   // ─── Anti-mention ────────────────────────────────────────────────────────
-  const mentionCount = message.mentions.users.size + message.mentions.roles.size;
-  if (mentionCount >= MENTION_THRESHOLD) {
-    await message.delete().catch(() => {});
+  if (flagOn(guildId, 'anti_mention')) {
+    const limit = intCfg(guildId, 'mention_limit', MENTION_THRESHOLD, 1, 100);
+    const mentionCount = message.mentions.users.size + message.mentions.roles.size;
+    if (mentionCount >= limit) {
+      await message.delete().catch(() => {});
 
-    await warnAndCleanUp(
-      channel,
-      `⚠️ ${message.author} — you cannot mention ${mentionCount} people in one message.`,
-      6,
-    );
+      const action = cfgOf(guildId, 'mention_action', 'delete');
+      const done = action === 'delete'
+        ? 'none'
+        : await applyMemberAction(member, action, 'Auto-mod: mass mentions', TIMEOUT_MS);
 
-    if (alertCh) {
-      await alertCh.send({
-        embeds: [logEntry({
-          kind: 'automod_mentions',
-          target: `${message.author} (${userTag(message.author)})`,
-          fields: [
-            field('💬 Channel', channel.toString()),
-            field('📊 Mentions', `${mentionCount}`),
-          ],
-          footer: 'Kratos System • Modlog',
-        })],
-      }).catch(() => {});
+      await warnAndCleanUp(
+        channel,
+        `⚠️ ${message.author} — you cannot mention ${mentionCount} people in one message.`,
+        6,
+      );
+
+      if (alertCh) {
+        await alertCh.send({
+          embeds: [logEntry({
+            kind: 'automod_mentions',
+            target: `${message.author} (${userTag(message.author)})`,
+            fields: [
+              field('💬 Channel', channel.toString()),
+              field('📊 Mentions', `${mentionCount} (limit ${limit})`),
+              field('⚡ Action', action === 'delete' ? '🗑️ Message deleted' : PUNISH_LABEL[action] ?? action),
+            ],
+            footer: 'Kratos System • Modlog',
+          })],
+        }).catch(() => {});
+      }
+      return;
     }
-    return;
   }
 
   // ─── Anti-link ───────────────────────────────────────────────────────────
-  const links = message.content.match(LINK_REGEX) ?? [];
-  if (links.length > 0) {
-    await message.delete().catch(() => {});
+  if (flagOn(guildId, 'anti_link')) {
+    const allow = cfgOf(guildId, 'link_whitelist', '')
+      .split(/[\s,]+/).map((d) => d.trim().toLowerCase()).filter(Boolean);
+    const links = message.content.match(LINK_REGEX) ?? [];
+    const blocked = links.filter((url) => {
+      try {
+        const host = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+        return !allow.some((d) => host === d || host.endsWith(`.${d}`));
+      } catch { return true; }
+    });
 
-    await warnAndCleanUp(
-      channel,
-      `⚠️ ${message.author} — links are not allowed in this server.`,
-      5,
-    );
+    if (blocked.length > 0) {
+      await message.delete().catch(() => {});
 
-    if (alertCh) {
-      await alertCh.send({
-        embeds: [logEntry({
-          kind: 'automod_links',
-          target: `${message.author} (${userTag(message.author)})`,
-          fields: [
-            field('💬 Channel', channel.toString()),
-            field('🔗 Link', links[0].slice(0, 1024), false),
-          ],
-          footer: 'Kratos System • Modlog',
-        })],
-      }).catch(() => {});
+      const action = cfgOf(guildId, 'link_action', 'delete');
+      const done = action === 'delete'
+        ? 'none'
+        : await applyMemberAction(member, action, 'Auto-mod: link', TIMEOUT_MS);
+
+      await warnAndCleanUp(
+        channel,
+        `⚠️ ${message.author} — links are not allowed in this server.`,
+        5,
+      );
+
+      if (alertCh) {
+        await alertCh.send({
+          embeds: [logEntry({
+            kind: 'automod_links',
+            target: `${message.author} (${userTag(message.author)})`,
+            fields: [
+              field('💬 Channel', channel.toString()),
+              field('🔗 Link', blocked[0].slice(0, 1024), false),
+              field('⚡ Action', done === 'none' ? '🗑️ Message deleted' : PUNISH_LABEL[done] ?? done),
+            ],
+            footer: 'Kratos System • Modlog',
+          })],
+        }).catch(() => {});
+      }
+      return;
     }
-    return;
   }
 
   // ─── Anti-spam ───────────────────────────────────────────────────────────
-  const spamData = await getSpamData(guildId, userId);
-  let count = 1;
-  let lastReset = now;
+  if (flagOn(guildId, 'anti_spam')) {
+    const limit          = intCfg(guildId, 'spam_limit', SPAM_THRESHOLD, 2, 50);
+    const windowMs       = intCfg(guildId, 'spam_window', SPAM_WINDOW_MS, 1_000, 60_000);
+    const punishment     = cfgOf(guildId, 'spam_punishment', 'timeout');
+    const timeoutSeconds = intCfg(guildId, 'spam_timeout_seconds', TIMEOUT_MS / 1000, 1, 86_400);
 
-  if (spamData && now - spamData.lastReset < SPAM_WINDOW_MS) {
-    count = spamData.messageCount + 1;
-    lastReset = spamData.lastReset;
-  }
-  await upsertSpamData(guildId, userId, count, lastReset);
+    const spamData = await getSpamData(guildId, userId);
+    let count = 1;
+    let lastReset = now;
 
-  if (count >= SPAM_THRESHOLD) {
-    await upsertSpamData(guildId, userId, 0, now);
+    if (spamData && now - spamData.lastReset < windowMs) {
+      count = spamData.messageCount + 1;
+      lastReset = spamData.lastReset;
+    }
+    await upsertSpamData(guildId, userId, count, lastReset);
 
-    let timedOut = false;
-    try {
-      await member.timeout(TIMEOUT_MS, 'Auto-mod: spam');
-      timedOut = true;
-    } catch { /* the bot cannot time out this member */ }
+    if (count >= limit) {
+      await upsertSpamData(guildId, userId, 0, now);
 
-    await warnAndCleanUp(
-      channel,
-      `⚠️ ${message.author} — ${timedOut
-        ? `you have been timed out for ${TIMEOUT_MS / 1000} seconds.`
-        : 'please stop sending repeated messages.'}`,
-      8,
-    );
+      const done = await applyMemberAction(member, punishment, 'Auto-mod: spam', timeoutSeconds * 1000);
 
-    if (alertCh) {
-      await alertCh.send({
-        embeds: [logEntry({
-          kind: 'automod_spam',
-          target: `${message.author} (${userTag(message.author)})`,
-          fields: [
-            field('💬 Channel', channel.toString()),
-            field('📊 Messages', `${count} in ${SPAM_WINDOW_MS / 1000}s`),
-            field('⚡ Action', timedOut
-              ? `🔇 Timed out for ${TIMEOUT_MS / 1000}s`
-              : '⚠️ Warning only'),
-          ],
-          footer: 'Kratos System • Modlog',
-        })],
-      }).catch(() => {});
+      await warnAndCleanUp(
+        channel,
+        `⚠️ ${message.author} — ${done === 'timeout'
+          ? `you have been timed out for ${timeoutSeconds} seconds.`
+          : 'please stop sending repeated messages.'}`,
+        8,
+      );
+
+      if (alertCh) {
+        await alertCh.send({
+          embeds: [logEntry({
+            kind: 'automod_spam',
+            target: `${message.author} (${userTag(message.author)})`,
+            fields: [
+              field('💬 Channel', channel.toString()),
+              field('📊 Messages', `${count} in ${Math.round(windowMs / 1000)}s (limit ${limit})`),
+              field('⚡ Action', PUNISH_LABEL[done] ?? done),
+            ],
+            footer: 'Kratos System • Modlog',
+          })],
+        }).catch(() => {});
+      }
     }
   }
 }

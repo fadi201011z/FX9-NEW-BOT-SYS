@@ -1071,6 +1071,74 @@ client.once('ready', async () => {
     }
   });
 
+  // ─── Protection readiness check ──────────────────────────────────────────
+  // The dashboard's "verify" button. Reports the bot's own permissions and the
+  // log-channel wiring, then mirrors one sample alert so the owner can see the
+  // whole pipeline end to end instead of trusting a green toggle.
+  app.post('/api/protection/test', async (req, res) => {
+    try {
+      const { guildId } = req.body || {};
+      if (!guildId) return res.status(400).json({ error: 'Missing guildId' });
+
+      const guild = client.guilds.cache.get(guildId);
+      if (!guild) {
+        return res.json({
+          ok: false,
+          checks: [{ label: 'البوت داخل السيرفر', ok: false, detail: 'البوت غير موجود في هذا السيرفر.' }],
+        });
+      }
+
+      const me = guild.members.me ?? await guild.members.fetch(client.user.id).catch(() => null);
+      const required = [
+        ['ManageRoles',   'إدارة الرتب'],
+        ['ManageChannels', 'إدارة القنوات'],
+        ['BanMembers',    'حظر الأعضاء'],
+        ['KickMembers',   'طرد الأعضاء'],
+        ['ModerateMembers', 'إسكات مؤقت (Timeout)'],
+        ['ViewAuditLog',  'عرض سجل التدقيق (لتحديد الفاعل)'],
+      ];
+      const checks = required.map(([perm, label]) => {
+        const has = Boolean(me?.permissions?.has(perm));
+        return { label, ok: has, detail: has ? 'ممنوحة' : 'غير ممنوحة — لن تعمل الأنظمة المرتبطة' };
+      });
+
+      const modLogId = getConfig(guildId, 'modlog_channel');
+      const logId    = getConfig(guildId, 'log_channel');
+      const targetId = modLogId || logId;
+      checks.push({
+        label: 'قناة التنبيهات والسجلات',
+        ok: Boolean(targetId),
+        detail: targetId ? 'مضبوطة' : 'غير مضبوطة — لن تظهر التنبيهات في أي روم',
+      });
+
+      let alertSent = false;
+      if (targetId) {
+        const ch = guild.channels.cache.get(targetId) ?? await guild.channels.fetch(targetId).catch(() => null);
+        if (ch) {
+          await ch.send({
+            embeds: [notice({
+              title: '🛡️ اختبار الحماية — كل شيء متصل',
+              description: 'هذه رسالة اختبار أُرسلت من صفحة الحماية في اللوحة.'
+                + '\nإذا كنت تقرأها الآن فقناة السجلات مرتبطة والبوت يملك صلاحية الإرسال.',
+              color: C.ok,
+              footer: 'Kratos System • Protection check',
+              timestamp: true,
+            })],
+          }).then(() => { alertSent = true; }).catch(() => {});
+        }
+      }
+      checks.push({
+        label: 'إرسال تنبيه تجريبي',
+        ok: alertSent,
+        detail: alertSent ? 'تم الإرسال بنجاح ✅' : 'تعذّر الإرسال — تحقّق من قناة السجلات',
+      });
+
+      res.json({ ok: checks.every((c) => c.ok), checks });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Restore ticket panels
   const { restoreAllPanels } = await import('./handlers/ticketHandler.js');
   await restoreAllPanels(client);

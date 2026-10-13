@@ -3,12 +3,11 @@ import { getNukeData, upsertNukeData, getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
 import { getAuditEntry } from '../utils/audit.js';
 import { notice, field, userTag, C } from '../utils/embeds.js';
+import { isEnabled } from '../utils/features.js';
+import { nukeSettings, applyMemberAction, isExempt, PUNISH_LABEL } from '../utils/protection.js';
 
 export const name = Events.GuildBanAdd;
 export const once = false;
-
-const NUKE_THRESHOLD = 5;
-const NUKE_WINDOW_MS = 10_000;
 
 export async function execute(ban) {
   const { guild } = ban;
@@ -19,7 +18,15 @@ export async function execute(ban) {
     if (entry && Date.now() - entry.createdTimestamp < 5000) executor = entry.executor;
   } catch { /* audit log unavailable */ }
 
+  // Dashboard-controlled mass-ban detection.
+  if (!isEnabled('protection')) return;
   if (!executor || executor.bot || executor.id === guild.ownerId) return;
+
+  const settings = nukeSettings(guild.id);
+  if (!settings.enabled) return;
+
+  const executorMember = await guild.members.fetch(executor.id).catch(() => null);
+  if (isExempt(guild.id, executorMember, null)) return;
 
   const now    = Date.now();
   const action = 'mass_ban';
@@ -27,27 +34,20 @@ export async function execute(ban) {
 
   let count     = 1;
   let lastReset = now;
-  if (data && now - data.lastReset < NUKE_WINDOW_MS) {
+  if (data && now - data.lastReset < settings.windowMs) {
     count     = data.count + 1;
     lastReset = data.lastReset;
   }
   await upsertNukeData(guild.id, executor.id, action, count, lastReset);
 
-  if (count < NUKE_THRESHOLD) return;
+  if (count < settings.banLimit) return;
 
   // Threshold reached — reset the counter so one raid produces one alert.
   await upsertNukeData(guild.id, executor.id, action, 0, now);
 
-  let stripped = false;
-  try {
-    const member = await guild.members.fetch(executor.id);
-    // Administrators are left alone: stripping every role from an admin would
-    // lock the server out of its own moderation.
-    if (member && !member.permissions.has('Administrator')) {
-      await member.roles.set([], 'Anti-nuke: mass ban');
-      stripped = true;
-    }
-  } catch { /* cannot modify */ }
+  const done = await applyMemberAction(
+    executorMember, settings.action, 'Anti-nuke: mass ban', 3_600_000,
+  );
 
   const alertCh = await getLogChannel(guild, getConfig(guild.id, 'modlog_channel'))
     ?? await getLogChannel(guild, getConfig(guild.id, 'log_channel'));
@@ -55,16 +55,15 @@ export async function execute(ban) {
   if (alertCh) {
     await alertCh.send({
       embeds: [notice({
-        title: '🚨 Anti-nuke — mass ban detected',
-        description: `<@${executor.id}> issued **${count}** bans in under 10 seconds.\n`
-          + (stripped
-            ? 'All of their roles have been removed automatically.'
-            : 'Their roles were **not** removed (Administrator or missing permissions).'),
+        title: '🚨 Anti-nuke — mass ban',
+        description: `<@${executor.id}> (\`${executor.id}\`) banned **${count}** members in under ${Math.round(settings.windowMs / 1000)} seconds.\n`
+          + `Action taken: **${PUNISH_LABEL[done] ?? done}**.`,
         color: C.error,
         fields: [
           field('Executor', `<@${executor.id}> (${userTag(executor)})`),
           field('User ID', `\`${executor.id}\``),
-          field('Last user banned', `${userTag(ban.user)} \`${ban.user.id}\``),
+          field('Last member banned', `${ban.user} (${userTag(ban.user)})`),
+          field('Action taken', PUNISH_LABEL[done] ?? done),
         ],
         footer: 'Kratos System • Anti-nuke',
         timestamp: true,

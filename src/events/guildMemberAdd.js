@@ -5,12 +5,12 @@ import { logEntry, notice, field, userTag, C } from '../utils/embeds.js';
 import { updateStatusChannels } from '../utils/statusUpdater.js';
 import { recordJoin } from '../utils/guildStats.js';
 import { generateWelcomeCard } from '../utils/welcomeCard.js';
+import { isEnabled } from '../utils/features.js';
+import { raidSettings, applyMemberAction, PUNISH_LABEL } from '../utils/protection.js';
 
 export const name = Events.GuildMemberAdd;
 export const once = false;
 
-const RAID_WINDOW_MS = 10_000;
-const RAID_THRESHOLD = 10;
 const RAID_ALERT_COOLDOWN_MS = 60_000;
 const recentJoins    = new Map();
 const lastRaidAlert  = new Map();
@@ -35,30 +35,52 @@ export async function execute(member) {
   const logChId     = getConfig(guild.id, 'log_channel');
   const modLogChId  = getConfig(guild.id, 'modlog_channel');
 
-  // ─── Raid detection ──────────────────────────────────────────────────────
-  const joins = (recentJoins.get(guild.id) ?? []).filter((t) => now - t < RAID_WINDOW_MS);
-  joins.push(now);
-  recentJoins.set(guild.id, joins);
+  // ─── Anti-raid ───────────────────────────────────────────────────────────
+  // Dashboard-controlled: `anti_raid` gate, `raid_limit` joins inside
+  // `raid_window` ms, `raid_action` (alert / kick / ban), and an optional
+  // `raid_min_account_age` gate that flags accounts younger than N days.
+  if (isEnabled('protection')) {
+    const settings = raidSettings(guild.id);
+    if (settings.enabled) {
+      const joins = (recentJoins.get(guild.id) ?? []).filter((t) => now - t < settings.windowMs);
+      joins.push(now);
+      recentJoins.set(guild.id, joins);
 
-  if (joins.length >= RAID_THRESHOLD) {
-    const lastAlert = lastRaidAlert.get(guild.id) || 0;
-    if (now - lastAlert >= RAID_ALERT_COOLDOWN_MS) {
-      lastRaidAlert.set(guild.id, now);
-      const alertCh = await getLogChannel(guild, modLogChId ?? logChId);
-      if (alertCh) {
-        await alertCh.send({
-          embeds: [notice({
-            title: '🚨 Raid — suspicious join wave',
-            description: `**${joins.length}** members joined in under 10 seconds.\nConsider enabling verification or temporarily restricting access.`,
-            color: C.error,
-            fields: [
-              field('Wave size', `${joins.length} joins / 10s`),
-              field('Total members', `${guild.memberCount}`),
-            ],
-            footer: 'Kratos System • Raid alert',
-            timestamp: true,
-          })],
-        }).catch(() => {});
+      const accountAgeDays = Math.floor((now - member.user.createdTimestamp) / 86_400_000);
+      const tooNew = settings.minAgeDays > 0 && accountAgeDays < settings.minAgeDays;
+      const wave   = joins.length >= settings.limit;
+
+      if (wave || tooNew) {
+        let done = 'none';
+        if (settings.action !== 'alert') {
+          done = await applyMemberAction(member, settings.action, 'Anti-raid: suspicious join', 3_600_000);
+        }
+
+        const lastAlert = lastRaidAlert.get(guild.id) || 0;
+        if (now - lastAlert >= RAID_ALERT_COOLDOWN_MS) {
+          lastRaidAlert.set(guild.id, now);
+          const alertCh = await getLogChannel(guild, modLogChId ?? logChId);
+          if (alertCh) {
+            await alertCh.send({
+              embeds: [notice({
+                title: '🚨 Anti-raid — suspicious join wave',
+                description: `**${joins.length}** members joined in under ${Math.round(settings.windowMs / 1000)} seconds.`
+                  + (settings.action !== 'alert'
+                    ? `\nThe joining member was handled automatically.`
+                    : '\nConsider enabling verification or temporarily restricting access.'),
+                color: C.error,
+                fields: [
+                  field('Wave size', `${joins.length} / ${Math.round(settings.windowMs / 1000)}s (limit ${settings.limit})`),
+                  field('Account age', `${accountAgeDays} day${accountAgeDays === 1 ? '' : 's'}`),
+                  field('Total members', `${guild.memberCount}`),
+                  field('Action', settings.action === 'alert' ? 'Alert only' : (PUNISH_LABEL[done] ?? done)),
+                ],
+                footer: 'Kratos System • Raid alert',
+                timestamp: true,
+              })],
+            }).catch(() => {});
+          }
+        }
       }
     }
   }

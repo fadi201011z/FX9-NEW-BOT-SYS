@@ -3,12 +3,11 @@ import { getNukeData, upsertNukeData, getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
 import { getAuditEntry } from '../utils/audit.js';
 import { logEntry, notice, field, userTag, C } from '../utils/embeds.js';
+import { isEnabled } from '../utils/features.js';
+import { nukeSettings, applyMemberAction, isExempt, PUNISH_LABEL } from '../utils/protection.js';
 
 export const name = Events.RoleDelete;
 export const once = false;
-
-const NUKE_THRESHOLD = 3;
-const NUKE_WINDOW_MS = 10_000;
 
 export async function execute(role) {
   const guild = role.guild;
@@ -42,9 +41,16 @@ export async function execute(role) {
   }
 
   // ─── Anti-nuke ───────────────────────────────────────────────────────────
-  // Three role deletions by one account inside ten seconds is a compromise
-  // pattern. Strip their roles and shout about it.
+  // Dashboard-controlled: `anti_nuke`, `nuke_role_limit` inside `nuke_window`,
+  // and `nuke_action`.
+  if (!isEnabled('protection')) return;
   if (!executor || executor.bot || executor.id === guild.ownerId) return;
+
+  const settings = nukeSettings(guild.id);
+  if (!settings.enabled) return;
+
+  const executorMember = await guild.members.fetch(executor.id).catch(() => null);
+  if (isExempt(guild.id, executorMember, null)) return;
 
   const now    = Date.now();
   const action = 'role_delete';
@@ -52,37 +58,33 @@ export async function execute(role) {
 
   let count     = 1;
   let lastReset = now;
-  if (data && now - data.lastReset < NUKE_WINDOW_MS) {
+  if (data && now - data.lastReset < settings.windowMs) {
     count     = data.count + 1;
     lastReset = data.lastReset;
   }
   await upsertNukeData(guild.id, executor.id, action, count, lastReset);
 
-  if (count < NUKE_THRESHOLD) return;
+  if (count < settings.roleLimit) return;
 
   await upsertNukeData(guild.id, executor.id, action, 0, now);
 
-  let stripped = false;
-  try {
-    const member = await guild.members.fetch(executor.id);
-    if (member && !member.permissions.has('Administrator')) {
-      await member.roles.set([], 'Anti-nuke: mass role deletion');
-      stripped = true;
-    }
-  } catch { /* cannot modify */ }
+  const done = await applyMemberAction(
+    executorMember, settings.action, 'Anti-nuke: mass role deletion', 3_600_000,
+  );
 
   const alertCh = modLogCh ?? logCh;
   if (alertCh) {
     await alertCh.send({
       embeds: [notice({
         title: '🚨 Anti-nuke — mass role deletion',
-        description: `<@${executor.id}> (\`${executor.id}\`) deleted **${count}** roles in under 10 seconds.\n`
-          + (stripped ? 'All of their roles have been removed.' : 'Their roles were **not** removed (Administrator or missing permissions).'),
+        description: `<@${executor.id}> (\`${executor.id}\`) deleted **${count}** roles in under ${Math.round(settings.windowMs / 1000)} seconds.\n`
+          + `Action taken: **${PUNISH_LABEL[done] ?? done}**.`,
         color: C.error,
         fields: [
           field('Executor', `<@${executor.id}> (${userTag(executor)})`),
           field('User ID', `\`${executor.id}\``),
           field('Last role deleted', `\`${role.name}\``),
+          field('Action taken', PUNISH_LABEL[done] ?? done),
         ],
         footer: 'Kratos System • Anti-nuke',
         timestamp: true,
