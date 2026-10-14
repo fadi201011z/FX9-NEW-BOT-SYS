@@ -531,6 +531,12 @@ export async function handleTicketActions(client, interaction) {
 
 // ── Panels ─────────────────────────────────────────────────────────────────
 
+/** True when a bot message carries the ticket category menu (the panel). */
+function isPanelMessage(message) {
+  return message.components?.some((row) =>
+    row.components?.some((component) => component.customId === 'ticket_category'));
+}
+
 /** Refresh one guild's ticket panel (used when the dashboard image changes). */
 export async function refreshGuildPanel(client, guildId) {
   const guild = client.guilds.cache.get(guildId);
@@ -544,9 +550,10 @@ export async function refreshGuildPanel(client, guildId) {
     if (!ch) return false;
 
     const messages = await ch.messages.fetch({ limit: 10 });
+    // The panel is recognised by its category menu rather than its attachment:
+    // in embed mode there is no `panel.png` file to look for.
     const existing = messages.find((m) => m.author.id === client.user.id
-      && m.attachments.size > 0
-      && m.attachments.first()?.name === 'panel.png');
+      && (isPanelMessage(m) || m.attachments.first()?.name === 'panel.png'));
 
     if (existing) await existing.edit(panelPayload(guildId));
     else await ch.send(panelPayload(guildId));

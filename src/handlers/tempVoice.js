@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import * as db from './db.js';
 import { resolveGuildImage } from '../utils/guildImage.js';
+import { getDisplayMode, buildCustomEmbed } from '../utils/customDisplay.js';
 
 const VOICE_PANEL_IMAGE = fileURLToPath(new URL('../../assets/voice-panel.png', import.meta.url));
 
@@ -76,12 +77,21 @@ export function buildStatusPanel(guildId, setup, activeCount = 0) {
   );
 
   // Per-server panel artwork set from the dashboard, with the bundled default
-  // as the fallback.
+  // as the fallback. In embed mode the admin-built embed replaces the artwork;
+  // the buttons stay in both cases. `attachments: []` / `embeds: []` make an
+  // edit that flips the mode clear the previous representation.
+  if (getDisplayMode(guildId, 'voice') === 'embed') {
+    const embed = buildCustomEmbed(guildId, 'voice', { count: activeCount });
+    if (embed) return { embeds: [embed], attachments: [], components: [row1, row2] };
+  }
+
   const custom = guildId && resolveGuildImage(guildId, 'voice_panel_image');
   const attachment = custom ? (custom.buffer || custom.url) : VOICE_PANEL_IMAGE;
 
   return {
     files: [{ attachment, name: 'voice-panel.png' }],
+    embeds: [],
+    attachments: [],
     components: [row1, row2],
   };
 }

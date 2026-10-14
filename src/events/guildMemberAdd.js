@@ -5,6 +5,7 @@ import { logEntry, notice, field, userTag, C } from '../utils/embeds.js';
 import { updateStatusChannels } from '../utils/statusUpdater.js';
 import { recordJoin } from '../utils/guildStats.js';
 import { generateWelcomeCard } from '../utils/welcomeCard.js';
+import { getDisplayMode, buildCustomEmbed } from '../utils/customDisplay.js';
 import { isEnabled } from '../utils/features.js';
 import { raidSettings, applyMemberAction, isExempt, PUNISH_LABEL } from '../utils/protection.js';
 
@@ -99,6 +100,22 @@ export async function execute(member) {
     // Confirm the cached channel is still the one the database points at.
     if (welcomeCh && welcomeCh.id === welcomeChId) {
       void (async () => {
+        // Embed mode replaces the rendered card with the admin-built embed.
+        // An empty/invalid embed falls through to the card so a member never
+        // joins without a welcome.
+        if (getDisplayMode(guild.id, 'welcome') === 'embed') {
+          const custom = buildCustomEmbed(guild.id, 'welcome', {
+            user: member.user.username,
+            tag: member.user.tag,
+            mention: `<@${member.id}>`,
+            server: guild.name,
+            count: guild.memberCount,
+          });
+          if (custom) {
+            await welcomeCh.send({ embeds: [custom] }).catch(() => {});
+            return;
+          }
+        }
         try {
           const card = await generateWelcomeCard(member, guild.id);
           await welcomeCh.send({

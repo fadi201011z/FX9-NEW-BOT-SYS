@@ -30,6 +30,7 @@ import {
 import { CATEGORY_LABEL } from '../data/ticketTypes.js';
 import { formatDuration } from './parseDuration.js';
 import { resolveGuildImage } from './guildImage.js';
+import { getDisplayMode, buildCustomEmbed } from './customDisplay.js';
 
 /** Ephemeral replies. Kept as a named constant so it is never magic-numbered. */
 export const EPHEMERAL = 64;
@@ -253,12 +254,24 @@ const PANEL_IMAGE = fileURLToPath(new URL('../../assets/panel.png', import.meta.
 
 /**
  * The /panel payload. A guild's own panel image (set from the dashboard) wins
- * over the bundled default.
+ * over the bundled default. When the guild switched this panel to embed mode,
+ * the admin-built embed is sent instead of the artwork — the category menu is
+ * always attached either way.
+ *
+ * `embeds: []` / `attachments: []` are always present so an edit that flips the
+ * mode clears the previous representation (Discord keeps existing attachments
+ * and embeds on edit unless they are explicitly emptied).
  */
 export function panelPayload(guildId) {
+  if (getDisplayMode(guildId, 'ticket') === 'embed') {
+    const embed = buildCustomEmbed(guildId, 'ticket');
+    if (embed) return { embeds: [embed], attachments: [], components: [panelMenu()] };
+  }
   const custom = guildId && resolveGuildImage(guildId, 'ticket_panel_image');
   return {
     files: [{ attachment: custom ? (custom.buffer || custom.url) : PANEL_IMAGE, name: 'panel.png' }],
+    embeds: [],
+    attachments: [],
     components: [panelMenu()],
   };
 }
