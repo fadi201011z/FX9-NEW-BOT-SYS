@@ -54,12 +54,13 @@ export function resolveGuildImage(guildId, key) {
 
 /**
  * Downloads an image into a Buffer, with a timeout so a dead host cannot hang
- * the caller.
+ * the caller and a byte cap so an oversized file cannot exhaust memory.
  *
  * @param {string} url
  * @param {number} [timeoutMs=10000]
+ * @param {number} [maxBytes=20971520]  20MB
  */
-export async function fetchImageBuffer(url, timeoutMs = 10_000) {
+export async function fetchImageBuffer(url, timeoutMs = 10_000, maxBytes = 20 * 1024 * 1024) {
   let timer;
   try {
     const res = await Promise.race([
@@ -70,7 +71,11 @@ export async function fetchImageBuffer(url, timeoutMs = 10_000) {
     ]);
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return Buffer.from(await res.arrayBuffer());
+    const declared = Number(res.headers.get('content-length') || 0);
+    if (declared && declared > maxBytes) throw new Error(`image too large (${declared} bytes)`);
+    const buffer = Buffer.from(await res.arrayBuffer());
+    if (buffer.length > maxBytes) throw new Error(`image too large (${buffer.length} bytes)`);
+    return buffer;
   } finally {
     clearTimeout(timer);
   }
