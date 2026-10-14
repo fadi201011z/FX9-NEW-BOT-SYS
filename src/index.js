@@ -70,6 +70,10 @@ if (!API_SECRET) {
 logStartupStatus();
 
 app.get('/', (req, res) => res.send('Kratos System is Online! ✅'));
+// ─── Health check (Render / any host) ─────────────────────────────────────
+// Answered before any DB / Discord work, so the deploy is marked live the
+// moment the process is listening instead of after the Mongo connection.
+app.get('/healthz', (_req, res) => res.status(200).type('text/plain').send('ok'));
 app.use(express.json());
 
 // ─── Member Resolution (gateway cache first, REST pagination guarantee) ───
