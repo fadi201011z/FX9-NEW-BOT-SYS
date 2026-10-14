@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { resolveGuildImage, fetchImageBuffer } from './guildImage.js';
+import { getConfig } from '../database.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, '..', '..', 'data');
@@ -40,6 +41,19 @@ function withTimeout(promise, ms) {
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error('Image load timeout')), ms)),
   ]);
+}
+
+function clamp(v, min, max) {
+  return Math.min(max, Math.max(min, v));
+}
+
+// Numeric setting with a default — the dashboard stores every value as a string,
+// so an empty/missing key or a non-numeric value must fall back cleanly.
+function numCfg(guildId, key, fallback) {
+  const raw = getConfig(guildId, key);
+  if (raw === null || raw === undefined || raw === '') return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : fallback;
 }
 
 async function loadBg(guildId) {
@@ -99,15 +113,29 @@ export async function generateWelcomeCard(member, guildId) {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-  const cx = 1340, cy = 527, r = 253;
-  const avatarR = 256;
+  // ─── Avatar placement (customisable from the dashboard) ────────────────────
+  // The dashboard's welcome-image editor writes these keys; the defaults match
+  // the original hard-coded layout so existing servers render unchanged.
+  const cx = clamp(numCfg(guildId, 'welcome_avatar_x', 1340), 0, WIDTH);
+  const cy = clamp(numCfg(guildId, 'welcome_avatar_y', 527), 0, HEIGHT);
+  const size = clamp(numCfg(guildId, 'welcome_avatar_size', 512), 40, HEIGHT);
+  const avatarR = size / 2;
   roundImage(ctx, avatarImg, cx, cy, avatarR);
 
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 5;
-  ctx.stroke();
+  // Ring (inside the avatar edge, like the original white circle).
+  const ringRaw = getConfig(guildId, 'welcome_avatar_ring');
+  const ringOn = ringRaw === null ? true : ringRaw === '1';
+  const ringWidth = clamp(numCfg(guildId, 'welcome_avatar_ring_width', 5), 0, size / 2);
+  const ringColorRaw = getConfig(guildId, 'welcome_avatar_ring_color');
+  const ringColor = /^#[0-9a-fA-F]{6}$/.test(ringColorRaw || '') ? ringColorRaw : '#ffffff';
+
+  if (ringOn && ringWidth > 0) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.max(1, avatarR - ringWidth / 2), 0, Math.PI * 2);
+    ctx.strokeStyle = ringColor;
+    ctx.lineWidth = ringWidth;
+    ctx.stroke();
+  }
 
   return canvas.toBuffer('image/png');
 }
