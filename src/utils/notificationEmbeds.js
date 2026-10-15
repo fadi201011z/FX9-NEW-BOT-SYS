@@ -2,7 +2,7 @@ import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'disc
 
 const PLATFORM = {
   youtube: { name: 'YouTube', color: 0xff0000, logo: 'https://www.youtube.com/s/desktop/92a3e22b/img/favicon_144x144.png' },
-  kick:    { name: 'Kick',    color: 0x53fc18, logo: 'https://kick.com/favicon.ico' },
+  kick:    { name: 'Kick',    color: 0x44d614, logo: 'https://kick.com/favicon.ico' },
   twitter: { name: 'Twitter', color: 0x1da1f2, logo: 'https://abs.twimg.com/favicons/twitter.2.ico' },
 };
 
