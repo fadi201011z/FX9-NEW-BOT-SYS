@@ -1,4 +1,4 @@
-import { EmbedBuilder } from 'discord.js';
+import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 
 const PLATFORM = {
   youtube: { name: 'YouTube', color: 0xff0000, logo: 'https://www.youtube.com/s/desktop/92a3e22b/img/favicon_144x144.png' },
@@ -39,6 +39,20 @@ export function kickEmbed(stream) {
   if (stream.thumbnail) embed.setImage(stream.thumbnail);
   embed.setFooter({ text: 'KRS Notifier' }).setTimestamp();
   return embed;
+}
+
+// Link button under the Kick embed: label = channel name, opens the channel page.
+export function kickComponents(stream) {
+  const channelUrl = stream.slug ? `https://kick.com/${stream.slug}` : stream.url;
+  const label = String(stream.channelName || stream.slug || 'Watch on Kick').slice(0, 80);
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setStyle(ButtonStyle.Link)
+      .setEmoji('🟢')
+      .setLabel(label)
+      .setURL(channelUrl),
+  );
+  return [row];
 }
 
 export function twitterEmbed(tweet) {

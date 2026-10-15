@@ -1,5 +1,5 @@
 import { getAllSubscriptions, updateSubscription, claimYouTubeVideo } from '../data/notificationDB.js';
-import { youtubeEmbed, kickEmbed, twitterEmbed } from '../utils/notificationEmbeds.js';
+import { youtubeEmbed, kickEmbed, kickComponents, twitterEmbed } from '../utils/notificationEmbeds.js';
 import { isEnabled } from '../utils/features.js';
 
 const CHECK_INTERVAL_MS = 1 * 60 * 1000;
@@ -68,7 +68,7 @@ async function fetchYouTubeChannelAvatar(channelId) {
   return null;
 }
 
-export { youtubeEmbed, kickEmbed, twitterEmbed } from '../utils/notificationEmbeds.js';
+export { youtubeEmbed, kickEmbed, kickComponents, twitterEmbed } from '../utils/notificationEmbeds.js';
 
 export async function fetchLatestYouTubeVideo(channelId) {
   const rssUrl = channelId.startsWith('UC')
@@ -269,7 +269,7 @@ export async function fetchLatestTweet(username) {
 //  Common
 // ═══════════════════════════════════════════════════════════════════════════
 
-export async function sendNotification(client, sub, embed) {
+export async function sendNotification(client, sub, embed, components) {
   try {
     const ch = await client.channels.fetch(sub.discordChannelId).catch(() => null);
     if (!ch) return false;
@@ -277,7 +277,9 @@ export async function sendNotification(client, sub, embed) {
     parts.push('@everyone');
     if (sub.customMessage) parts.push(sub.customMessage);
     const content = parts.join(' | ');
-    await ch.send({ content, embeds: [embed] });
+    const payload = { content, embeds: [embed] };
+    if (Array.isArray(components) && components.length) payload.components = components;
+    await ch.send(payload);
     return true;
   } catch (err) {
     console.error(`[Notif] Send error (${sub._id}):`, err.message);
@@ -380,7 +382,7 @@ async function checkKick(client) {
       if (isLive) {
         if (recentlyNotified.has(slug)) continue;
         if (stream.id !== sub.lastStreamId) {
-          const sent = await sendNotification(client, sub, kickEmbed(stream));
+          const sent = await sendNotification(client, sub, kickEmbed(stream), kickComponents(stream));
           if (sent) {
             await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id });
             recentlyNotified.add(slug);
@@ -450,7 +452,7 @@ export async function checkSubscriptionNow(client, sub) {
     if (result.status === 'error') return `❌ ${result.message}`;
     if (result.status === 'offline') return 'Offline right now — no live stream.';
     const stream = result.stream;
-    const sent = await sendNotification(client, sub, kickEmbed(stream));
+    const sent = await sendNotification(client, sub, kickEmbed(stream), kickComponents(stream));
     if (sent) {
       await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id || '' });
     }

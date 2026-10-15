@@ -688,7 +688,7 @@ client.once('ready', async () => {
 
   app.post('/api/notifications/checknow/:id', async (req, res) => {
     const { getSubscription, updateSubscription, claimYouTubeVideo } = await import('./data/notificationDB.js');
-    const { fetchLatestYouTubeVideo, fetchKickStream, fetchLatestTweet, youtubeEmbed, kickEmbed, twitterEmbed } = await import('./handlers/notificationMonitor.js');
+    const { fetchLatestYouTubeVideo, fetchKickStream, fetchLatestTweet, youtubeEmbed, kickEmbed, kickComponents, twitterEmbed } = await import('./handlers/notificationMonitor.js');
     const { sendNotification } = await import('./handlers/notificationMonitor.js');
     const sub = getSubscription(req.params.id);
     if (!sub) return res.status(404).json({ error: 'Subscription not found' });
@@ -717,7 +717,7 @@ client.once('ready', async () => {
       if (result.status === 'offline') return res.json({ found: false, offline: true, message: 'The channel is offline right now — no live stream. A notification will be sent automatically when it goes live.' });
       const stream = result.stream;
       if (sub.lastStreamId === stream.id) return res.json({ found: false, message: 'No new stream.' });
-      const sent = await sendNotification(client, sub, kickEmbed(stream));
+      const sent = await sendNotification(client, sub, kickEmbed(stream), kickComponents(stream));
       if (sent) await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id });
       return res.json({ found: true, sent, platform: 'kick', title: stream.title, url: stream.url });
     }
@@ -736,7 +736,7 @@ client.once('ready', async () => {
 
   app.post('/api/notifications/resend/:id', async (req, res) => {
     const { getSubscription, updateSubscription } = await import('./data/notificationDB.js');
-    const { fetchLatestYouTubeVideo, fetchKickStream, fetchLatestTweet, youtubeEmbed, kickEmbed, twitterEmbed } = await import('./handlers/notificationMonitor.js');
+    const { fetchLatestYouTubeVideo, fetchKickStream, fetchLatestTweet, youtubeEmbed, kickEmbed, kickComponents, twitterEmbed } = await import('./handlers/notificationMonitor.js');
     const { sendNotification } = await import('./handlers/notificationMonitor.js');
     const sub = getSubscription(req.params.id);
     if (!sub) return res.status(404).json({ error: 'Subscription not found' });
@@ -754,7 +754,7 @@ client.once('ready', async () => {
       if (result.status === 'error') return res.json({ sent: false, error: 'Could not read the Kick stream: ' + result.message });
       if (result.status === 'offline') return res.json({ sent: false, offline: true, message: 'The channel is offline right now — a notification will be sent automatically when it goes live.' });
       const stream = result.stream;
-      const sent = await sendNotification(client, sub, kickEmbed(stream));
+      const sent = await sendNotification(client, sub, kickEmbed(stream), kickComponents(stream));
       if (sent) await updateSubscription(sub._id.toString(), { lastStreamStatus: true, lastStreamId: stream.id });
       return res.json({ sent, platform: 'kick', title: stream.title, url: stream.url });
     }
