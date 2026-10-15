@@ -41,14 +41,16 @@ export function kickEmbed(stream) {
   return embed;
 }
 
-// Link button under the Kick embed: label = channel name, opens the channel page.
+// Link button under the Kick embed: label = "Kick.com/<name>", opens the channel page.
 export function kickComponents(stream) {
-  const channelUrl = stream.slug ? `https://kick.com/${stream.slug}` : stream.url;
-  const label = String(stream.channelName || stream.slug || 'Watch on Kick').slice(0, 80);
+  const slug = String(stream.slug || '').trim();
+  const channelUrl = slug ? `https://kick.com/${slug}` : stream.url;
+  const handle = String(stream.channelName || slug || 'Watch on Kick').trim();
+  const label = `Kick.com/${handle}`.slice(0, 80);
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setStyle(ButtonStyle.Link)
-      .setEmoji('🟢')
+      .setEmoji('🔗')
       .setLabel(label)
       .setURL(channelUrl),
   );
