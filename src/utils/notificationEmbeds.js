@@ -7,20 +7,38 @@ const PLATFORM = {
 };
 
 export function youtubeEmbed(video) {
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(PLATFORM.youtube.color)
-    .setAuthor({ name: PLATFORM.youtube.name, iconURL: PLATFORM.youtube.logo })
-    .setTitle('New YouTube video')
-    .setDescription(`### [${video.title}](${video.url})`)
+    .setTitle('📹 New video on YouTube')
     .setURL(video.url)
-    .setThumbnail(video.channelAvatar || video.thumbnail)
-    .setImage(video.thumbnail)
+    .setDescription(`### [${video.title}](${video.url})`)
     .addFields(
       { name: 'Channel', value: `[${video.channelName}](https://www.youtube.com/channel/${video.channelId})`, inline: true },
       { name: 'Published', value: `<t:${Math.floor(video.publishedAt / 1000)}:R>`, inline: true },
     )
     .setFooter({ text: 'KRS Notifier' })
     .setTimestamp();
+
+  // The channel is the subject, so it leads the card — name and avatar together,
+  // and the avatar is only attached when the RSS scrape actually found one.
+  const author = { name: video.channelName || PLATFORM.youtube.name };
+  if (video.channelAvatar) author.iconURL = video.channelAvatar;
+  embed.setAuthor(author);
+
+  if (video.thumbnail) embed.setImage(video.thumbnail);
+  return embed;
+}
+
+// Link button under the YouTube embed: opens the new video.
+export function youtubeComponents(video) {
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setStyle(ButtonStyle.Link)
+      .setEmoji('▶️')
+      .setLabel('Watch on YouTube')
+      .setURL(video.url),
+  );
+  return [row];
 }
 
 export function kickEmbed(stream) {

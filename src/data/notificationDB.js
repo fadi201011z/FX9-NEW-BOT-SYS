@@ -20,18 +20,33 @@ export function getAllSubscriptions() {
 }
 
 export async function addSubscription(data) {
-  const filter = { guildId: data.guildId, platform: data.platform, channelUrl: data.channelUrl };
+  // A subscription is identified by the channel it watches, not by the exact
+  // URL spelling the admin typed: `@name` and `@name/videos` are the same
+  // channel, and keying on the URL made them two subscriptions that announced
+  // every upload twice.
+  const identity = data.channelId
+    ? { channelId: data.channelId }
+    : { channelUrl: data.channelUrl };
+  const filter = { guildId: data.guildId, platform: data.platform, ...identity };
+
   const update = {
     $set: {
+      channelUrl: data.channelUrl,
       channelId: data.channelId || '',
       channelName: data.channelName || '',
       discordChannelId: data.discordChannelId,
       customMessage: data.customMessage || '',
+    },
+    // Progress markers are written once, on insert. Re-saving an existing
+    // subscription must never rewind `lastVideoId` — that is what made the bot
+    // re-announce the newest upload every time a channel was added again.
+    $setOnInsert: {
       lastVideoId: data.lastVideoId || '',
+      lastVideoAt: data.lastVideoAt || 0,
       lastStreamStatus: false,
       lastStreamId: '',
+      createdAt: Date.now(),
     },
-    $setOnInsert: { createdAt: Date.now() },
   };
   const doc = await Notification.findOneAndUpdate(filter, update, { upsert: true, new: true });
   subscriptions.set(doc._id.toString(), doc);
@@ -87,7 +102,9 @@ export async function loadAllSubscriptions() {
   const rows = await Notification.find({}).lean();
   const seen = new Map();
   for (const row of rows) {
-    const key = `${row.guildId}|${row.platform}|${row.channelUrl}`;
+    // Same identity the writer uses: one subscription per channel per platform
+    // per guild, regardless of which URL spelling created it.
+    const key = `${row.guildId}|${row.platform}|${row.channelId || row.channelUrl}`;
     const existing = seen.get(key);
     if (!existing || (row.createdAt || 0) > (existing.createdAt || 0)) {
       seen.set(key, row);

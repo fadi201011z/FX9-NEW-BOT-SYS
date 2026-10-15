@@ -1,5 +1,5 @@
 import { getAllSubscriptions, updateSubscription, claimYouTubeVideo } from '../data/notificationDB.js';
-import { youtubeEmbed, kickEmbed, kickComponents, twitterEmbed } from '../utils/notificationEmbeds.js';
+import { youtubeEmbed, youtubeComponents, kickEmbed, kickComponents, twitterEmbed } from '../utils/notificationEmbeds.js';
 import { isEnabled } from '../utils/features.js';
 
 const CHECK_INTERVAL_MS = 1 * 60 * 1000;
@@ -68,7 +68,7 @@ async function fetchYouTubeChannelAvatar(channelId) {
   return null;
 }
 
-export { youtubeEmbed, kickEmbed, kickComponents, twitterEmbed } from '../utils/notificationEmbeds.js';
+export { youtubeEmbed, youtubeComponents, kickEmbed, kickComponents, twitterEmbed } from '../utils/notificationEmbeds.js';
 
 export async function fetchLatestYouTubeVideo(channelId) {
   const rssUrl = channelId.startsWith('UC')
@@ -335,7 +335,7 @@ async function checkYouTube(client) {
       const claimed = await claimYouTubeVideo(sub._id.toString(), video);
       if (!claimed) continue;
 
-      const sent = await sendNotification(client, sub, youtubeEmbed(video));
+      const sent = await sendNotification(client, sub, youtubeEmbed(video), youtubeComponents(video));
       if (sent) {
         ytSent.add(key);
       } else {
@@ -439,7 +439,7 @@ export async function checkSubscriptionNow(client, sub) {
     const claimed = await claimYouTubeVideo(sub._id.toString(), video);
     if (!claimed) return 'ℹ️ This video was already sent (duplicate record).';
 
-    const sent = await sendNotification(client, sub, youtubeEmbed(video));
+    const sent = await sendNotification(client, sub, youtubeEmbed(video), youtubeComponents(video));
     if (!sent) {
       await updateSubscription(sub._id.toString(), { lastVideoId: prevId || '', lastVideoAt: lastAt }).catch(() => {});
       return '❌ Sending to Discord failed.';

@@ -688,7 +688,7 @@ client.once('ready', async () => {
 
   app.post('/api/notifications/checknow/:id', async (req, res) => {
     const { getSubscription, updateSubscription, claimYouTubeVideo } = await import('./data/notificationDB.js');
-    const { fetchLatestYouTubeVideo, fetchKickStream, fetchLatestTweet, youtubeEmbed, kickEmbed, kickComponents, twitterEmbed } = await import('./handlers/notificationMonitor.js');
+    const { fetchLatestYouTubeVideo, fetchKickStream, fetchLatestTweet, youtubeEmbed, youtubeComponents, kickEmbed, kickComponents, twitterEmbed } = await import('./handlers/notificationMonitor.js');
     const { sendNotification } = await import('./handlers/notificationMonitor.js');
     const sub = getSubscription(req.params.id);
     if (!sub) return res.status(404).json({ error: 'Subscription not found' });
@@ -703,7 +703,7 @@ client.once('ready', async () => {
       const prevId = sub.lastVideoId;
       const claimed = await claimYouTubeVideo(sub._id.toString(), video);
       if (!claimed) return res.json({ found: false, message: 'This video was already sent (no duplicates).' });
-      const sent = await sendNotification(client, sub, youtubeEmbed(video));
+      const sent = await sendNotification(client, sub, youtubeEmbed(video), youtubeComponents(video));
       if (!sent) {
         await updateSubscription(sub._id.toString(), { lastVideoId: prevId || '', lastVideoAt: lastAt }).catch(() => {});
         return res.json({ found: false, error: 'Sending to Discord failed.' });
@@ -736,7 +736,7 @@ client.once('ready', async () => {
 
   app.post('/api/notifications/resend/:id', async (req, res) => {
     const { getSubscription, updateSubscription } = await import('./data/notificationDB.js');
-    const { fetchLatestYouTubeVideo, fetchKickStream, fetchLatestTweet, youtubeEmbed, kickEmbed, kickComponents, twitterEmbed } = await import('./handlers/notificationMonitor.js');
+    const { fetchLatestYouTubeVideo, fetchKickStream, fetchLatestTweet, youtubeEmbed, youtubeComponents, kickEmbed, kickComponents, twitterEmbed } = await import('./handlers/notificationMonitor.js');
     const { sendNotification } = await import('./handlers/notificationMonitor.js');
     const sub = getSubscription(req.params.id);
     if (!sub) return res.status(404).json({ error: 'Subscription not found' });
@@ -744,7 +744,7 @@ client.once('ready', async () => {
     if (sub.platform === 'youtube') {
       const video = await fetchLatestYouTubeVideo(sub.channelId);
       if (!video) return res.json({ sent: false, error: 'Could not read the YouTube RSS feed' });
-      const sent = await sendNotification(client, sub, youtubeEmbed(video));
+      const sent = await sendNotification(client, sub, youtubeEmbed(video), youtubeComponents(video));
       if (sent) await updateSubscription(sub._id.toString(), { lastVideoId: video.videoId, channelName: video.channelName || sub.channelName });
       return res.json({ sent, platform: 'youtube', title: video.title, url: video.url });
     }
