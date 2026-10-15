@@ -1,4 +1,5 @@
 import { getConfig } from '../database.js';
+import { markSelfAction, channelRenameKey } from './recentAction.js';
 
 /**
  * Keeps the statistics voice channels in sync.
@@ -50,6 +51,9 @@ export async function updateStatusChannels(guild, { fetchMembers = true } = {}) 
         const channel = await guild.channels.fetch(channelId).catch(() => null);
         // The name check avoids a pointless API call every minute.
         if (channel && channel.name !== newName) {
+          // Tell the log handler this rename is ours, so it does not write a
+          // "channel updated" entry every time the counter ticks.
+          markSelfAction(channelRenameKey(guild.id, channelId));
           await channel.setName(newName).catch(() => {});
         }
       } catch { /* channel deleted or not writable */ }

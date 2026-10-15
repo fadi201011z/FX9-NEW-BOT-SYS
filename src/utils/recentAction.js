@@ -65,6 +65,9 @@ export const roleChangeKey = (guildId, memberId) => `role:${guildId}:${memberId}
 /** The automatic 24-hour unban armed by the restricted-channel guard. */
 export const autoUnbanKey = (guildId, userId) => `unban:${guildId}:${userId}`;
 
+/** A rename the bot made on a timer — the live statistics channels. */
+export const channelRenameKey = (guildId, channelId) => `chanrename:${guildId}:${channelId}`;
+
 // A ban that has to lift itself 24 hours later is minutes away from any other
 // unban, so the echo of this one needs a far longer grace period than a
 // role change does.

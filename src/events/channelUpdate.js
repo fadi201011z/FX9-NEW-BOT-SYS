@@ -3,6 +3,8 @@ import { getConfig } from '../database.js';
 import { getLogChannel } from '../utils/permissions.js';
 import { getAuditEntry } from '../utils/audit.js';
 import { logEntry, field, userTag } from '../utils/embeds.js';
+import { isSelfMaintainedChannel } from '../utils/logFilter.js';
+import { isSelfAction, channelRenameKey } from '../utils/recentAction.js';
 
 export const name = Events.ChannelUpdate;
 export const once = false;
@@ -24,6 +26,13 @@ export async function execute(oldChannel, newChannel) {
   const topicChanged = oldChannel.topic !== newChannel.topic;
   if (!nameChanged && !topicChanged) return;
 
+  // Channels the bot renames by itself (the live statistics counters) are not
+  // moderation events. Without this gate they wrote one "channel updated" card
+  // to the modlog every minute, for as long as the bot stayed up — which was
+  // the loudest source of noise in the logs.
+  if (isSelfMaintainedChannel(guild.id, newChannel.id)) return;
+  if (isSelfAction(channelRenameKey(guild.id, newChannel.id))) return;
+
   const modLogCh = await getLogChannel(guild, getConfig(guild.id, 'modlog_channel'));
   if (!modLogCh) return;
 
@@ -31,6 +40,10 @@ export async function execute(oldChannel, newChannel) {
   try {
     const entry = await getAuditEntry(guild, AuditLogEvent.ChannelUpdate);
     if (entry && Date.now() - entry.createdTimestamp < 5000) {
+      // A rename performed by the bot itself (a ticket channel, a temp room) is
+      // recorded by whichever feature owns it, so the generic channel-update
+      // entry is dropped here instead of every caller having to stand down.
+      if (entry.executor?.id === newChannel.client.user.id) return;
       modifiedBy = `<@${entry.executor.id}> (${userTag(entry.executor)})`;
     }
   } catch { /* audit log unavailable */ }
