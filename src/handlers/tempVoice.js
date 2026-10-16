@@ -118,7 +118,7 @@ export function buildStatusPanel(guildId, setup, activeCount = 0) {
   // Row 4 — people & room audio.
   const row4 = new ActionRowBuilder().addComponents(
     button('vc_kick'),
-    button('vc_summon'),
+    button('vc_members'),
     button('vc_muteall'),
     button('vc_unmuteall'),
     button('vc_deafenall'),

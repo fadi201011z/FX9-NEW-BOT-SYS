@@ -389,20 +389,6 @@ export async function execute(interaction) {
         ));
       }
 
-      if (id === 'modal_vc_summon') {
-        const { resolveOwnedChannel } = await import('../handlers/tempVoice.js');
-        const owned = resolveOwnedChannel(interaction.guildId, interaction.member);
-        const vc = owned ? interaction.guild.channels.cache.get(owned.vcId) : null;
-        if (!vc) return interaction.reply(fail('You do not have an active voice channel.'));
-        const targetId = interaction.fields.getTextInputValue('target_id').trim();
-        const target = await interaction.guild.members.fetch(targetId).catch(() => null);
-        if (!target) return interaction.reply(fail('That user ID is not a member of this server.'));
-        if (target.user.bot) return interaction.reply(fail('That is a bot.'));
-        if (!target.voice?.channelId) return interaction.reply(fail('That member is not in a voice channel.'));
-        await target.voice.setChannel(vc).catch(() => {});
-        return interaction.reply(ok(`Brought **${target.displayName}** into **${vc.name}**.`));
-      }
-
       return;
     }
 
@@ -617,15 +603,22 @@ export async function execute(interaction) {
             return interaction.reply(ok(`Cloned **${vc.name}** into <#${clone.id}>.`));
           }
 
-          if (id === 'vc_summon') {
-            const modal = new ModalBuilder().setCustomId('modal_vc_summon').setTitle('Bring a member in');
-            modal.addComponents(new ActionRowBuilder().addComponents(
-              new TextInputBuilder().setCustomId('target_id')
-                .setLabel('Member user ID')
-                .setStyle(TextInputStyle.Short).setMinLength(17).setMaxLength(20).setRequired(true)
-                .setPlaceholder('e.g. 123456789012345678')
-            ));
-            return interaction.showModal(modal);
+          if (id === 'vc_members') {
+            // Read-only: shows who is inside. It never touches anyone, which is
+            // why it sits where the old "bring a member in" button was.
+            const list = vc.members.filter((m) => !m.user.bot);
+            const lines = list.map((m) => `${m.id === owned.ownerId ? '👑' : '•'} <@${m.id}>`);
+            const body = (lines.join('\n') || 'Nobody is inside right now.').slice(0, 1000);
+            return interaction.reply({
+              embeds: [notice({
+                title: `👥 Members in ${vc.name}`,
+                color: C.accent,
+                fields: [field('Inside now', body)],
+                footer: `${list.size} member(s) • Kratos System`,
+                timestamp: true,
+              })],
+              flags: EPHEMERAL,
+            });
           }
 
           if (id === 'vc_muteall' || id === 'vc_unmuteall') {

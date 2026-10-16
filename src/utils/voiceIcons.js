@@ -48,7 +48,7 @@ export const ICON_FILES = Object.freeze({
   vc_permit:      { file: 'icon_12.png', fallback: '✅' },
   vc_reject:      { file: 'icon_13.png', fallback: '⛔' },
   vc_kick:        { file: 'icon_03.png', fallback: '👢' },
-  vc_summon:      { file: 'icon_14.png', fallback: '📥' },
+  vc_members:     { file: 'icon_14.png', fallback: '👥' },
   vc_muteall:     { file: 'icon_15.png', fallback: '🔇' },
   vc_unmuteall:   { file: 'icon_19.png', fallback: '🔊' },
   vc_deafenall:   { file: 'icon_22.png', fallback: '🎧' },
@@ -102,10 +102,20 @@ export async function ensureVoiceIcons(client) {
     }
   }
 
+  // Drop panel emojis from an older mapping, so renaming a button does not
+  // leave its old artwork sitting on the application. Only the bot's own `vc_`
+  // namespace is touched.
+  const orphans = [...existing.values()].filter((e) => e.name?.startsWith('vc_') && !ICON_FILES[e.name]);
+  let removed = 0;
+  for (const orphan of orphans) {
+    await orphan.delete().then(() => { removed++; }).catch(() => {});
+  }
+
   const ready = uploaded.size;
   console.log(
     `[VoiceIcons] ✅ ${ready}/${Object.keys(ICON_FILES).length} panel icon(s) ready` +
-    (created ? ` (${created} uploaded this run)` : ' (all reused)'),
+    (created ? ` (${created} uploaded this run)` : ' (all reused)') +
+    (removed ? ` — removed ${removed} stale icon(s)` : ''),
   );
 }
 
