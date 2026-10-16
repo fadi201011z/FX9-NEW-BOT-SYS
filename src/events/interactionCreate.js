@@ -4,9 +4,12 @@ import {
   TextInputBuilder,
   TextInputStyle,
   ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  PermissionFlagsBits,
 } from 'discord.js';
 import { isCommandEnabled, canMemberUseCommand } from '../database.js';
-import { fail, notice, field, C, EPHEMERAL } from '../utils/embeds.js';
+import { ok, fail, notice, field, C, EPHEMERAL } from '../utils/embeds.js';
 import {
   HELP_SECTIONS,
   SETUP_SECTIONS,
@@ -315,6 +318,43 @@ export async function execute(interaction) {
         return interaction.reply(ok(`Ownership of **${vc.name}** transferred to **${target.displayName}**.`));
       }
 
+      if (id === 'modal_vc_permit' || id === 'modal_vc_reject' || id === 'modal_vc_invite') {
+        const { getChannelByOwner } = await import('../handlers/tempVoice.js');
+        const owned = getChannelByOwner(interaction.guildId, interaction.member.id);
+        const vc = owned ? interaction.guild.channels.cache.get(owned.vcId) : null;
+        if (!vc) return interaction.reply(fail('You do not have an active voice channel.'));
+
+        const targetId = interaction.fields.getTextInputValue('target_id').trim();
+        const target = await interaction.guild.members.fetch(targetId).catch(() => null);
+        if (!target) return interaction.reply(fail('That user ID is not a member of this server.'));
+        if (target.id === interaction.member.id) return interaction.reply(fail('That is you.'));
+        if (target.user.bot) return interaction.reply(fail('That is a bot.'));
+
+        if (id === 'modal_vc_permit') {
+          await vc.permissionOverwrites.edit(target.id, { Connect: true, ViewChannel: true });
+          return interaction.reply(ok(`**${target.displayName}** can now join **${vc.name}**.`));
+        }
+
+        if (id === 'modal_vc_reject') {
+          await vc.permissionOverwrites.edit(target.id, { Connect: false, ViewChannel: false });
+          if (target.voice?.channelId === vc.id) await target.voice.disconnect().catch(() => {});
+          return interaction.reply(ok(`**${target.displayName}** can no longer join **${vc.name}**.`));
+        }
+
+        // Invite: permit, then ping them in the panel's text channel with a
+        // link, so the invitation is actually noticed instead of silent.
+        await vc.permissionOverwrites.edit(target.id, { Connect: true, ViewChannel: true });
+        const inviteCh = interaction.guild.channels.cache.get(owned.textChannelId);
+        if (inviteCh) {
+          const msg = await inviteCh.send({
+            content: `🔗 <@${target.id}> you have been invited to join **${vc.name}** — <#${vc.id}>`,
+          }).catch(() => null);
+          const { default: autoDelete } = await import('../utils/autoDelete.js');
+          if (msg && autoDelete) autoDelete(msg, 30);
+        }
+        return interaction.reply(ok(`Invited **${target.displayName}** to **${vc.name}**.`));
+      }
+
       return;
     }
 
@@ -340,25 +380,9 @@ export async function execute(interaction) {
 
       // ── Temp Voice buttons ──────────────────────────────────────────
       if (id.startsWith('vc_')) {
-        const { getChannelByOwner, deleteChannel } = await import('../handlers/tempVoice.js');
+        const { getChannelByOwner, getChannel, deleteChannel } = await import('../handlers/tempVoice.js');
         const { checkCooldown } = await import('../utils/cooldown.js');
         const member = interaction.member;
-
-        const owned = getChannelByOwner(interaction.guildId, member.id);
-        if (!owned) {
-          return interaction.reply(fail(
-            'You do not have an active voice channel. Join the ➕ channel to create one first.'
-          ));
-        }
-
-        const vc = interaction.guild.channels.cache.get(owned.vcId);
-        if (!vc) {
-          // Clean up the stale record rather than leaving it to fail forever.
-          deleteChannel(owned.vcId);
-          return interaction.reply(fail(
-            'Your channel no longer exists. Join the ➕ channel to create a new one.'
-          ));
-        }
 
         const rem = checkCooldown(member.id, id);
         if (rem > 0) {
@@ -366,6 +390,45 @@ export async function execute(interaction) {
         }
 
         try {
+          // Claim is the one action a non-owner may take: you take over a room
+          // whose owner has left. It resolves the room from where you are
+          // standing, not from ownership, so it runs before the owner gate.
+          if (id === 'vc_claim') {
+            const currentId = member.voice?.channelId;
+            const claimVc = currentId ? interaction.guild.channels.cache.get(currentId) : null;
+            const chData = currentId ? getChannel(currentId) : null;
+            if (!claimVc || !chData) {
+              return interaction.reply(fail('Join the voice channel you want to claim first.'));
+            }
+            if (chData.ownerId === member.id) {
+              return interaction.reply(fail('You already own this channel.'));
+            }
+            if (claimVc.members.has(chData.ownerId)) {
+              return interaction.reply(fail('The owner is still here — you can claim it once they leave.'));
+            }
+            chData.ownerId = member.id;
+            await claimVc.permissionOverwrites.edit(member.id, {
+              Connect: true, Speak: true, ManageChannels: true, Stream: true,
+            }).catch(() => {});
+            return interaction.reply(ok(`You are now the owner of **${claimVc.name}**.`));
+          }
+
+          const owned = getChannelByOwner(interaction.guildId, member.id);
+          if (!owned) {
+            return interaction.reply(fail(
+              'You do not have an active voice channel. Join the ➕ channel to create one first.'
+            ));
+          }
+
+          const vc = interaction.guild.channels.cache.get(owned.vcId);
+          if (!vc) {
+            // Clean up the stale record rather than leaving it to fail forever.
+            deleteChannel(owned.vcId);
+            return interaction.reply(fail(
+              'Your channel no longer exists. Join the ➕ channel to create a new one.'
+            ));
+          }
+
           if (id === 'vc_lock') {
             await vc.permissionOverwrites.edit(interaction.guild.id, { Connect: false });
             return interaction.reply(ok(`Locked **${vc.name}** — nobody can join.`));
@@ -383,7 +446,33 @@ export async function execute(interaction) {
 
           if (id === 'vc_show') {
             await vc.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: true });
-            return interaction.reply(ok(`Showed **${vc.name}**.`));
+            return interaction.reply(ok(`Revealed **${vc.name}**.`));
+          }
+
+          if (id === 'vc_info') {
+            // Read the current state straight off the channel's overwrites so
+            // the card cannot lie about lock/hide.
+            const ow = vc.permissionOverwrites.cache.get(interaction.guild.id);
+            const locked = ow ? ow.deny.has(PermissionFlagsBits.Connect) : false;
+            const hidden = ow ? ow.deny.has(PermissionFlagsBits.ViewChannel) : false;
+            const humans = vc.members.filter((m) => !m.user.bot).size;
+            return interaction.reply({
+              embeds: [notice({
+                title: `ℹ️ ${vc.name}`,
+                color: C.accent,
+                fields: [
+                  field('Owner', `<@${owned.ownerId}>`),
+                  field('Members', `${humans}${vc.userLimit ? ` / ${vc.userLimit}` : ' / ∞'}`),
+                  field('Access', locked ? '🔒 Locked' : '🔓 Open'),
+                  field('Visibility', hidden ? '🙈 Hidden' : '👁️ Visible'),
+                  field('Limit', vc.userLimit ? String(vc.userLimit) : 'Unlimited'),
+                  field('Created', `<t:${Math.floor((vc.createdTimestamp || Date.now()) / 1000)}:R>`),
+                ],
+                footer: 'Kratos System • Temp voice',
+                timestamp: true,
+              })],
+              flags: EPHEMERAL,
+            });
           }
 
           if (id === 'vc_limit') {
@@ -427,6 +516,40 @@ export async function execute(interaction) {
                 .setPlaceholder('e.g. 123456789012345678')
             ));
             return interaction.showModal(modal);
+          }
+
+          if (id === 'vc_permit' || id === 'vc_reject' || id === 'vc_invite') {
+            const meta = {
+              vc_permit: { custom: 'modal_vc_permit', title: 'Permit a member' },
+              vc_reject: { custom: 'modal_vc_reject', title: 'Reject a member' },
+              vc_invite: { custom: 'modal_vc_invite', title: 'Invite a member' },
+            }[id];
+            const modal = new ModalBuilder().setCustomId(meta.custom).setTitle(meta.title);
+            modal.addComponents(new ActionRowBuilder().addComponents(
+              new TextInputBuilder().setCustomId('target_id')
+                .setLabel('Member user ID')
+                .setStyle(TextInputStyle.Short).setMinLength(17).setMaxLength(20).setRequired(true)
+                .setPlaceholder('e.g. 123456789012345678')
+            ));
+            return interaction.showModal(modal);
+          }
+
+          if (id === 'vc_delete') {
+            const confirm = new ActionRowBuilder().addComponents(
+              new ButtonBuilder().setCustomId('vc_delete_confirm')
+                .setLabel('Confirm delete').setEmoji('🗑️').setStyle(ButtonStyle.Secondary),
+            );
+            return interaction.reply({
+              content: `⚠️ Delete **${vc.name}**? Everyone inside will be disconnected.`,
+              components: [confirm],
+              flags: EPHEMERAL,
+            });
+          }
+
+          if (id === 'vc_delete_confirm') {
+            await deleteChannel(owned.vcId);
+            await vc.delete('Owner deleted their temp voice channel').catch(() => {});
+            return interaction.update({ content: '✅ Your channel has been deleted.', embeds: [], components: [] });
           }
         } catch (err) {
           console.error('[TempVC Button]', err.message);

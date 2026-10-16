@@ -63,17 +63,34 @@ export function getActiveCount(guildId) {
 }
 
 export function buildStatusPanel(guildId, setup, activeCount = 0) {
+  // Emoji-only buttons, every one in the neutral grey style, so the panel is a
+  // single calm surface and the meaning lives in the icon rather than in the
+  // colour. One helper keeps the rows from drifting apart.
+  const button = (customId, emoji) =>
+    new ButtonBuilder().setCustomId(customId).setEmoji(emoji).setStyle(ButtonStyle.Secondary);
+
+  // Row 1 — access & visibility.
   const row1 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('vc_lock').setLabel('Lock').setEmoji('🔒').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('vc_unlock').setLabel('Unlock').setEmoji('🔓').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId('vc_hide').setLabel('Hide').setEmoji('🙈').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('vc_show').setLabel('Show').setEmoji('👁️').setStyle(ButtonStyle.Secondary),
+    button('vc_lock', '🔐'),
+    button('vc_unlock', '🔓'),
+    button('vc_hide', '👻'),
+    button('vc_show', '👁️'),
+    button('vc_info', '📋'),
   );
+  // Row 2 — room settings & ownership.
   const row2 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('vc_limit').setLabel('Member limit').setEmoji('👥').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('vc_rename').setLabel('Rename').setEmoji('✏️').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('vc_kick').setLabel('Kick').setEmoji('🚪').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('vc_transfer').setLabel('Transfer').setEmoji('👑').setStyle(ButtonStyle.Secondary),
+    button('vc_limit', '👥'),
+    button('vc_rename', '📝'),
+    button('vc_claim', '🙋'),
+    button('vc_transfer', '🔑'),
+    button('vc_invite', '💌'),
+  );
+  // Row 3 — people, then the danger zone.
+  const row3 = new ActionRowBuilder().addComponents(
+    button('vc_permit', '✅'),
+    button('vc_reject', '⛔'),
+    button('vc_kick', '👢'),
+    button('vc_delete', '🗑️'),
   );
 
   // Per-server panel artwork set from the dashboard, with the bundled default
@@ -82,7 +99,7 @@ export function buildStatusPanel(guildId, setup, activeCount = 0) {
   // edit that flips the mode clear the previous representation.
   if (getDisplayMode(guildId, 'voice') === 'embed') {
     const embed = buildCustomEmbed(guildId, 'voice', { count: activeCount });
-    if (embed) return { embeds: [embed], attachments: [], components: [row1, row2] };
+    if (embed) return { embeds: [embed], attachments: [], components: [row1, row2, row3] };
   }
 
   const custom = guildId && resolveGuildImage(guildId, 'voice_panel_image');
@@ -92,7 +109,7 @@ export function buildStatusPanel(guildId, setup, activeCount = 0) {
     files: [{ attachment, name: 'voice-panel.png' }],
     embeds: [],
     attachments: [],
-    components: [row1, row2],
+    components: [row1, row2, row3],
   };
 }
 
