@@ -7,6 +7,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   PermissionFlagsBits,
+  OverwriteType,
 } from 'discord.js';
 import { isCommandEnabled, canMemberUseCommand } from '../database.js';
 import { ok, fail, notice, field, C, EPHEMERAL } from '../utils/embeds.js';
@@ -265,8 +266,8 @@ export async function execute(interaction) {
       // they are plain ephemeral text. An embed carried one sentence and a
       // colour bar, and nothing else.
       if (id === 'modal_vc_limit') {
-        const { getChannelByOwner } = await import('../handlers/tempVoice.js');
-        const owned = getChannelByOwner(interaction.guildId, interaction.member.id);
+        const { resolveOwnedChannel } = await import('../handlers/tempVoice.js');
+        const owned = resolveOwnedChannel(interaction.guildId, interaction.member);
         const vc = owned ? interaction.guild.channels.cache.get(owned.vcId) : null;
         if (!vc) return interaction.reply(fail('You do not have an active voice channel.'));
         const val = parseInt(interaction.fields.getTextInputValue('limit_value'), 10);
@@ -280,8 +281,8 @@ export async function execute(interaction) {
       }
 
       if (id === 'modal_vc_rename') {
-        const { getChannelByOwner } = await import('../handlers/tempVoice.js');
-        const owned = getChannelByOwner(interaction.guildId, interaction.member.id);
+        const { resolveOwnedChannel } = await import('../handlers/tempVoice.js');
+        const owned = resolveOwnedChannel(interaction.guildId, interaction.member);
         const vc = owned ? interaction.guild.channels.cache.get(owned.vcId) : null;
         if (!vc) return interaction.reply(fail('You do not have an active voice channel.'));
         const name = interaction.fields.getTextInputValue('rename_value').trim();
@@ -291,8 +292,8 @@ export async function execute(interaction) {
       }
 
       if (id === 'modal_vc_kick') {
-        const { getChannelByOwner } = await import('../handlers/tempVoice.js');
-        const owned = getChannelByOwner(interaction.guildId, interaction.member.id);
+        const { resolveOwnedChannel } = await import('../handlers/tempVoice.js');
+        const owned = resolveOwnedChannel(interaction.guildId, interaction.member);
         const vc = owned ? interaction.guild.channels.cache.get(owned.vcId) : null;
         if (!vc) return interaction.reply(fail('You do not have an active voice channel.'));
         const targetId = interaction.fields.getTextInputValue('kick_id').trim();
@@ -304,8 +305,8 @@ export async function execute(interaction) {
       }
 
       if (id === 'modal_vc_transfer') {
-        const { getChannelByOwner, getChannel } = await import('../handlers/tempVoice.js');
-        const owned = getChannelByOwner(interaction.guildId, interaction.member.id);
+        const { resolveOwnedChannel, getChannel } = await import('../handlers/tempVoice.js');
+        const owned = resolveOwnedChannel(interaction.guildId, interaction.member);
         const vc = owned ? interaction.guild.channels.cache.get(owned.vcId) : null;
         if (!vc) return interaction.reply(fail('You do not have an active voice channel.'));
         const targetId = interaction.fields.getTextInputValue('transfer_id').trim();
@@ -319,8 +320,8 @@ export async function execute(interaction) {
       }
 
       if (id === 'modal_vc_permit' || id === 'modal_vc_reject' || id === 'modal_vc_invite') {
-        const { getChannelByOwner } = await import('../handlers/tempVoice.js');
-        const owned = getChannelByOwner(interaction.guildId, interaction.member.id);
+        const { resolveOwnedChannel } = await import('../handlers/tempVoice.js');
+        const owned = resolveOwnedChannel(interaction.guildId, interaction.member);
         const vc = owned ? interaction.guild.channels.cache.get(owned.vcId) : null;
         if (!vc) return interaction.reply(fail('You do not have an active voice channel.'));
 
@@ -355,6 +356,53 @@ export async function execute(interaction) {
         return interaction.reply(ok(`Invited **${target.displayName}** to **${vc.name}**.`));
       }
 
+      if (id === 'modal_vc_bitrate') {
+        const { resolveOwnedChannel } = await import('../handlers/tempVoice.js');
+        const owned = resolveOwnedChannel(interaction.guildId, interaction.member);
+        const vc = owned ? interaction.guild.channels.cache.get(owned.vcId) : null;
+        if (!vc) return interaction.reply(fail('You do not have an active voice channel.'));
+        const val = parseInt(interaction.fields.getTextInputValue('bitrate_value'), 10);
+        if (isNaN(val) || val < 8 || val > 384) {
+          return interaction.reply(fail('Enter a bitrate between 8 and 384 kbps.'));
+        }
+        try {
+          await vc.setBitrate(val * 1000);
+        } catch {
+          return interaction.reply(fail('That bitrate is not allowed here — higher values need a booster level.'));
+        }
+        return interaction.reply(ok(`Bitrate for **${vc.name}** set to ${val} kbps.`));
+      }
+
+      if (id === 'modal_vc_region') {
+        const { resolveOwnedChannel } = await import('../handlers/tempVoice.js');
+        const owned = resolveOwnedChannel(interaction.guildId, interaction.member);
+        const vc = owned ? interaction.guild.channels.cache.get(owned.vcId) : null;
+        if (!vc) return interaction.reply(fail('You do not have an active voice channel.'));
+        const raw = interaction.fields.getTextInputValue('region_value').trim().toLowerCase();
+        try {
+          await vc.setRTCRegion(raw || null);
+        } catch {
+          return interaction.reply(fail('Unknown region. Try e.g. **europe**, **us-east** or **brazil**.'));
+        }
+        return interaction.reply(ok(
+          raw ? `Region for **${vc.name}** set to **${raw}**.` : `Region for **${vc.name}** reset to automatic.`
+        ));
+      }
+
+      if (id === 'modal_vc_summon') {
+        const { resolveOwnedChannel } = await import('../handlers/tempVoice.js');
+        const owned = resolveOwnedChannel(interaction.guildId, interaction.member);
+        const vc = owned ? interaction.guild.channels.cache.get(owned.vcId) : null;
+        if (!vc) return interaction.reply(fail('You do not have an active voice channel.'));
+        const targetId = interaction.fields.getTextInputValue('target_id').trim();
+        const target = await interaction.guild.members.fetch(targetId).catch(() => null);
+        if (!target) return interaction.reply(fail('That user ID is not a member of this server.'));
+        if (target.user.bot) return interaction.reply(fail('That is a bot.'));
+        if (!target.voice?.channelId) return interaction.reply(fail('That member is not in a voice channel.'));
+        await target.voice.setChannel(vc).catch(() => {});
+        return interaction.reply(ok(`Brought **${target.displayName}** into **${vc.name}**.`));
+      }
+
       return;
     }
 
@@ -380,7 +428,7 @@ export async function execute(interaction) {
 
       // ── Temp Voice buttons ──────────────────────────────────────────
       if (id.startsWith('vc_')) {
-        const { getChannelByOwner, getChannel, deleteChannel } = await import('../handlers/tempVoice.js');
+        const { resolveOwnedChannel, getChannel, deleteChannel, registerChannel } = await import('../handlers/tempVoice.js');
         const { checkCooldown } = await import('../utils/cooldown.js');
         const member = interaction.member;
 
@@ -413,7 +461,7 @@ export async function execute(interaction) {
             return interaction.reply(ok(`You are now the owner of **${claimVc.name}**.`));
           }
 
-          const owned = getChannelByOwner(interaction.guildId, member.id);
+          const owned = resolveOwnedChannel(interaction.guildId, member);
           if (!owned) {
             return interaction.reply(fail(
               'You do not have an active voice channel. Join the ➕ channel to create one first.'
@@ -532,6 +580,92 @@ export async function execute(interaction) {
                 .setPlaceholder('e.g. 123456789012345678')
             ));
             return interaction.showModal(modal);
+          }
+
+          if (id === 'vc_bitrate') {
+            const modal = new ModalBuilder().setCustomId('modal_vc_bitrate').setTitle('Set channel bitrate');
+            modal.addComponents(new ActionRowBuilder().addComponents(
+              new TextInputBuilder().setCustomId('bitrate_value')
+                .setLabel('Bitrate in kbps (8–96, boosted up to 384)')
+                .setStyle(TextInputStyle.Short).setMinLength(1).setMaxLength(3)
+                .setPlaceholder('e.g. 64').setRequired(true)
+            ));
+            return interaction.showModal(modal);
+          }
+
+          if (id === 'vc_region') {
+            const modal = new ModalBuilder().setCustomId('modal_vc_region').setTitle('Set voice region');
+            modal.addComponents(new ActionRowBuilder().addComponents(
+              new TextInputBuilder().setCustomId('region_value')
+                .setLabel('Region name — leave blank for automatic')
+                .setStyle(TextInputStyle.Short).setMaxLength(32).setRequired(false)
+                .setPlaceholder('e.g. europe, us-east, brazil')
+            ));
+            return interaction.showModal(modal);
+          }
+
+          if (id === 'vc_clone') {
+            const clone = await vc.clone({ reason: `Temp voice cloned by ${member.user.tag}` }).catch(() => null);
+            if (!clone) return interaction.reply(fail('Could not clone your channel — check my permissions.'));
+            await registerChannel(clone.id, {
+              guildId: interaction.guildId,
+              ownerId: member.id,
+              textChannelId: owned.textChannelId,
+              createdAt: Date.now(),
+            });
+            if (member.voice?.channelId) await member.voice.setChannel(clone).catch(() => {});
+            return interaction.reply(ok(`Cloned **${vc.name}** into <#${clone.id}>.`));
+          }
+
+          if (id === 'vc_summon') {
+            const modal = new ModalBuilder().setCustomId('modal_vc_summon').setTitle('Bring a member in');
+            modal.addComponents(new ActionRowBuilder().addComponents(
+              new TextInputBuilder().setCustomId('target_id')
+                .setLabel('Member user ID')
+                .setStyle(TextInputStyle.Short).setMinLength(17).setMaxLength(20).setRequired(true)
+                .setPlaceholder('e.g. 123456789012345678')
+            ));
+            return interaction.showModal(modal);
+          }
+
+          if (id === 'vc_muteall' || id === 'vc_unmuteall') {
+            const mute = id === 'vc_muteall';
+            const targets = vc.members.filter((m) => !m.user.bot && m.id !== member.id);
+            let changed = 0;
+            for (const m of targets.values()) {
+              if (!!m.voice.serverMute === mute) continue;
+              await m.voice.setMute(mute, `Room ${mute ? 'mute' : 'unmute'} by owner`).then(() => { changed++; }).catch(() => {});
+            }
+            return interaction.reply(ok(
+              `${mute ? '🔇 Muted' : '🔊 Unmuted'} **${changed}** member(s) in **${vc.name}**.`
+            ));
+          }
+
+          if (id === 'vc_deafenall' || id === 'vc_undeafenall') {
+            const deaf = id === 'vc_deafenall';
+            const targets = vc.members.filter((m) => !m.user.bot && m.id !== member.id);
+            let changed = 0;
+            for (const m of targets.values()) {
+              if (!!m.voice.serverDeaf === deaf) continue;
+              await m.voice.setDeaf(deaf, `Room ${deaf ? 'deafen' : 'undeafen'} by owner`).then(() => { changed++; }).catch(() => {});
+            }
+            return interaction.reply(ok(
+              `${deaf ? '🎧 Deafened' : '👂 Undeafened'} **${changed}** member(s) in **${vc.name}**.`
+            ));
+          }
+
+          if (id === 'vc_reset') {
+            // Put @everyone back to inheriting, then drop the per-member
+            // overrides, so a room that has been locked, hidden, permitted and
+            // rejected can return to a clean slate in one click.
+            await vc.permissionOverwrites.edit(interaction.guild.id, {
+              Connect: null, ViewChannel: null, Speak: null, Stream: null,
+            }).catch(() => {});
+            const memberOverwrites = vc.permissionOverwrites.cache.filter((o) => o.type === OverwriteType.Member);
+            for (const o of memberOverwrites.values()) {
+              await vc.permissionOverwrites.delete(o.id, 'Room permissions reset by owner').catch(() => {});
+            }
+            return interaction.reply(ok(`Reset permissions on **${vc.name}**.`));
           }
 
           if (id === 'vc_delete') {

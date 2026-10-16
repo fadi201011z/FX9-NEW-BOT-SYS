@@ -3,6 +3,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import * as db from './db.js';
 import { resolveGuildImage } from '../utils/guildImage.js';
 import { getDisplayMode, buildCustomEmbed } from '../utils/customDisplay.js';
+import { ico } from '../utils/voiceIcons.js';
 
 const VOICE_PANEL_IMAGE = fileURLToPath(new URL('../../assets/voice-panel.png', import.meta.url));
 
@@ -54,6 +55,25 @@ export function getChannelByOwner(guildId, userId) {
   return null;
 }
 
+/**
+ * The temp channel a panel action should act on.
+ *
+ * Ownership alone is ambiguous once someone owns more than one room (the clone
+ * button creates a second one). So the room the member is standing in wins when
+ * they own it, and ownership is only the fallback for clicking the panel from
+ * outside voice.
+ */
+export function resolveOwnedChannel(guildId, member) {
+  const currentId = member?.voice?.channelId;
+  if (currentId) {
+    const data = activeChannels.get(currentId);
+    if (data && data.guildId === guildId && data.ownerId === member.id) {
+      return { vcId: currentId, ...data };
+    }
+  }
+  return getChannelByOwner(guildId, member.id);
+}
+
 export function getActiveCount(guildId) {
   let count = 0;
   for (const [, data] of activeChannels) {
@@ -63,35 +83,54 @@ export function getActiveCount(guildId) {
 }
 
 export function buildStatusPanel(guildId, setup, activeCount = 0) {
-  // Emoji-only buttons, every one in the neutral grey style, so the panel is a
-  // single calm surface and the meaning lives in the icon rather than in the
-  // colour. One helper keeps the rows from drifting apart.
-  const button = (customId, emoji) =>
-    new ButtonBuilder().setCustomId(customId).setEmoji(emoji).setStyle(ButtonStyle.Secondary);
+  // Buttons carry the bot's own artwork (application emojis, see voiceIcons.js)
+  // and every one sits in the neutral grey style, so the panel reads as a single
+  // calm surface and the meaning lives in the icon rather than in the colour.
+  // `ico` falls back to a Unicode glyph if the artwork could not be uploaded, so
+  // a button never loses its mark. One helper keeps the rows from drifting apart.
+  const button = (customId) =>
+    new ButtonBuilder().setCustomId(customId).setEmoji(ico(customId)).setStyle(ButtonStyle.Secondary);
 
   // Row 1 — access & visibility.
   const row1 = new ActionRowBuilder().addComponents(
-    button('vc_lock', '🔐'),
-    button('vc_unlock', '🔓'),
-    button('vc_hide', '👻'),
-    button('vc_show', '👁️'),
-    button('vc_info', '📋'),
+    button('vc_lock'),
+    button('vc_unlock'),
+    button('vc_hide'),
+    button('vc_show'),
+    button('vc_info'),
   );
-  // Row 2 — room settings & ownership.
+  // Row 2 — room settings.
   const row2 = new ActionRowBuilder().addComponents(
-    button('vc_limit', '👥'),
-    button('vc_rename', '📝'),
-    button('vc_claim', '🙋'),
-    button('vc_transfer', '🔑'),
-    button('vc_invite', '💌'),
+    button('vc_rename'),
+    button('vc_limit'),
+    button('vc_bitrate'),
+    button('vc_region'),
+    button('vc_clone'),
   );
-  // Row 3 — people, then the danger zone.
+  // Row 3 — ownership & invitations.
   const row3 = new ActionRowBuilder().addComponents(
-    button('vc_permit', '✅'),
-    button('vc_reject', '⛔'),
-    button('vc_kick', '👢'),
-    button('vc_delete', '🗑️'),
+    button('vc_claim'),
+    button('vc_transfer'),
+    button('vc_invite'),
+    button('vc_permit'),
+    button('vc_reject'),
   );
+  // Row 4 — people & room audio.
+  const row4 = new ActionRowBuilder().addComponents(
+    button('vc_kick'),
+    button('vc_summon'),
+    button('vc_muteall'),
+    button('vc_unmuteall'),
+    button('vc_deafenall'),
+  );
+  // Row 5 — remaining audio, reset, and the danger zone.
+  const row5 = new ActionRowBuilder().addComponents(
+    button('vc_undeafenall'),
+    button('vc_reset'),
+    button('vc_delete'),
+  );
+
+  const rows = [row1, row2, row3, row4, row5];
 
   // Per-server panel artwork set from the dashboard, with the bundled default
   // as the fallback. In embed mode the admin-built embed replaces the artwork;
@@ -99,7 +138,7 @@ export function buildStatusPanel(guildId, setup, activeCount = 0) {
   // edit that flips the mode clear the previous representation.
   if (getDisplayMode(guildId, 'voice') === 'embed') {
     const embed = buildCustomEmbed(guildId, 'voice', { count: activeCount });
-    if (embed) return { embeds: [embed], attachments: [], components: [row1, row2, row3] };
+    if (embed) return { embeds: [embed], attachments: [], components: rows };
   }
 
   const custom = guildId && resolveGuildImage(guildId, 'voice_panel_image');
@@ -109,7 +148,7 @@ export function buildStatusPanel(guildId, setup, activeCount = 0) {
     files: [{ attachment, name: 'voice-panel.png' }],
     embeds: [],
     attachments: [],
-    components: [row1, row2, row3],
+    components: rows,
   };
 }
 

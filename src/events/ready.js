@@ -96,6 +96,11 @@ export async function execute(client) {
   startHeartbeat();
 
   // ── VOICE: Clean stale temp voice channels ───────────────────────────
+  // The panel artwork is uploaded first so the very first build of every panel
+  // (here and in refreshPanel) already carries the custom icons.
+  const { ensureVoiceIcons } = await import('../utils/voiceIcons.js');
+  await ensureVoiceIcons(client);
+
   const { cleanStaleChannels, getAllSetups, refreshPanel, getActiveCount, updatePanelMessageId, buildStatusPanel } = await import('../handlers/tempVoice.js');
   await cleanStaleChannels(client);
 
