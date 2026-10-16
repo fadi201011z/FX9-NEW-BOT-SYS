@@ -39,7 +39,7 @@ export async function execute(oldState, newState) {
   //  VOICE: Temp channel creation / deletion / ownership transfer
   // ══════════════════════════════════════════════════════════════════════════
 
-  const { getGuildSetup, registerChannel, getChannel, deleteChannel, refreshPanel } = await import('../handlers/tempVoice.js');
+  const { getGuildSetup, registerChannel, getChannel, deleteChannel, refreshPanel, buildRoomGuide } = await import('../handlers/tempVoice.js');
 
   // Temp-voice is a switchboard feature: when it is off, `setup` reads as absent
   // so the whole create/delete/transfer block below is skipped — while the
@@ -76,6 +76,10 @@ export async function execute(oldState, newState) {
                 PermissionFlagsBits.ManageChannels,
                 PermissionFlagsBits.ViewChannel,
                 PermissionFlagsBits.MoveMembers,
+                // The room's own text chat carries the guide card below, so the
+                // bot must be able to post — and to post an embed — in it.
+                PermissionFlagsBits.SendMessages,
+                PermissionFlagsBits.EmbedLinks,
               ],
             },
           ],
@@ -91,6 +95,17 @@ export async function execute(oldState, newState) {
         });
 
         await refreshPanel(newState.client, guild.id);
+
+        // The room is brand new and silent. Greet its owner in the room's own
+        // text chat and explain the panel before they have to guess at it.
+        // Best-effort: if the server has voice text chat turned off, the card
+        // simply does not appear and nothing else changes.
+        try {
+          await vc.send(buildRoomGuide(member.id, setup.textChannelId));
+        } catch (err) {
+          console.warn('[TempVC] Could not post the room guide:', err.message);
+        }
+
         console.log(`[TempVC] ✅ Created "${vc.name}" for ${userTag(member.user)}`);
       } catch (err) {
         console.error('[TempVC] ❌ Create error:', err.message);

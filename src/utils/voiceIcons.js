@@ -57,6 +57,64 @@ export const ICON_FILES = Object.freeze({
   vc_delete:      { file: 'icon_23.png', fallback: '🗑️' },
 });
 
+/**
+ * The panel, described once.
+ *
+ * Both the buttons themselves and the explanation card sent to a new room are
+ * built from this, so a button can never be added to one and forgotten in the
+ * other. Each group is one row of the panel.
+ */
+export const PANEL_GROUPS = Object.freeze([
+  {
+    title: 'الوصول والظهور',
+    buttons: [
+      { id: 'vc_lock',   label: 'قفل',            desc: 'منع الجميع من الدخول' },
+      { id: 'vc_unlock', label: 'فتح',            desc: 'السماح للجميع بالدخول' },
+      { id: 'vc_hide',   label: 'إخفاء',          desc: 'إخفاء الروم عن قائمة الأعضاء' },
+      { id: 'vc_show',   label: 'إظهار',          desc: 'إرجاع الروم ظاهرًا للجميع' },
+      { id: 'vc_info',   label: 'معلومات',        desc: 'بيانات الروم والمالك والحد' },
+    ],
+  },
+  {
+    title: 'إعدادات الروم',
+    buttons: [
+      { id: 'vc_rename',  label: 'تسمية',       desc: 'تغيير اسم الروم' },
+      { id: 'vc_limit',   label: 'حد الأعضاء',  desc: 'أقصى عدد (٠ = بلا حد)' },
+      { id: 'vc_bitrate', label: 'جودة الصوت',  desc: 'ضبط البِتريت' },
+      { id: 'vc_region',  label: 'المنطقة',     desc: 'اختيار منطقة الصوت' },
+      { id: 'vc_clone',   label: 'استنساخ',     desc: 'نسخة من الروم بنفس الصلاحيات' },
+    ],
+  },
+  {
+    title: 'الملكية والدعوات',
+    buttons: [
+      { id: 'vc_claim',    label: 'استلام الملكية', desc: 'تستلم رومًا غادره صاحبه' },
+      { id: 'vc_transfer', label: 'نقل الملكية',    desc: 'تسليم الروم لعضو آخر' },
+      { id: 'vc_invite',   label: 'دعوة',           desc: 'دعوة عضو للانضمام' },
+      { id: 'vc_permit',   label: 'سماح',           desc: 'السماح لعضو بالدخول' },
+      { id: 'vc_reject',   label: 'منع',            desc: 'منع عضو وإخراجه إن كان بالداخل' },
+    ],
+  },
+  {
+    title: 'الأعضاء والصوت',
+    buttons: [
+      { id: 'vc_kick',     label: 'طرد',              desc: 'إخراج عضو من الروم' },
+      { id: 'vc_members',  label: 'قائمة الأعضاء',    desc: 'عرض من بالداخل الآن' },
+      { id: 'vc_muteall',  label: 'كتم الكل',         desc: 'كتم الجميع' },
+      { id: 'vc_unmuteall',label: 'إلغاء كتم الكل',   desc: 'رفع الكتم عن الجميع' },
+      { id: 'vc_deafenall',label: 'إصمات الكل',       desc: 'إصمات الجميع' },
+    ],
+  },
+  {
+    title: 'البقية والصلاحيات',
+    buttons: [
+      { id: 'vc_undeafenall', label: 'إلغاء إصمات الكل', desc: 'رفع الإصمات عن الجميع' },
+      { id: 'vc_reset',       label: 'تصفير الصلاحيات',  desc: 'إرجاع الروم للأصل' },
+      { id: 'vc_delete',      label: 'حذف الروم',        desc: 'حذف الروم (يطلب تأكيدًا)' },
+    ],
+  },
+]);
+
 /** key -> ApplicationEmoji, filled by ensureVoiceIcons(). */
 const uploaded = new Map();
 
@@ -129,6 +187,18 @@ export async function ensureVoiceIcons(client) {
 export function ico(key) {
   const emoji = uploaded.get(key);
   if (emoji) return { id: emoji.id, name: emoji.name };
+  return ICON_FILES[key]?.fallback ?? '❔';
+}
+
+/**
+ * The same icon as inline text, for inside an embed.
+ *
+ * Embed text cannot carry an emoji object; a custom emoji has to be written as
+ * `<:name:id>`. Falls back to the Unicode glyph exactly like `ico()`.
+ */
+export function icoText(key) {
+  const emoji = uploaded.get(key);
+  if (emoji) return `<:${emoji.name}:${emoji.id}>`;
   return ICON_FILES[key]?.fallback ?? '❔';
 }
 

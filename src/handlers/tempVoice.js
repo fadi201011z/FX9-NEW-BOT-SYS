@@ -3,7 +3,8 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import * as db from './db.js';
 import { resolveGuildImage } from '../utils/guildImage.js';
 import { getDisplayMode, buildCustomEmbed } from '../utils/customDisplay.js';
-import { ico } from '../utils/voiceIcons.js';
+import { notice, field, C } from '../utils/embeds.js';
+import { ico, icoText, PANEL_GROUPS } from '../utils/voiceIcons.js';
 
 const VOICE_PANEL_IMAGE = fileURLToPath(new URL('../../assets/voice-panel.png', import.meta.url));
 
@@ -87,50 +88,15 @@ export function buildStatusPanel(guildId, setup, activeCount = 0) {
   // and every one sits in the neutral grey style, so the panel reads as a single
   // calm surface and the meaning lives in the icon rather than in the colour.
   // `ico` falls back to a Unicode glyph if the artwork could not be uploaded, so
-  // a button never loses its mark. One helper keeps the rows from drifting apart.
-  const button = (customId) =>
-    new ButtonBuilder().setCustomId(customId).setEmoji(ico(customId)).setStyle(ButtonStyle.Secondary);
-
-  // Row 1 — access & visibility.
-  const row1 = new ActionRowBuilder().addComponents(
-    button('vc_lock'),
-    button('vc_unlock'),
-    button('vc_hide'),
-    button('vc_show'),
-    button('vc_info'),
+  // a button never loses its mark. The layout comes from PANEL_GROUPS — the same
+  // description the room guide is written from — so the panel and the guide can
+  // never drift apart.
+  const rows = PANEL_GROUPS.map((group) =>
+    new ActionRowBuilder().addComponents(
+      group.buttons.map((b) =>
+        new ButtonBuilder().setCustomId(b.id).setEmoji(ico(b.id)).setStyle(ButtonStyle.Secondary)),
+    ),
   );
-  // Row 2 — room settings.
-  const row2 = new ActionRowBuilder().addComponents(
-    button('vc_rename'),
-    button('vc_limit'),
-    button('vc_bitrate'),
-    button('vc_region'),
-    button('vc_clone'),
-  );
-  // Row 3 — ownership & invitations.
-  const row3 = new ActionRowBuilder().addComponents(
-    button('vc_claim'),
-    button('vc_transfer'),
-    button('vc_invite'),
-    button('vc_permit'),
-    button('vc_reject'),
-  );
-  // Row 4 — people & room audio.
-  const row4 = new ActionRowBuilder().addComponents(
-    button('vc_kick'),
-    button('vc_members'),
-    button('vc_muteall'),
-    button('vc_unmuteall'),
-    button('vc_deafenall'),
-  );
-  // Row 5 — remaining audio, reset, and the danger zone.
-  const row5 = new ActionRowBuilder().addComponents(
-    button('vc_undeafenall'),
-    button('vc_reset'),
-    button('vc_delete'),
-  );
-
-  const rows = [row1, row2, row3, row4, row5];
 
   // Per-server panel artwork set from the dashboard, with the bundled default
   // as the fallback. In embed mode the admin-built embed replaces the artwork;
@@ -150,6 +116,38 @@ export function buildStatusPanel(guildId, setup, activeCount = 0) {
     attachments: [],
     components: rows,
   };
+}
+
+/**
+ * The welcome card posted into a brand-new room's own text chat.
+ *
+ * Someone dropped into a fresh voice channel has no reason to know the control
+ * panel exists, let alone what twenty-three grey icons do. So the bot greets
+ * them inside that room, spells every button out in the same groups the panel
+ * uses, and points at the text channel that holds the panel itself.
+ *
+ * The connection was never stated to the user before; this is that statement.
+ */
+export function buildRoomGuide(ownerId, settingsChannelId) {
+  const fields = PANEL_GROUPS.map((group) => field(
+    group.title,
+    group.buttons.map((b) => `${icoText(b.id)} **${b.label}** — ${b.desc}`).join('\n'),
+    false,
+  ));
+
+  const where = settingsChannelId ? `<#${settingsChannelId}>` : 'قناة الإعدادات';
+  const embed = notice({
+    title: '🎛️ رومك الصوتي جاهز',
+    color: C.accent,
+    description:
+      'هذا رومك الخاص — أنت من يتحكم به بالكامل.\n' +
+      `📍 **مكان الأزرار:** ${where}\n` +
+      'وهذه وظيفة كل زر:',
+    fields,
+    footer: 'Kratos System • غرفة صوتية مؤقتة',
+  });
+
+  return { content: `🎉 <@${ownerId}>`, embeds: [embed] };
 }
 
 export async function refreshPanel(client, guildId) {
