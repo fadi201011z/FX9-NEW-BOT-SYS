@@ -5,13 +5,11 @@ import {
 import {
   getGuildConfig, saveGuildConfig, getTicketByUser,
   saveTicket, getTicket, getAdminStats, saveAdminStats,
-  getTicketByAdminChannel,
+  getTicketByAdminChannel, reloadGuildConfig,
 } from '../data/ticketDB.js';
 import { C, EPHEMERAL, fail, field, logEntry, notice, ok, panelPayload, ticketButtons, ticketEmbed } from '../utils/embeds.js';
 import { sendOrUpdateTicketLog } from '../utils/ticketLogUtils.js';
-import {
-  CATEGORY_SLUG, CATEGORY_LABEL, CATEGORY_MODAL_FIELDS, CATEGORY_EMOJI,
-} from '../data/ticketTypes.js';
+import { findSection, sectionFields } from '../data/ticketTypes.js';
 
 const STYLE_MAP = { short: TextInputStyle.Short, paragraph: TextInputStyle.Paragraph };
 
@@ -34,22 +32,39 @@ async function replyOnce(interaction, payload) {
 }
 
 export async function handleCategorySelect(interaction) {
-  const category = interaction.values[0];
-  const fields = CATEGORY_MODAL_FIELDS[category] ?? CATEGORY_MODAL_FIELDS.other;
-  const modal = new ModalBuilder()
-    .setCustomId(`ticket_modal_${category}`)
-    .setTitle(`${CATEGORY_EMOJI[category] ?? '📝'} ${CATEGORY_LABEL[category] ?? 'Ticket details'}`);
+  // The menu's value is a section id — one the admin defined, or a built-in.
+  // Anything else (an old message clicked after the section was deleted) is
+  // refused rather than opened as a stray modal.
+  const config = getGuildConfig(interaction.guildId);
+  const section = findSection(config, interaction.values[0]);
+  if (!section) {
+    await interaction.reply(fail('Unknown ticket category.'));
+    return;
+  }
 
-  for (const f of fields) {
+  const modal = new ModalBuilder()
+    .setCustomId(`ticket_modal_${section.id}`)
+    // Discord caps a modal title at 45 characters; a long section name is
+    // trimmed here rather than rejected at send time.
+    .setTitle(`${section.emoji || '📝'} ${section.label || section.id}`.slice(0, 45));
+
+  // Duplicate input ids make Discord reject the whole modal, so they are made
+  // unique as the components are built.
+  const seenIds = new Set();
+  for (const f of sectionFields(section)) {
+    let id = /^[a-z0-9_]{1,32}$/.test(f.id) ? f.id : 'field';
+    while (seenIds.has(id)) id = `${id.slice(0, 30)}_${seenIds.size}`;
+    seenIds.add(id);
+
     modal.addComponents(
       new ActionRowBuilder().addComponents(
         new TextInputBuilder()
-          .setCustomId(f.id)
-          .setLabel(f.label)
+          .setCustomId(id)
+          .setLabel(String(f.label || 'Details').slice(0, 45))
           .setStyle(STYLE_MAP[f.style] ?? TextInputStyle.Short)
-          .setPlaceholder(f.placeholder ?? '')
-          .setRequired(f.required)
-          .setMaxLength(f.maxLength ?? 1000),
+          .setPlaceholder(String(f.placeholder || '').slice(0, 100))
+          .setRequired(!!f.required)
+          .setMaxLength(Math.min(4000, Math.max(1, Number(f.maxLength) || 500))),
       ),
     );
   }
@@ -82,22 +97,42 @@ export async function handleTicketModalSubmit(client, interaction) {
     return;
   }
 
-  const title = interaction.fields.getTextInputValue('title');
-  const description = interaction.fields.getTextInputValue('description');
-  const evidence = interaction.fields.getTextInputValue('evidence') || undefined;
+  const section = findSection(config, category);
+  const fields = sectionFields(section);
 
-  // Category-specific fields, minus the three common ones, become a compact
-  // summary block on the ticket embed.
-  const fields = CATEGORY_MODAL_FIELDS[category] ?? CATEGORY_MODAL_FIELDS.other;
+  // Read every input generically. With a custom section there is no fixed set of
+  // ids, so a hard-coded `title`/`description` read would throw on the first
+  // button an admin named something else.
+  const values = {};
+  for (const f of fields) {
+    try { values[f.id] = interaction.fields.getTextInputValue(f.id); }
+    catch { values[f.id] = ''; }
+  }
+  const pick = (...ids) => {
+    for (const id of ids) {
+      const v = values[id];
+      if (v && v.trim()) return v.trim();
+    }
+    return '';
+  };
+
+  // The three ids the embed renders as their own lines keep their meaning when
+  // present; otherwise the first answer becomes the title.
+  const title = pick('title')
+    || (fields[0] ? String(values[fields[0].id] || '').trim() : '')
+    || (section?.label ?? 'Ticket');
+  const description = pick('description');
+  const evidence = pick('evidence') || undefined;
+
+  // Everything else becomes a compact summary block on the ticket embed.
+  const common = new Set(['title', 'description', 'evidence']);
   const extra = fields
-    .filter((f) => !['title', 'description', 'evidence'].includes(f.id))
+    .filter((f) => !common.has(f.id))
     .map((f) => ({
       id: f.id,
       // Strip the leading emoji so the embed field name reads as plain text.
-      label: f.label.replace(/^[^\s]+\s/, ''),
-      value: (() => {
-        try { return interaction.fields.getTextInputValue(f.id); } catch { return ''; }
-      })(),
+      label: String(f.label || '').replace(/^[^\s]+\s/, ''),
+      value: String(values[f.id] || '').trim(),
     }))
     .filter((e) => e.value && e.value.trim());
 
@@ -105,8 +140,23 @@ export async function handleTicketModalSubmit(client, interaction) {
   await saveGuildConfig(config);
 
   const ticketId = `KRS-${config.ticketCounter.toString().padStart(4, '0')}`;
-  const chanName = `${config.ticketCounter}-${CATEGORY_SLUG[category] ?? 'ticket'}`;
+  // The section id is already slug-shaped, but a hand-edited database row might
+  // not be — this is the last place before it becomes a channel name.
+  const slug = String(section?.id || category || 'ticket')
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9\u0600-\u06ff-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 32) || 'ticket';
+  const chanName = `${config.ticketCounter}-${slug}`;
   const guild = interaction.guild;
+
+  // A section may hand its tickets to its own team; when it names none, the
+  // guild-wide support roles apply, exactly as before.
+  const supportRoleIds = (Array.isArray(section?.supportRoleIds) && section.supportRoleIds.length)
+    ? section.supportRoleIds
+    : (config.supportRoleIds ?? []);
 
   const userOverwrites = [
     {
@@ -133,8 +183,8 @@ export async function handleTicketModalSubmit(client, interaction) {
     },
   ];
 
-  if (config.supportRoleIds) {
-    for (const roleId of config.supportRoleIds) {
+  if (supportRoleIds) {
+    for (const roleId of supportRoleIds) {
       userOverwrites.push({
         id: roleId,
         allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.ReadMessageHistory],
@@ -168,8 +218,8 @@ export async function handleTicketModalSubmit(client, interaction) {
         ],
       },
     ];
-    if (config.supportRoleIds) {
-      for (const roleId of config.supportRoleIds) {
+    if (supportRoleIds) {
+      for (const roleId of supportRoleIds) {
         adminOverwrites.push({
           id: roleId,
           allow: [
@@ -197,7 +247,13 @@ export async function handleTicketModalSubmit(client, interaction) {
     guildId,
     userId: user.id,
     username: user.username,
-    category,
+    category: section?.id ?? category,
+    // The category's display is copied here so the ticket keeps reading the same
+    // even after its section is renamed or deleted. Older tickets carry only
+    // `category` and fall back to the built-in tables.
+    categoryLabel: section ? `${section.emoji || ''} ${section.label || section.id}`.trim() : undefined,
+    categoryEmoji: section?.emoji || undefined,
+    categoryColor: section?.color || undefined,
     title,
     description,
     evidence,
@@ -210,7 +266,7 @@ export async function handleTicketModalSubmit(client, interaction) {
   };
   await saveTicket(ticket);
 
-  const supportMentions = config.supportRoleIds?.map((id) => `<@&${id}>`).join(' ') || '';
+  const supportMentions = supportRoleIds?.map((id) => `<@&${id}>`).join(' ') || '';
 
   const userMsg = await userChannel.send({
     content: `<@${user.id}>${supportMentions ? ` | ${supportMentions}` : ''}`,
@@ -537,12 +593,15 @@ function isPanelMessage(message) {
     row.components?.some((component) => component.customId === 'ticket_category'));
 }
 
-/** Refresh one guild's ticket panel (used when the dashboard image changes). */
+/** Refresh one guild's ticket panel (used when the dashboard saves the editor). */
 export async function refreshGuildPanel(client, guildId) {
   const guild = client.guilds.cache.get(guildId);
   if (!guild) return false;
 
-  const config = getGuildConfig(guildId);
+  // The dashboard writes sections straight to Mongo; re-reading here is what
+  // makes its `POST /api/panels/refresh` land the admin's change on the panel
+  // (and on every modal opened afterwards) instead of the previous menu.
+  const config = await reloadGuildConfig(guildId);
   if (!config?.panelChannelId) return false;
 
   try {

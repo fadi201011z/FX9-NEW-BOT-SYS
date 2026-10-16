@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, PermissionsBitField } from 'discord.js';
 import { getTicket, saveTicket, getGuildConfig, getAllOpenTickets } from '../../data/ticketDB.js';
 import { C, EPHEMERAL, fail, field, logEntry, notice, ok } from '../../utils/embeds.js';
-import { CATEGORY_LABEL, PRIORITY_LABEL, CATEGORY_EMOJI } from '../../data/ticketTypes.js';
+import { PRIORITY_LABEL, ticketCategoryLabel, ticketCategoryEmoji } from '../../data/ticketTypes.js';
 import { formatDuration } from '../../utils/parseDuration.js';
 
 export const data = new SlashCommandBuilder()
@@ -43,7 +43,7 @@ export async function execute(interaction) {
 
     const fields = [
       field('Member', `<@${t.userId}>`),
-      field('Category', CATEGORY_LABEL[t.category] ?? t.category ?? '—'),
+      field('Category', ticketCategoryLabel(t)),
       field('Status', STATUS_LABEL[t.status] ?? t.status ?? '—'),
       field('Priority', PRIORITY_LABEL[t.priority] ?? t.priority ?? '—'),
       field('Claimed by', t.claimedBy ? `<@${t.claimedBy}>` : 'Nobody'),
@@ -140,7 +140,7 @@ export async function execute(interaction) {
       '==================================================',
       `Ticket   : ${t.ticketId}`,
       `Member   : ${t.username ?? 'unknown'} (${t.userId})`,
-      `Category : ${CATEGORY_LABEL[t.category] ?? t.category ?? '—'}`,
+      `Category : ${ticketCategoryLabel(t)}`,
       `Summary  : ${t.title ?? '—'}`,
       `Opened   : ${stamp(t.openedAt)}`,
       '--------------------------------------------------',
@@ -178,7 +178,7 @@ export async function execute(interaction) {
 
     const rows = open
       .slice(0, 20)
-      .map((t) => `${CATEGORY_EMOJI[t.category] ?? '📋'} \`${t.ticketId}\` <#${t.channelId}> — `
+      .map((t) => `${ticketCategoryEmoji(t)} \`${t.ticketId}\` <#${t.channelId}> — `
         + (t.claimedBy ? `📩 <@${t.claimedBy}>` : '⏳ unclaimed'));
 
     return interaction.editReply({

@@ -1,7 +1,7 @@
 import { PermissionsBitField } from 'discord.js';
 import { getTicketById, getGuildConfig } from '../data/ticketDB.js';
 import { notice, field, C, EPHEMERAL } from '../utils/embeds.js';
-import { CATEGORY_LABEL } from '../data/ticketTypes.js';
+import { ticketCategoryLabel } from '../data/ticketTypes.js';
 import { formatDuration } from '../utils/parseDuration.js';
 
 const STATUS = {
@@ -36,7 +36,7 @@ export async function handleTicketLogMenu(client, interaction) {
       : '—';
 
     const fields = [
-      field('📂 Category', CATEGORY_LABEL?.[ticket.category] ?? ticket.category ?? '—'),
+      field('📂 Category', ticketCategoryLabel(ticket)),
       field('📌 Status', `${status.emoji} ${status.label}`),
       field('👤 Member', `<@${ticket.userId}>`),
       field('📩 Claimed by', ticket.claimedBy ? `<@${ticket.claimedBy}>` : 'Unclaimed'),

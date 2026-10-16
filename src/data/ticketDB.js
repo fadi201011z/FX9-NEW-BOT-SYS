@@ -35,11 +35,18 @@ function indexTicket(t) {
 
 export function getGuildConfig(guildId) {
   if (!guildConfigs.has(guildId)) {
-    guildConfigs.set(guildId, { guildId, supportRoleIds: [], ticketCounter: 0 });
+    guildConfigs.set(guildId, { guildId, supportRoleIds: [], ticketCounter: 0, sections: [] });
   }
   return guildConfigs.get(guildId);
 }
 
+/**
+ * Persists the fields the bot owns. `sections` is deliberately absent: the bot
+ * never edits it, and it is written from the dashboard between two of these
+ * calls whenever an admin saves the editor — including `sections` here would
+ * let a counter bump (a ticket opening) write a stale copy back over the
+ * admin's save. Omitting it leaves the stored array untouched.
+ */
 export async function saveGuildConfig(config) {
   guildConfigs.set(config.guildId, config);
   try {
@@ -58,6 +65,36 @@ export async function saveGuildConfig(config) {
     );
   } catch (err) {
     console.error('[TicketDB] saveGuildConfig error:', err.message);
+  }
+}
+
+/**
+ * Re-reads one guild's config from the database into the in-memory map.
+ *
+ * The dashboard writes `sections` straight to Mongo, so the bot's copy goes
+ * stale the moment an admin saves the editor. `/api/panels/refresh` (which the
+ * dashboard calls right after that save) funnels through here, so the panel and
+ * every modal opened afterwards are built from what was just saved.
+ */
+export async function reloadGuildConfig(guildId) {
+  try {
+    const row = await TicketGuildConfig.findOne({ guildId }).lean();
+    if (!row) return getGuildConfig(guildId);
+    const config = {
+      guildId: row.guildId,
+      ticketCategoryId: row.ticketCategoryId ?? '',
+      adminCategoryId: row.adminCategoryId ?? '',
+      panelChannelId: row.panelChannelId ?? '',
+      logChannelId: row.logChannelId ?? '',
+      supportRoleIds: row.supportRoleIds ?? [],
+      ticketCounter: row.ticketCounter ?? 0,
+      sections: row.sections ?? [],
+    };
+    guildConfigs.set(guildId, config);
+    return config;
+  } catch (err) {
+    console.error('[TicketDB] reloadGuildConfig error:', err.message);
+    return getGuildConfig(guildId);
   }
 }
 
@@ -133,6 +170,7 @@ export async function loadAllData() {
       logChannelId: row.logChannelId ?? '',
       supportRoleIds: row.supportRoleIds ?? [],
       ticketCounter: row.ticketCounter ?? 0,
+      sections: row.sections ?? [],
     });
   }
   console.log(`[TicketDB] Loaded ${guildRows.length} guild configs`);

@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, PermissionsBitField } from 'discord.js';
 import { getAllTickets, getTicketById, getGuildConfig } from '../../data/ticketDB.js';
 import { C, EPHEMERAL, fail, field, notice } from '../../utils/embeds.js';
-import { CATEGORY_LABEL } from '../../data/ticketTypes.js';
+import { ticketCategoryLabel } from '../../data/ticketTypes.js';
 
 export const data = new SlashCommandBuilder()
   .setName('ticket-show')
@@ -83,7 +83,7 @@ export async function execute(interaction) {
     }
 
     const fields = [
-      field('Category', CATEGORY_LABEL?.[ticket.category] ?? ticket.category ?? '—'),
+      field('Category', ticketCategoryLabel(ticket)),
       field('Status', `${statusOf(ticket).emoji} ${statusOf(ticket).label}`),
       field('Member', `<@${ticket.userId}>`),
       field('Claimed by', ticket.claimedBy ? `<@${ticket.claimedBy}>` : 'Unclaimed'),

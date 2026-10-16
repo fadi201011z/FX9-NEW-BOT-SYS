@@ -27,7 +27,8 @@ import {
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
 } from 'discord.js';
-import { CATEGORY_LABEL } from '../data/ticketTypes.js';
+import { panelSections, parseColor, ticketCategoryLabel } from '../data/ticketTypes.js';
+import { getGuildConfig } from '../data/ticketDB.js';
 import { formatDuration } from './parseDuration.js';
 import { resolveGuildImage } from './guildImage.js';
 import { getDisplayMode, buildCustomEmbed } from './customDisplay.js';
@@ -265,33 +266,43 @@ const PANEL_IMAGE = fileURLToPath(new URL('../../assets/panel.png', import.meta.
 export function panelPayload(guildId) {
   if (getDisplayMode(guildId, 'ticket') === 'embed') {
     const embed = buildCustomEmbed(guildId, 'ticket');
-    if (embed) return { embeds: [embed], attachments: [], components: [panelMenu()] };
+    if (embed) return { embeds: [embed], attachments: [], components: [panelMenu(guildId)] };
   }
   const custom = guildId && resolveGuildImage(guildId, 'ticket_panel_image');
   return {
     files: [{ attachment: custom ? (custom.buffer || custom.url) : PANEL_IMAGE, name: 'panel.png' }],
     embeds: [],
     attachments: [],
-    components: [panelMenu()],
+    components: [panelMenu(guildId)],
   };
 }
 
-export function panelMenu() {
-  return new ActionRowBuilder().addComponents(
-    new StringSelectMenuBuilder()
-      .setCustomId('ticket_category')
-      .setPlaceholder('Select a category to open a ticket…')
-      .addOptions(
-        new StringSelectMenuOptionBuilder()
-          .setLabel('Technical Support').setDescription('Bugs, errors, anything broken').setValue('technical').setEmoji('🛠️'),
-        new StringSelectMenuOptionBuilder()
-          .setLabel('Report').setDescription('Report a member or a problem').setValue('complaint').setEmoji('🚫'),
-        new StringSelectMenuOptionBuilder()
-          .setLabel('Partnership').setDescription('Sponsorships and collaborations').setValue('partnership').setEmoji('🤝'),
-        new StringSelectMenuOptionBuilder()
-          .setLabel('Other').setDescription('Anything that does not fit above').setValue('other').setEmoji('❓'),
-      )
-  );
+/**
+ * The category menu, built from the guild's own sections — the ones an admin
+ * saved in the dashboard's ticket editor, or the four built-ins when they saved
+ * none. Values are the section ids, which is what the modal handler looks a
+ * section up by and what ends up in the ticket's channel name.
+ */
+export function panelMenu(guildId) {
+  const sections = panelSections(getGuildConfig(guildId)).slice(0, 25);
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId('ticket_category')
+    .setPlaceholder('Select a category to open a ticket…');
+
+  for (const s of sections) {
+    const option = new StringSelectMenuOptionBuilder()
+      .setLabel(String(s.label || s.id).slice(0, 100))
+      .setValue(s.id);
+    if (s.description) option.setDescription(String(s.description).slice(0, 100));
+    // A malformed emoji makes setEmoji throw; the option is still valid without
+    // one, so a bad glyph should cost its icon, not the whole panel.
+    if (s.emoji) {
+      try { option.setEmoji(s.emoji); } catch { /* keep the option, drop the icon */ }
+    }
+    menu.addOptions(option);
+  }
+
+  return new ActionRowBuilder().addComponents(menu);
 }
 
 // ─── Ticket ────────────────────────────────────────────────────────────────
@@ -309,8 +320,8 @@ const CATEGORY_COLOR = {
  * buttons below it.
  */
 export function ticketEmbed(t, adminChannel = false) {
-  const color = adminChannel ? C.accent : (CATEGORY_COLOR[t.category] ?? C.info);
-  const label = CATEGORY_LABEL[t.category] ?? t.category;
+  const color = adminChannel ? C.accent : (parseColor(t.categoryColor) ?? CATEGORY_COLOR[t.category] ?? C.info);
+  const label = ticketCategoryLabel(t, t.category);
   const priority = { high: '🔴 High', medium: '🟡 Medium', low: '🟢 Low' }[t.priority] ?? t.priority;
 
   const fields = [
@@ -427,7 +438,7 @@ export function closeEmbed(ticket, closedBy) {
     color: C.error,
     fields: [
       field('Ticket', `\`${ticket.ticketId}\``),
-      field('Category', CATEGORY_LABEL[ticket.category] ?? ticket.category ?? '—'),
+      field('Category', ticketCategoryLabel(ticket)),
       field('Opened by', `<@${ticket.userId}>${ticket.username ? ` (${ticket.username})` : ''}`),
       field('Claimed by', ticket.claimedBy ? `<@${ticket.claimedBy}>` : '❌ Not claimed'),
       field('Closed by', `<@${closedBy}>`),
@@ -475,7 +486,7 @@ export function buildTicketLogEmbed(ticket) {
   if (ticket.rating) fields.push(field('Rating', rating));
 
   return notice({
-    title: `🎫 ${ticket.ticketId} — ${CATEGORY_LABEL[ticket.category] ?? ticket.category ?? 'Ticket'}`,
+    title: `🎫 ${ticket.ticketId} — ${ticketCategoryLabel(ticket, 'Ticket')}`,
     color: status.color,
     fields,
     footer: `Kratos System • ${ticket.ticketId}`,
