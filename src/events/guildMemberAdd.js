@@ -19,15 +19,58 @@ const lastRaidAlert  = new Map();
 // Fallback only — the real value comes from the dashboard (`autorole_id`).
 const FALLBACK_ROLE_ID = '1499393262476329020';
 
+/** "id,id,id" → ['id','id','id'], dropping anything that is not a snowflake. */
+function parseRoleIds(raw) {
+  return String(raw ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter((id) => /^\d{17,20}$/.test(id));
+}
+
+/**
+ * Filters a wanted list down to the roles the bot can actually hand out:
+ * existing, not @everyone, not integration-managed, and strictly below the
+ * bot's own highest role (Discord refuses anything at or above it).
+ */
+function assignableRoles(guild, ids) {
+  const ceiling = guild.members.me ? guild.members.me.roles.highest.position : 0;
+  const out = [];
+  for (const id of new Set(ids)) {
+    const role = guild.roles.cache.get(id);
+    if (!role || role.id === guild.id || role.managed) continue;
+    if (role.position >= ceiling) continue;
+    out.push(role);
+  }
+  return out;
+}
+
 export async function execute(member) {
   const { guild } = member;
   const now = Date.now();
 
-  // ─── Auto-role ───────────────────────────────────────────────────────────
-  const autoRoleId = getConfig(guild.id, 'autorole_id') || FALLBACK_ROLE_ID;
-  const role = guild.roles.cache.get(autoRoleId);
-  if (role) {
-    member.roles.add(role).catch(() => {
+  // ─── Auto-roles ──────────────────────────────────────────────────────────
+  // Two lists come from the dashboard: one for people, one for bots. Bots only
+  // ever take `autorole_bot`. People take `autorole_human`; when that key was
+  // never written they fall back to the legacy single `autorole_id` and then
+  // to the hard-coded fallback. An *empty* `autorole_human` is a decision, not
+  // a missing value: the admin cleared the list, so nobody gets a role.
+  const isBot = member.user.bot;
+  const rawHuman = getConfig(guild.id, 'autorole_human');
+  const rawBot = getConfig(guild.id, 'autorole_bot');
+
+  let wanted;
+  if (isBot) {
+    wanted = parseRoleIds(rawBot);
+  } else if (rawHuman !== null) {
+    wanted = parseRoleIds(rawHuman);
+  } else {
+    const legacy = parseRoleIds(getConfig(guild.id, 'autorole_id'));
+    wanted = legacy.length ? legacy : [FALLBACK_ROLE_ID];
+  }
+
+  const grantedRoles = assignableRoles(guild, wanted);
+  if (grantedRoles.length) {
+    await member.roles.add(grantedRoles, 'Auto-role on join').catch(() => {
       console.log('[KRS-SYS] Could not grant the auto-role — check that the bot sits above it.');
     });
   }
@@ -95,7 +138,7 @@ export async function execute(member) {
 
   // ─── Welcome card ────────────────────────────────────────────────────────
   // Rendered in the background so a slow canvas never delays the log below.
-  if (welcomeChId) {
+  if (welcomeChId && isEnabled('welcome')) {
     const welcomeCh = await getLogChannel(guild, welcomeChId);
     // Confirm the cached channel is still the one the database points at.
     if (welcomeCh && welcomeCh.id === welcomeChId) {
@@ -140,7 +183,7 @@ export async function execute(member) {
   }
 
   // ─── Join log ────────────────────────────────────────────────────────────
-  if (logChId) {
+  if (logChId && isEnabled('logging')) {
     const logCh = await getLogChannel(guild, logChId);
     if (logCh && logCh.id === logChId) {
       const fields = [
@@ -148,6 +191,7 @@ export async function execute(member) {
         field('Account age', `${accountAgeDays} day${accountAgeDays === 1 ? '' : 's'}`),
         field('Member count', `${guild.memberCount}`),
       ];
+      if (grantedRoles.length) fields.push(field('Auto-role', grantedRoles.map((r) => `<@&${r.id}>`).join(', ')));
       if (isNewAccount) fields.push(field('⚠️ Note', 'Account is less than 7 days old', false));
 
       await logCh.send({

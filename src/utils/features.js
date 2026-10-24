@@ -46,7 +46,9 @@ export const FEATURE_BY_FOLDER = Object.freeze({
 
 /** الحدث → الخصيصة التي يخدمها (للمغلّف المركزي في index.js). */
 export const FEATURE_BY_EVENT = Object.freeze({
-  guildMemberAdd:    'welcome',
+  // guildMemberAdd is deliberately NOT gated: the same handler also applies
+  // auto-roles, which are configured separately from the welcome card. The
+  // welcome and logging blocks inside it check their own features.
   messageDelete:     'logging',
   messageUpdate:     'logging',
   messageBulkDelete: 'logging',

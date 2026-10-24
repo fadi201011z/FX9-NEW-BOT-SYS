@@ -19,10 +19,16 @@ export async function execute(interaction) {
   const total   = getConfig(guildId, 'stats_total');
   const online  = getConfig(guildId, 'stats_online');
   const bots    = getConfig(guildId, 'stats_bots');
-  const autoRole = getConfig(guildId, 'autorole_id');
+  const autoRole  = getConfig(guildId, 'autorole_id');
+  const autoHuman = getConfig(guildId, 'autorole_human');
+  const autoBot   = getConfig(guildId, 'autorole_bot');
 
   // A green/red marker makes a wall of settings scannable at a glance.
   const row = (label, id, fix) => `${id ? '🟢' : '🔴'} **${label}:** ${id ? `<#${id}>` : `${UNSET} — \`${fix}\``}`;
+  const roleList = (raw) => {
+    const ids = String(raw == null ? '' : raw).split(',').map((s) => s.trim()).filter(Boolean);
+    return ids.length ? ids.map((id) => `<@&${id}>`).join(', ') : UNSET;
+  };
 
   await interaction.reply({
     embeds: [notice({
@@ -41,7 +47,10 @@ export async function execute(interaction) {
           `${online ? '🟢' : '🔴'} **Online:** ${online ? `<#${online}>` : UNSET}`,
           `${bots ? '🟢' : '🔴'} **Bots:** ${bots ? `<#${bots}>` : UNSET}`,
         ].join('\n'), false),
-        field('🛡️ Auto-role', autoRole ? `🟢 <@&${autoRole}>` : `${UNSET} — set from the dashboard`, false),
+        field('🛡️ Auto-roles — set from the dashboard', [
+          `**Members:** ${autoHuman !== null ? roleList(autoHuman) : (autoRole ? `<@&${autoRole}>` : UNSET)}`,
+          `**Bots:** ${autoBot !== null ? roleList(autoBot) : UNSET}`,
+        ].join('\n'), false),
         field('🔒 Protection — always on, no setup needed', [
           '🟢 **Anti-spam** — 5 messages in 5 seconds → 60-second mute.',
           '🟢 **Anti-link** — disallowed links are deleted.',
